@@ -1,0 +1,39 @@
+*     ----------------------------------------------------------
+*     $Workfile: chap7.sno $ $Revision: 2 $ $Date: 3/10/05 11:43a $
+*     ----------------------------------------------------------
+*     Associative programming
+*
+      &TRIM          =  1                                                 ;* Trim input, attach data file to variable infile
+      INPUT('infile', 1, 'capitals.dat')                 :F(error)
+readf line           =  infile                           :F(query)        ;* Read a line from file. Start querying upon EOF
+      line           ?  BREAK(',') . state
++                       LEN(1) REM . capital             :F(error)        ;* Break out state and capital from line
+      $state         =  capital                          :(readf)         ;* Convert state name into a variable, and assign the
+                                                                          ;* capital city string to it. Then read next line.
+error OUTPUT         =  'Illegal data file'              :(END)
+query OUTPUT         =  $INPUT                           :S(query)        ;* Read state name, access it as a variable
+END
+
+*     ----------------------------------------------------------
+*     Simple word usage program, worduse.sno
+*
+*     A word is defined to be a contiguous run of letters,
+*     digits, apostrophe and hyphen. This definition of legal
+*     letters in a word can be altered for specialized text.
+*
+*     The data file is read from standard input,
+*
+      &TRIM          =  1
+      &ANCHOR        =  1
+      word           =  "'-" '0123456789' &LCASE                          ;* Define the characters which form a 'word'
+      wpat           =  BREAK(word) SPAN(word) . item                     ;* Pattern to isolate each word and assign it to item:
+      wcount         =  TABLE()                                           ;* Create a table to maintain the word counts
+nextl line           =  REPLACE(INPUT, &UCASE, &LCASE)   :F(done)         ;* Read a line of input and obtain next word
+nextw line           ?  wpat =                           :F(nextl)
+      wcount[item]   =  wcount[item] + 1                 :(nextw)         ;* Use word as subscript, update its usage count
+done  a              =  CONVERT(wcount, 'ARRAY')         :F(empty)        ;* Convert table to array. Fail if table is empty
+      i              =  0                                                 ;* Scan array, displaying words and counts
+print i              =  i + 1
+      OUTPUT         =  a[i, 1] ' - ' a[i, 2]            :S(print)F(END)
+empty OUTPUT         =  'No words'
+END

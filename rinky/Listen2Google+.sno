@@ -1,0 +1,148 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2GooglePlus.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all topics ... ------------------------------------------------
+*---------- FOR every search alternative ... ----------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =========== === ======================================================= ====================
+            xListener   =   'Listen2GooglePlus'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'LonCherryholmes.BlogSpot.com'
+            gpUrl       =   'https://www.googleapis.com/plus/v1/activities'
+            gpResults   =   20
+            gpApiKey    =   'AIzaSyAlKb_QRZN3zEoF4SE8dGNCaZn6w6BuqPU' ;* GooglePlus
+*---------- ----------- --- ------------------------------------------------------------------------
+            gpExpr      =  *(   'query'      '=' URLEncode(qxQuery)
++                           '&' 'orderBy'    '=' 'recent'
++                           '&' 'maxResults' '=' gpResults
++                          ('&' 'pageToken'  '=' gpPageToken DIFFER(gpPageToken), NULL)
++                           '&' 'key'        '=' gpApiKey
++                           )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            qQuery      =   POS(0) $ xQT . *assign(.iQT, 0) . *assign(.xQT, TABLE()) *qAlts RPOS(0)
+            qAlts       =   *qAlt ARBNO(*qOR *qAlt)
+            qOR         =   $'  ' 'OR' $'  '
+            qAlt        =   ('"' BREAK('"') '"') . qxAlt . *assign(.iQT, iQT + 1) . *assign(.xQT[iQT], qxAlt)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(LEnd)
+            SetupCancel()                                                       :F(LEnd)
+L05         SQL_Connect(xServer, xDatabase, xUser, xPassword,, xFailOver)       :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            curl        =   curl_easy_init()                                    :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            oneMin      =   1 * 60 * 1000
+            periodSecs  =   IDENT(periodSecs) 600
+            prevTime    =   DTDecode(Datetime())
+            ReadSchema('GooglePlus')                                            :F(error)
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+*---------- FOR all topics ... ------------------------------------------------
+            ReadConfig(xListener)                                               :F(error)
+            iTopic      =   xIT[0]['Topic']
+L30         iTopic      =   LT(iTopic, xMaxEntity) iTopic + 1                   :F(L80)
+            xT          =   DIFFER(xIT[iTopic]) xIT[iTopic]                     :F(L30)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xQ          ?   *qQuery                                             :F(error)
+*---------- FOR every search alternative ... ----------------------------------
+            iAlt        =   xT['Alt']
+L40         iAlt        =   iAlt + 1
+            qxQuery     =   DIFFER(xQT[iAlt]) xQT[iAlt]                         :F(L70)
+*           Get result ...
+            gpxExpr     =   EVAL(gpExpr)
+            url         =   gpUrl '?' gpxExpr
+L43         iTry        =   0
+L44         iTry        =   LT(iTry, 10) iTry + 1                               :F(LErr)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) iTopic ',' DTEncode(prevTime) ' GET ' gpUrl '?' gpxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(L44)
+            json        =   curl_easy_getdata()
+            json        ?   POS(0) '<!DOCTYPE ' ('HTML' | 'html')               :S(L40E)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                    :F(L40X)
+*           Process result ...
+L45         Write(xListener '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :S(L40S)F(L40F)
+L40S        iIter       =   iIter + 1
+            r           =   Pop()
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'GooglePlus'
+            tK['$' 'GooglePlus'] = iIter
+            BATCH       =
+            Schema(.BATCH, r, 'GooglePlus')
+            Save(r, 'GooglePlus', 0)
+            TERMINAL    =   EQ(REMDR(iIter, 5), 0) 'INSERT ... ' iIter          :(L40)
+L40F        TERMINAL    =   'failure'                                           :(END)
+L40X        TERMINAL    =   'terminal failure'                                  :(END)
+L40E        TERMINAL    =   'HTML RESPONSE !!!'
+            TERMINAL    =   json
+            xT['Alt']   =   iAlt                                                :(L40)
+*---------- END FOR every search alternative ----------------------------------
+L70         xT['Alt']   =
+            xIT[0]['Topic'] = iTopic
+            IniWrite(xListener '.ini', xIT)                                     :(L30)
+*---------- END FOR all topics ------------------------------------------------
+L80         xIT[0]['Topic'] = 0
+            xIT[0]['City'] = iCity
+            IniWrite(xListener '.ini', xIT)                                     :(L20)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(L05)
+*---------- ----------- --- ---------------------------------------------------
+LErr        curl_easy_error_info(curl, cc)                                      :(LEnd)
+*---------- ----------- --- ---------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

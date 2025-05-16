@@ -1,0 +1,52 @@
+*-------------------------------------------------------------------------------------------------------
+* Technorati.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'RANDOM.inc'
+-INCLUDE 'HTTP.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'semantic.inc'
+*========== =========== === =================================================== ====================
+            doHTTP      =   TRUE
+            $' '        =   SPAN(' ' tab cr lf) | epsilon
+            tUrl        =   'http://technorati.com/blogs/directory/overall'
+            tTable      =   '<table>' BREAKX('<') . xTable '</table>'
+            tRow        =   '<tr>' BREAKX('<') . xRow '</tr>'
+            tA          =   '<a' $' ' 'class="' BREAK('"') '"'
++                               $' ' 'href="' BREAK('"') . href '">'
++                               BREAK('<') . url
++                           '</a>'
+*========== =========== === =================================================== ====================
+*           EXIT(3, 'Technorati.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+            HTTP_Init()
+            iPage       =   17736
+L10         iPage       =   Pause(20) iPage + 1
+            tUrlPage    =   tUrl '/page-' iPage
+L15         html        =   HTTP_Get('Technorati', tUrlPage)                    :F(LErr1)
+L20         html        *tTable =                                               :F(L10)
+            xTable      *tRow                                                   :F(LErr2)
+            xRow        *tA                                                     :F(LErr2)
+            href        (' ' | epsilon) (cr | epsilon) lf RPOS(0) =
+            url         (' ' | epsilon) (cr | epsilon) lf RPOS(0) =
+            OUTPUT      =   '"' href '","' url '"'                              :(L20)
+LErr1       TERMINAL    =   'HTTP GET Error ...'
+            curl_easy_error_info(curl, cc)
+            Pause(60)                                                           :(L15)
+LErr2       TERMINAL    =   'Match error.'                                      :(LEnd)
+LEnd        curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === =================================================== ====================
+*-INCLUDE 'debug.sno'
+END

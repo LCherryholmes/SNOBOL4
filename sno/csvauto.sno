@@ -1,0 +1,71 @@
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+start
+-INCLUDE    'utility.inc'
+-INCLUDE    'ss.inc'
+            testing           =
+            Utility()
+            csvInputHeader    =     'Branch,Component,Status,Vantives'
+            csvItem           =     '"' ARBNO('""' | NOTANY('"')) '"' | ARBNO(NOTANY(','))
+            pathExtent        =     ('.' *pathExt | epsilon) . ext RPOS(0)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            INPUT(.csvInput, 3, 'ssmerge-vantives.csv')                                :f(ioerr)
+            DATA('csv(branch,status,vantives)')
+            csvTbl            =     TABLE()
+main03      csvInfo           =     csvInput                                           :f(xerr1)
+            csvInfo           POS(0) *csvInputHeader RPOS(0)                           :f(main03)
+main05      csvInfo           =     csvInput                                           :f(main10)
+            csvInfo           POS(0) *csvItem . branch
++                             ',' *csvItem . component
++                             ',' *csvItem . status
++                             ',' *csvItem . vantives
++                             RPOS(0)                                                  :f(xerr1)
+            csvTbl[component] =     csv(TRIM(branch), TRIM(status), vantives)          :(main05)
+main10      ENDFILE(3)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            mDir              =     'd:/merge'
+            ss_workfold('maxm', '$/dev', mDir)
+            ss_workfold('maxm', '$/colorado', mDir)
+            ss_workfold('maxm', '$/grande', mDir)
+main20      csvArr            =     CONVERT(csvTbl, 'ARRAY')                           :f(error)
+            i                 =     0
+main25      i                 =     i + 1
+            component         =     csvArr[i, 1]                                       :f(main40)
+            csv               =     csvArr[i, 2]
+            branch            =     branch(csv)
+            status            =     status(csv)
+            vantives          =     vantives(csv)
+            status            POS(0) ANY('BIMV') RPOS(0)                               :s(main25)
+            rCode             =     status
+            branch            POS(0) 'D'                                               :f(main27)
+            rCode             =     'D' rCode
+main27      srcPath           =     mDir '/' component
+            tgtPath           =     mDir '/' component
+            srcPath           pathExtent = '-' rCode ext                               :f(error)
+            ext               POS(0) '.dsw'                                            :s(main25)
+            ssRoot            =     IDENT(status, 'C') '$/colorado'
+            ssRoot            =     IDENT(status, 'G') '$/grande'
+            comment           =     "Merged from '" ssRoot "'."
+            srcNm             =     ssRoot '/' component
+            tgtNm             =     '$/dev/' component
+            wfDir             =     splitname(srcPath)[1]
+            mkdir(wfDir, '-p')
+            OUTPUT            =     DUPL('=', 80) ' ' RPAD(branch, 5) RPAD(status, 3) srcPath
+            exists            =     0
+            ss_status('maxm', tgtNm)                                                   :f(main29)
+            exists            =     1
+            ss_checkout('maxm', tgtNm, '-gf -i-y')
+main29      (EQ(SIZE(rCode), 1) ss_get('maxm', srcNm,, '-gf -gtu -gwr -i-y'))
+            (GT(SIZE(rCode), 1) system('cp', '-f "' srcPath '" "' tgtPath '"'))
+            EQ(exists, 1)                                                              :f(main39)
+            ss_checkin('maxm', tgtNm, comment, '-gf -i-y')                             :(main25)
+main39      tgtProjNm         =     splitname(tgtNm)[1]
+            ss_cp('maxm', tgtProjNm)
+            ss_add('maxm', tgtPath, comment)                                           :(main25)
+
+main40                                                                                 :(END)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+ioerr       OUTPUT            =     'i/o error'                                        :(END)
+xerr1       OUTPUT            =     'unexpected error: ' csvInfo                       :(END)
+xerr2       OUTPUT            =     'unexpected error: ' txtInfo                       :(END)
+*-INCLUDE 'debug.sno'
+END

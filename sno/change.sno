@@ -1,0 +1,104 @@
+start
+-INCLUDE 'utility.inc'
+-INCLUDE 'ini.inc'
+-INCLUDE 'build.inc'
+-INCLUDE 'portable.inc'
+change00    m           =
+            h           =
+            r           =
+            ini         =     ReadIni('bom.ini')                                            :f(xerr0)
+            section     =     DIFFER(m) r '_' h '_' m
+            section     =     IDENT(m) r '_' h
+            ini[section]   =  IDENT(ini[section]) table()
+            ini[section]['NumberOfDirectories'] =  IDENT(ini[section]['NumberOfDirectories']) 1
+            from_pat          =  POS(0)
++                                ARBNO('/' BREAK('/')) . path
++                                '/' ARBNO(NOTANY('/')) . file
++                                RPOS(0)
+            argPos      =   HOST(3) - 1
+change05    argPos      =   argPos + 1                                                      ;* getting the first argument
+            arg         =   HOST(2, argPos)                                                 :f(change10)
+            arg         POS(0) '-' 'm' . opt RPOS(0)                                        :s(change10)
+            arg         POS(0) '-' 'h' . opt RPOS(0)                                        :s(change10)
+            arg         POS(0) '-' 'r' . opt RPOS(0)                                        :s(change10)
+change10    argPos      =   argPos + 1                                                      ;* getting the argument to follow the first arguement
+            arg         =   HOST(2, argPos)                                                 :f(change20)
+            arg         POS(0) '-'                                                          :s(usage)
+            arg         POS(0) RPOS(0)                                                      :s(usage)
+            arg         POS(0) ARB . $opt RPOS(0)
+            mode              =    DIFFER(m) m                                              :(change05)
+change20    cpmTbl            =    bld_copy_macros_var(build[r])
+            cpmTbl            =    $cpmTbl
+            cpmArr            =    CONVERT(cpmTbl, 'array')                                 :f(change15)
+            j                 =    0
+change25    j                 =    j + 1
+            cpmName           =    cpmArr[j, 1]                                             :f(change15)
+            cpmExpr           =    cpmArr[j, 2]
+            $cpmName          =    EVAL(cpmExpr)                                            :(change25)
+change15    IDENT(m)                                                                        :s(musage)
+            mode              POS(0) LEN(1) . mode_letter
+            IDENT(h)                                                                        :s(husage)
+            h                 POS(0) LEN(1) . host_letter
+            IDENT(r)                                                                        :s(rusage)
+            river_letter      =  bld_id(build[r])
+            Utility()
+            i                 =    0
+            OUTPUT(.out_file, 1, 'filter.txt')
+            filter_count      =    -1
+change30    var_count         =    0
+            i                 =    i + 1
+            criteria          =    cpr_criteria(cprCMArr[i, 2])                             :f(fini)
+            criteria          mode_letter                                                   :f(change30)
+            criteria          host_letter                                                   :f(change30)
+            criteria          river_letter                                                  :f(change30)
+*           out_file          =    'criteria = ' criteria
+            command           =    cpr_command(cprCMArr[i, 2])                              :f(fini)
+            LEQ(command, 'rm')                                                              :s(change30)
+            from              =    EVAL(cpr_src(cprCMArr[i, 2]))                            :f(fini)
+change35    to                =    cpr_tgt(cprCMArr[i, 2])                                  :f(fini)
+*           out_file          =    'from = ' from
+*           out_file          =    'to = ' to
+            switches          =    cpr_options(cprCMArr[i, 2])
+            switches          'R'                                                           :s(change80)
+            from              from_pat
+            file              '*'                                                           :f(change85)
+            pat               =    ''
+change40    file              POS(0) RPOS(0)                                                :s(change60)
+            file              POS(0) '*'  =                                                 :s(change45)
+            file              POS(0) '?'  =                                                 :s(change50)
+            file              POS(0) BREAK('*?') . x  =                                     :s(change55)
+            file              ( ARB . x RPOS(0) ) =                                         :s(change55)
+change45    pat               =  pat ' ARB . duh' var_count
+            var_count         =  var_count + 1                                              :(change40)
+change50    pat               =  pat ' LEN(1) . duh' var_count
+            var_count         =  var_count + 1                                              :(change40)
+change55    pat               =  pat " '" x "'"                                             :(change40)
+change60    file              =  pat
+            to_file           =  file
+change65    to_file           ( POS(0) 'ARB . ' | ' ARB .' | 'ARB .' )  =                   :s(change65)
+            EQ(filter_count, 20)                                                            :s(change90)
+change70    to                =  "'/" to "/' " to_file
+            from              =  "'" path "/'" file
+change75    filter_count      =  filter_count + 1
+            scope_include     =  'Dir0_ScopeIncludeFilter' filter_count '=' from
+            change_filter     =  'Dir0_ChangeFilter' filter_count '=' to
+            ini[section]['Dir0_ChangeFilter' filter_count]  =  to
+            ini[section]['Dir0_ScopeIncludeFilter' filter_count]  =  from
+            out_file          =  scope_include
+            out_file          =  change_filter                                              :(change30)
+change80    from              =  "'" from "/' ARB . duh0"
+            to                =  "'/" to "/' duh0"                                          :(change75)
+change85    from              from_pat
+            from              =  "'" from "'"
+            to                =  "'/" to "/" file "'"                                       :(change75)
+change90                                                                                    :(change70)
+musage      OUTPUT   =  'There is no mode(-m) parameter.'                                   :(usage)
+husage      OUTPUT   =  'There is no host(-h) parameter.'                                   :(usage)
+rusage      OUTPUT   =  'There is no river(-r) parameter.'
+usage       OUTPUT   =  'usage:  change -r <river> -h <host> -m <mode>'                     :(end)
+xerr        OUTPUT   =  'The ReadIni command failed.'                                       :(end)
+fini        ENDFILE(1)
+            ini[section]['Dir0_NumberOfFilters']   =  filter_count
+            IniWrite('bom.ini', ini)
+-INCLUDE 'debug.sno'
+end

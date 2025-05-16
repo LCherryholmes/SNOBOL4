@@ -1,0 +1,494 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Facebook.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all entities ... ----------------------------------------------
+*---------- FOR every search alternative ... ----------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*---------- FOR every chunk/entry ... -----------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'JSON.inc'
+*========== =========== === ======================================================= ====================
+            &MAXLNGTH   =   4194304
+            xListener   =   'Listen2Facebook'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'LonCherryholmes.BlogSpot.com'
+            fbUrl       =   'https://graph.facebook.com/search'
+            fbLimit     =   50
+*           fbType      =   'status'
+*---------- ----------- --- ------------------------------------------------------------------------
+            fbExpr      =  *(   'limit'   '=' fbLimit
++                          ('&' 'type'    '=' DIFFER(fbType) fbType, NULL)
++                          ('&' 'since'   '=' DIFFER(xT['Since']) URLEncode(xT['Since']), NULL)
++                          ('&' 'until'   '=' DIFFER(xT['Until']) URLEncode(xT['Until']), NULL)
++                           '&' 'q'       '=' URLEncode(fbxQuery)
++                           )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DATA('DatumType(id,from_name,from_category,from_id,to_names,message,picture,link,source,name,caption'
++                         ',description,icon,appl_name,appl_id,type,object_id,created_time,updated_time'
++                         ',likes,attribution,shares)')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            iColumns              =  26
+            fbColumns             =  ARRAY('1:' iColumns)
+            fbColumns[c = 1]      =  column("id$",              "int",           *NULL)
+            fbColumns[c = c + 1]  =  column("stamp$",           "timestamp",     *DUPL(CHAR(0), 8))
+            fbColumns[c = c + 1]  =  column("topic_id$",        "int",           *iE)
+            fbColumns[c = c + 1]  =  column("id",               "varchar(48)",   *id(fbxDatum))
+            fbColumns[c = c + 1]  =  column("from_name",        "nvarchar(max)", *from_name(fbxDatum))
+            fbColumns[c = c + 1]  =  column("from_category",    "varchar(max)",  *from_category(fbxDatum))
+            fbColumns[c = c + 1]  =  column("from_id",          "bigint",        *from_id(fbxDatum))
+            fbColumns[c = c + 1]  =  column("to_names",         "nvarchar(max)", *to_names(fbxDatum))
+            fbColumns[c = c + 1]  =  column("message",          "nvarchar(max)", *message(fbxDatum))
+            fbColumns[c = c + 1]  =  column("picture",          "varchar(max)",  *picture(fbxDatum))
+            fbColumns[c = c + 1]  =  column("link",             "varchar(max)",  *link(fbxDatum))
+            fbColumns[c = c + 1]  =  column("source",           "varchar(max)",  *source(fbxDatum))
+            fbColumns[c = c + 1]  =  column("name",             "nvarchar(max)", *name(fbxDatum))
+            fbColumns[c = c + 1]  =  column("caption",          "nvarchar(max)", *caption(fbxDatum))
+            fbColumns[c = c + 1]  =  column("description",      "nvarchar(max)", *description(fbxDatum))
+            fbColumns[c = c + 1]  =  column("icon",             "varchar(max)",  *icon(fbxDatum))
+            fbColumns[c = c + 1]  =  column("type",             "varchar(max)",  *type(fbxDatum))
+            fbColumns[c = c + 1]  =  column("object_id",        "varchar(max)",  *object_id(fbxDatum))
+            fbColumns[c = c + 1]  =  column("appl_name",        "varchar(max)",  *appl_name(fbxDatum))
+            fbColumns[c = c + 1]  =  column("appl_id",          "bigint",        *appl_id(fbxDatum))
+            fbColumns[c = c + 1]  =  column("created_time",     "datetime",      *created_time(fbxDatum))
+            fbColumns[c = c + 1]  =  column("updated_time",     "datetime",      *updated_time(fbxDatum))
+            fbColumns[c = c + 1]  =  column("likes",            "int",           *likes(fbxDatum))
+            fbColumns[c = c + 1]  =  column("attribution",      "nvarchar(max)", *attribution(fbxDatum))
+            fbColumns[c = c + 1]  =  column("shares",           "int",           *shares(fbxDatum))
+            fbColumns[c = c + 1]  =  column("message_japanese", NULL, *NULL)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'{'        =   $' ' TY(1, '{', '{')
+            $'}'        =   $' ' TY(1, '}', '}')
+            $'['        =   $' ' TY(1, '[', '[')
+            $']'        =   $' ' TY(1, ']', ']')
+            $':'        =   $' ' TY(1, ':', ':')
+            $','        =   $' ' TY(1, ',', ',')
+*---------- ----------- --- ----------------------------------------------------------------------------
+            fbInt       =   (FENCE('-' | '+' | epsilon) SPAN('0123456789')) . fbxN
+            fbYear      =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 4)
+            fbMonth     =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 2)
+            fbDay       =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 2)
+            fbHour      =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 2)
+            fbMinute    =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 2)
+            fbSecond    =   SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 2)
+            fbDate      =   fbYear '-' fbMonth '-' fbDay
+            fbTime      =   fbHour ':' fbMinute ':' fbSecond
+            fbDateExtra =   '+' SPAN('0123456789') $ fbxN . fbxN *EQ(SIZE(fbxN), 4)
+            fbDateTime  =   $' ' TY(2, 'fbDateTime',
++                                      '"'
++                                      (fbDate . fbxDate 'T' fbTime . fbxTime (fbDateExtra | epsilon))
++                                      '"' . *assign(.fbxDateTime, fbxDate ' ' fbxTime)
++                                )
+*---------- ----------- --- ----------------------------------------------------------------------------
+            fbEscChar   =   bSlash
++                           (  ANY('ntbrf' '"' bSlash fSlash "'")
++                           |  ANY('01234567') FENCE(ANY('01234567') | epsilon)
++                           |  ANY('0123') ANY('01234567') ANY('01234567')
++                           |  'u' LEN(4) $ fbxU $ *match(fbxU, POS(0) SPAN('0123456789ABCDEFabcdef') RPOS(0))
++                           )
+
+            fbString    =   '"' (ARBNO(BREAK('"' bSlash lf) | fbEscChar)) . fbxVal '"'
+            fbBool      =   ('true' | 'false') . fbxVal
+
+            fbStrVal    =   $' ' TY(2, 'fbStrVal', fbString . *assign(.fbxVal, JSONDecode(fbxVal)))
+            fbBoolVal   =   $' ' TY(2, 'fbBool', fbBool | '"' fbBool '"')
+            fbNullVal   =   $' ' TY(2, 'fbNullVal', 'null' epsilon . fbxVal)
+            fbVar       =   $' ' TY(2, 'fbVar', ('"' (SPAN(&UCASE '_' &LCASE) | fbInt) '"') . fbxVar)
+            fbIntVal    =   $' ' TY(2, 'fbIntVal',
++                                      (   fbInt . fbxVal
++                                      |   '"' fbInt . fbxVal '"'
++                                      )
++                                )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            fbTab       =   4
+            fbPretty    =   FENCE $ fbxP POS(0) . *assign(.fbxP, NULL) . *assign(.fbxL, 0)
++                           *fbAggregate
++                           $' ' RPOS(0)
+
+            fbAggregate =   $'{'                    . *assign(.fbxP, fbxP '{' nl)
++                                                   . *assign(.fbxL, fbxL + 1)
++                                                   . *assign(.fbxP, fbxP DUPL(' ', fbxL * fbTab))
++                           *fbTerm ARBNO($','      . *assign(.fbxP, fbxP nl DUPL(' ', (fbxL - 1) * fbTab) RPAD(',', fbTab)) *fbTerm)
++                           $'}'                    . *assign(.fbxP, fbxP nl)
++                                                   . *assign(.fbxL, fbxL - 1)
++                                                   . *assign(.fbxP, fbxP DUPL(' ', fbxL * fbTab) '}')
+
+            fbList      =   $'['                    . *assign(.fbxP, fbxP '[' nl)
++                                                   . *assign(.fbxL, fbxL + 1)
++                                                   . *assign(.fbxP, fbxP DUPL(' ', fbxL * fbTab))
++                         !(*fbElement ARBNO($','   . *assign(.fbxP, fbxP nl DUPL(' ', (fbxL - 1) * fbTab) RPAD(',', fbTab)) *fbElement))
++                           $']'                    . *assign(.fbxP, fbxP nl)
++                                                   . *assign(.fbxL, fbxL - 1)
++                                                   . *assign(.fbxP, fbxP DUPL(' ', fbxL * fbTab) ']')
+
+            fbTerm      =   $' ' *fbVar      . fbxA . *assign(.fbxP, fbxP fbxA)
++                           $':'                    . *assign(.fbxP, fbxP ' : ')
++                           *fbElement
+
+            fbElement   =   *fbAggregate
++                       |   *fbList
++                       |   $' ' fbDateTime  . fbxA . *assign(.fbxP, fbxP fbxA)
++                       |   $' ' fbIntVal    . fbxA . *assign(.fbxP, fbxP fbxA)
++                       |   $' ' fbBoolVal   . fbxA . *assign(.fbxP, fbxP fbxA)
++                       |   $' ' fbStrVal    . fbxA . *assign(.fbxP, fbxP fbxA)
++                       |   $' ' fbNullVal   . fbxA . *assign(.fbxP, fbxP fbxA)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+*           fbPretty    =   epsilon $ t8Max
+*+                          TZ(1, 'fbPretty', fbPretty)
+*           fbAggregate =   TZ(1, 'fbAggregate', fbAggregate)
+*           fbList      =   TZ(1, 'fbList', fbList)
+*           fbTerm      =   TZ(1, 'fbTerm', fbTerm)
+*           fbElement   =   TZ(1, 'fbElement', fbElement)
+*---------- ----------- --- ----------------------------------------------------------------------------
+            fbTags      =   'application/attribution/canvas_name/caption/category/count/created_time/'
++                           'data/description/end_time/error/error_code/error_msg/from/href/icon/id/'
++                           'is_published/length/likes/link/location/message/message_tags/name/namespace/'
++                           'next/object_id/offset/paging/picture/previous/properties/shares/source/'
++                           'start_time/status_type/story/story_tags/text/time_granularity/timezone/to/type/'
++                           'updated_time/version/'
+L01         fbTags      ?   POS(0) BREAK('/') . fbxT '/' =                          :F(L03)
+            $upr(fbxT)  =   $' ' TY(1, '"' fbxT '"', '"' fbxT '"')                  :(L01)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+L03         fbResponse  =   FENCE POS(0) $ fbxResponse *fbJson $' ' RPOS(0)
+
+            fbJson      =   $'{' DATA $':' *fbData
++                         !($',' PAGING $':' *fbPaging)
++                           $'}'
+
+            fbData      =  $'['                     . *assign(.fbxD, 0)
++                                                   . *assign(.fbxData, TABLE())
++                          !(   *fbDatum            . *assign(.fbxData[fbxD = fbxD + 1], fbxDatum)
++                               ARBNO($',' *fbDatum . *assign(.fbxData[fbxD = fbxD + 1], fbxDatum))
++                           )
++                           $']'
+
+            fbPaging    =  $'{' PREVIOUS $':' *fbStrVal
++                          $',' NEXT $':' *fbStrVal
++                          $'}'
+
+            fbDatum     =   $'{' . *assign(.fbxDatum, DatumType()) *fbDatumAttr ARBNO($',' *fbDatumAttr) $'}' FENCE
+            fbDatumAttr =  FENCE(
++                          ID              $':' *fbStrVal      . *assign(.id(fbxDatum), fbxVal)
++                       |  FROM            $':' *fbFrom
++                       |  STORY           $':' *fbStrVal
++                       |  STORY_TAGS      $':' *fbStryTags0   . *assign(.fbxToNames, NULL)
++                       |  TO              $':' *fbTo          . *assign(.to_names(fbxDatum), fbxToNames)
++                       |  MESSAGE         $':' *fbStrVal      . *assign(.message(fbxDatum), fbxVal)
++                       |  MESSAGE_TAGS    $':' *fbMsgTags0
++                       |  PICTURE         $':' *fbStrVal      . *assign(.picture(fbxDatum), fbxVal)
++                       |  LINK            $':' *fbStrVal      . *assign(.link(fbxDatum), fbxVal)
++                       |  SOURCE          $':' *fbStrVal      . *assign(.source(fbxDatum), fbxVal)
++                       |  NAME            $':' *fbStrVal      . *assign(.name(fbxDatum), fbxVal)
++                       |  CAPTION         $':' *fbStrVal      . *assign(.caption(fbxDatum), fbxVal)
++                       |  DESCRIPTION     $':' *fbStrVal      . *assign(.description(fbxDatum), fbxVal)
++                       |  PROPERTIES      $':' *fbProps
++                       |  ICON            $':' *fbStrVal      . *assign(.icon(fbxDatum), fbxVal)
++                       |  TYPE            $':' *fbStrVal      . *assign(.type(fbxDatum), fbxVal)
++                       |  OBJECT_ID       $':' *fbStrVal      . *assign(.object_id(fbxDatum), fbxVal)
++                       |  APPLICATION     $':' *fbAppl
++                       |  CREATED_TIME    $':' *fbDateTime    . *assign(.created_time(fbxDatum), fbxDateTime)
++                       |  UPDATED_TIME    $':' *fbDateTime    . *assign(.updated_time(fbxDatum), fbxDateTime)
++                       |  SHARES          $':' *fbShares
++                       |  LIKES           $':' *fbLikes
++                       |  ATTRIBUTION     $':' *fbStrVal      . *assign(.attribution(fbxDatum), fbxVal)
++                       |  IS_PUBLISHED    $':' *fbBoolVal
++                       |  STATUS_TYPE     $':' *fbStrVal
++                       )
+
+            fbFrom      =   $'{' *fbFromAttr ARBNO($',' *fbFromAttr) $'}' | *fbNullVal
+            fbFromAttr  =   NAME           $':' *fbStrVal      . *assign(.from_name(fbxDatum), fbxVal)
++                       |   CANVAS_NAME    $':' *fbStrVal
++                       |   NAMESPACE      $':' *fbStrVal
++                       |   CATEGORY       $':' *fbStrVal      . *assign(.from_category(fbxDatum), fbxVal)
++                       |   ID             $':' *fbIntVal      . *assign(.from_id(fbxDatum), fbxVal)
+
+            fbTo        =   $'{' DATA $':' $'['
++                                !((*fbPerson | *fbNullVal) ARBNO($',' (*fbPerson | *fbNullVal)))
++                           $']' $'}'
+
+            fbPerson     =  $'{' *fbPersonAttr ARBNO($',' *fbPersonAttr) $'}'
+            fbPersonAttr =  CANVAS_NAME      $':' *fbStrVal
++                        |  CATEGORY         $':' *fbStrVal
++                        |  END_TIME         $':' *fbDateTime
++                        |  ID               $':' *fbIntVal
++                        |  LOCATION         $':' *fbStrVal
++                        |  NAME             $':' *fbStrVal    . *assign(.fbxToNames, fbxToNames (DIFFER(fbxToNames) ', ', NULL) fbxVal)
++                        |  NAMESPACE        $':' *fbStrVal
++                        |  START_TIME       $':' *fbDateTime
++                        |  TIME_GRANULARITY $':' *fbStrVal
++                        |  TIMEZONE         $':' *fbStrVal
++                        |  VERSION          $':' *fbIntVal
+
+
+            fbAppl      =   $'{' *fbApplAttr ARBNO($',' *fbApplAttr) $'}' | *fbNullVal
+            fbApplAttr  =   NAME            $':' *fbStrVal      . *assign(.appl_name(fbxDatum), fbxVal)
++                       |   CANVAS_NAME     $':' *fbStrVal
++                       |   NAMESPACE       $':' *fbStrVal
++                       |   ID              $':' *fbIntVal      . *assign(.appl_id(fbxDatum), fbxVal)
+
+            fbLikes     =   $'{'
++                              !(DATA       $':' $'[' (*fbLikesData | *fbNullVal)
++                                                     ARBNO($',' (*fbLikesData | *fbNullVal))
++                                                $']' $',')
++                                COUNT      $':' *fbIntVal      . *assign(.likes(fbxDatum), fbxVal)
++                           $'}'
+
+            fbLikesData =   $'{' *fbLikesAttr ARBNO($',' *fbLikesAttr) $'}'
+            fbLikesAttr =   CATEGORY        $':' *fbStrVal
++                       |   ID              $':' *fbIntVal
++                       |   NAME            $':' *fbStrVal
++                       |   NAMESPACE       $':' *fbStrVal
+
+            fbShares    =   $'{' COUNT      $':' *fbIntVal      . *assign(.shares(fbxDatum), fbxVal)
++                           $'}'
+
+            fbProps     =   $'[' *fbProp ARBNO($',' *fbProp) $']'
+            fbProp      =   $'{' *fbPropAttr ARBNO($',' *fbPropAttr) $'}'
+            fbPropAttr  =   NAME           $':' *fbStrVal
++                       |   TEXT           $':' *fbStrVal
++                       |   HREF           $':' *fbStrVal
+
+            fbStryTags0 =   $'{' *fbStryTags1 ARBNO($',' *fbStryTags1) $'}'
+            fbStryTags1 =   *fbVar         $':' $'[' *fbStryTag ARBNO($',' *fbStryTag) $']'
+            fbStryTag   =   $'{' *fbStryTagAttr ARBNO($',' *fbStryTagAttr) $'}'
+            fbStryTagAttr
++                       =   ID             $':' *fbIntVal
++                       |   NAME           $':' *fbStrVal
++                       |   OFFSET         $':' *fbIntVal
++                       |   LENGTH         $':' *fbIntVal
++                       |   TYPE           $':' *fbStrVal
+
+            fbMsgTags0  =   $'{' *fbMsgTags1 ARBNO($',' *fbMsgTags1) $'}'
+            fbMsgTags1  =   *fbVar         $':' $'[' *fbMsgTag ARBNO($',' *fbMsgTag) $']'
+
+            fbMsgTag    =   $'{' *fbMsgTagAttr ARBNO($',' *fbMsgTagAttr) $'}'
+            fbMsgTagAttr
++                       =   ID             $':' *fbStrVal
++                       |   NAME           $':' *fbStrVal
++                       |   TYPE           $':' *fbStrVal
++                       |   OFFSET         $':' *fbIntVal
++                       |   LENGTH         $':' *fbIntVal
+
+            fbUnknwnErr =   $'{' ERROR_CODE  $':' *fbIntVal
++                           $',' ERROR_MSG   $':' *fbStrVal . *assign(.fbError, fbxVal)
++                           $'}'
+
+            fbMalformed =   $'{' ERROR $':'
++                                $'{' MESSAGE $':' *fbStrVal . *assign(.fbError, fbxVal)
++                                $',' TYPE    $':' *fbStrVal
++                                $'}'
++                           $'}'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            fbQuery     =   POS(0) $ xQT . *assign(.iQT, 0) . *assign(.xQT, TABLE()) *fbAlts RPOS(0)
+            fbAlts      =   *fbAlt ARBNO(*fbOR *fbAlts)
+            fbOR        =   $'  ' 'OR' $'  '
+            fbAlt       =   ('"' BREAK('"') '"') . fbxAlt . *assign(.iQT, iQT + 1) . *assign(.xQT[iQT], fbxAlt)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            fbResponse  =   epsilon $ t8Max
++                           TZ(1, 'fbResponse', fbResponse)
+            fbJson      =   TZ(1, 'fbJson', fbJson)
+            fbData      =   TZ(1, 'fbData', fbData)
+            fbDatum     =   TZ(1, 'fbDatum', fbDatum)
+            fbFrom      =   TZ(1, 'fbFrom', fbFrom)
+            fbTo        =   TZ(1, 'fbTo', fbTo)
+            fbPerson    =   TZ(1, 'fbPerson', fbPerson)                         ;* :(L100)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(LEnd)
+            SetupCancel()                                                       :F(LEnd)
+L05         SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+*           SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(fbColumns, xListener, 'Message')                           :F(SQLFail)
+            curl        =   curl_easy_init()                                    :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   2 * 60 * 60  ;* hours(s) in seconds
+            backSecs    =   6 * 24 * 60 * 60  ;* day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+            timeZone    =   -4 * 60 * 60  ;* North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;* Israel, GMT+2 hours in seconds
+            fbCntT      =   TABLE()
+            fbModT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+            fbTotT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- FOR all topics ... ------------------------------------------------
+            iE          =   xIT[0]['Topic']
+L20         iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(L90)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(L20)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xQ          ?   *fbQuery                                            :F(error)
+            fbCntT[iE]  =   GT(fbCntT[iE], 1) fbCntT[iE] - 1                    :S(L20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(L25)
+            xT['Since'] =
+            xT['Until'] =
+            xT['Max']   =
+            xT['Alt']   =
+L25         nowDT       =   DTDecode(Datetime())
+            thenDT      =   DTDecode(backTime)
+            xT['Until'] =   IDENT(xT['Until']) DTEncode(nowDT)
+            xT['Since'] =   IDENT(xT['Since']) DTEncode(thenDT)
+            xT['Max']   =   IDENT(xT['Max']) xT['Until']
+            fbxMinBatch =
+            fbxMaxBatch =
+            periodSecs  =   IDENT(periodSecs) (IDENT(xT['Since']) 15, 30)
+*---------- FOR every search alternative ... ----------------------------------
+            iAlt        =   xT['Alt']
+L30         iAlt        =   iAlt + 1
+            xT['Alt']   =   iAlt
+            fbxQuery    =   DIFFER(xQT[iAlt]) xQT[iAlt]                         :F(L80)
+*---------- FOR every page ... ------------------------------------------------
+            fbxHasMore  =   TRUE
+            iPage       =   0
+L40         iPage       =   EQ(fbxHasMore, TRUE) iPage + 1                      :F(L70)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+*           Get result ...
+            fbxExpr     =   EVAL(fbExpr)
+            url         =   fbUrl '?' fbxExpr
+L43         iTry        =   0
+L44         iTry        =   LT(iTry, 10) iTry + 1                               :F(LErr)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) iE ',' DTEncode(prevTime) ' GET ' fbUrl '?' fbxExpr
+*           json        =   Read(xListener '.json')                             :S(Yipper)F(error)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(L44)
+            json        =   curl_easy_getdata()
+            LineMap(json, .t8Map)
+            json        ?   *fbPretty = fbxP
+*           Process result ...
+L45         Write(xListener '.json', json)
+*           Write(xListener '-' (iWritten = iWritten + 1) '.json', json)
+Yipper      LineMap(json, .t8Map)
+            json        ?   *fbResponse                                         :S(L50)
+            json        ?   POS(0) FENCE *fbUnknwnErr $' ' RPOS(0)              :S(L47)
+            json        ?   POS(0) FENCE *fbMalformed $' ' RPOS(0)              :S(L48)
+            iFail       =   iFail + 1
+            Write(xListener '-' iFail '.json', json)
+            fbError     =   'Response pattern failure.'
+            OUTPUT      =   'fbxExpr=' fbxExpr                                  :(LEnd)
+L47         OUTPUT      =   fbError
+            Wait(oneMin)                                                        :(L43)
+L48         OUTPUT      =   fbError
+            Wait(oneMin)                                                        :(L70)
+*---------- FOR every chunk/entry ... -----------------------------------------
+L50         PumpOpen(.fbOutput, xListener)
+            fbxMinDate  =
+            fbxMaxDate  =
+            iCount      =   0
+            fbiD        =   0
+L53         fbiD        =   LT(fbiD, fbxD) fbiD + 1                             :F(L60)
+            fbxDatum    =   fbxData[fbiD]                                       :F(error)
+            fbxDate     =   created_time(fbxDatum)
+            fbxMinDate  =   MinDate(fbxDate, fbxMinDate)
+            fbxMaxDate  =   MaxDate(fbxDate, fbxMaxDate)
+            (DIFFER(xT['Since']) LGT(fbxDate, xT['Since']), IDENT(xT['Since'])) :F(L53)
+            (DIFFER(xT['Until']) LLE(fbxDate, xT['Until']), IDENT(xT['Until'])) :F(L53)
+            iCount      =   iCount + 1
+            PumpRow(.fbOutput, fbColumns)                                       :S(L53)F(SQLFail)
+*---------- END FOR every chunk/entry -----------------------------------------
+L60         PumpClose(.fbOutput, xListener, iCount)                             :F(SQLFail)
+            OUTPUT      =   GE(xVerbose, 4) iE ',' iAlt ','
++                           fbxMinDate ',' fbxMaxDate ',' iPage ',' iCount
+            fbTotT[iE]  =   fbTotT[iE] + iCount
+            fbxMinBatch =   MinDate(fbxMinDate, fbxMinBatch)
+            fbxMaxBatch =   MaxDate(fbxMaxDate, fbxMaxBatch)
+            xT['Until'] =   DIFFER(fbxMinDate) fbxMinDate
+            fbxHasMore  =   LT(fbxD, fbLimit) FALSE                             :S(L40)
+            fbxHasMore  =   LLT(fbxMinDate, xT['Since']) FALSE                  :(L40)
+*---------- END FOR every page ------------------------------------------------
+L70         OUTPUT      =   GE(xVerbose, 3) iE ',' iAlt ','
++                           fbxMinBatch ',' fbxMaxBatch ','
++                           fbTotT[iE] ',' fbxQuery
+            xT['Until'] =   xT['Max']                                           :(L30)
+*---------- END every search alternative ... ----------------------------------
+L80         OUTPUT      =   GE(xVerbose, 2) iE ',' fbTotT[iE] ',"' xE '"'
+            fbModT[iE]  =   EQ(fbTotT[iE]) LT(fbModT[iE], 5) fbModT[iE] + 1
+            fbModT[iE]  =   GT(fbTotT[iE]) GT(fbModT[iE], 1) fbModT[iE] - 1
+            fbCntT[iE]  =   fbModT[iE]
+            xT['Since'] =   xT['Max']
+            xT['Until'] =
+            xT['Max']   =
+            xT['Alt']   =
+            xIT[0]['Topic'] = iE
+            IniWrite(xListener '.ini', xIT)                                     :(L20)
+*---------- END FOR every entity ----------------------------------------------
+L90         xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            fbReport    =
+            iTotal      =   0
+            iE          =   0
+L93         iE          =   LT(iE, xMaxEntity) iE + 1                           :F(L95)
+            DIFFER(xT = xIT[iE])                                                :F(L93)
+            iTotal      =   iTotal + fbTotT[iE]
+            fbReport    =   fbReport ',' LPAD(fbTotT[iE], 3)                    :(L93)
+L95         OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           ',' LPAD(iPoll, 4) ',' LPAD(iTotal, 4) fbReport     :(L10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(L05)
+*---------- ----------- --- ---------------------------------------------------
+LErr        curl_easy_error_info(curl, cc)                                      :(LEnd)
+*---------- Testing ... -------------------------------------------------------
+L100        iIter       =   0
+L103        iIter       =   iIter + 1
+            json        =   Read(xListener '-' iIter '.json')                   :F(END)
+            LineMap(json, .t8Map)
+            json        ?   POS(0) FENCE *fbJson $' ' RPOS(0)                   :S(L103S)F(L103F)
+L103S       TERMINAL    =   iIter ' success'                                    :(L103)
+L103F       TERMINAL    =   iIter ' failure'                                    :(END)
+*---------- ----------- --- ---------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+-INCLUDE 'debug.sno'
+END

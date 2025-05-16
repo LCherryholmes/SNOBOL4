@@ -1,0 +1,82 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'dsw.inc'
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            ident             =     ANY(&UCASE &LCASE '_') (SPAN(&UCASE &LCASE '_' digits) | '')
+            project           =     POS(0) 'Project: "' ident '"=' BREAK(' ') . dsp_infn
+            package_4         =     POS(0) 'Package=<4>'
+            package_5         =     POS(0) 'Package=<5>'
+            open_curly        =     POS(0) '{{{'
+            close_curly       =     POS(0) '}}}'
+            add_link32        =     POS(0) '# ADD LINK32 ' REM . libs
+            input_parm        =     icase('input')  '=' BREAKX('.') . dsw_infn  '.' icase('dsw')
+            output_parm       =     icase('output') '=' BREAKX('.') . dsw_outfn '.' icase('dsw')
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('FindDeps(wsTbl,needle,haystack)dep,deps')                                :(FindDepsEnd)
+FindDeps    deps              =     project_dependents(wsTbl[lwr(haystack)])
+            deps              (POS(0) | ',') needle (',' | RPOS(0))                          :s(RETURN)
+FindDeps1   deps              POS(0) *ident . dep (',' | RPOS(0)) =                          :f(FRETURN)
+            FindDeps(wsTbl, needle, dep)                                                     :s(RETURN)f(FindDeps1)
+FindDepsEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Prune(wsTbl)alldeps,wsArr,dep,deps,d,i,p,r,try,trys')                    :(PruneEnd)
+Prune       wsArr             =     SORT(wsTbl, 2)                                           :f(FRETURN)
+Prune1      i                 =     i + 1
+            p                 =     wsArr[i, 2]                                              :f(RETURN)
+            alldeps           =     project_dependents(p)
+            deps              =     alldeps
+Prune2      deps              POS(0) *ident . dep (',' | RPOS(0)) =                          :f(Prune4)
+            trys              =     alldeps
+            trys              (POS(0) | ',') dep (',' | RPOS(0)) . d = d
+Prune3      trys              POS(0) *ident . try (',' | RPOS(0)) =                          :f(Prune2)
+            FindDeps(wsTbl, dep, try)                                                        :f(Prune3)
+            alldeps           (POS(0) | ',') dep (',' | RPOS(0)) . d = d                     :(Prune2)
+Prune4      project_dependents(p) = alldeps                                                  :(Prune1)
+PruneEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('WSDumpDeps(wsTbl,needle)dep,deps,pnm')                                   :(WSDumpDepsEnd)
+WSDumpDeps  pnm               =     project_name(wsTbl[lwr(needle)])
+            deps              =     project_dependents(wsTbl[lwr(needle)])
+            OUTPUT            =     DUPL(' ', findDepth * 3) pnm
+            findDone          =     IDENT(findDone) TABLE()
+            IDENT(findDone[pnm])                                                             :f(RETURN)
+WSDumpDeps1 deps              POS(0) *ident . dep (',' | RPOS(0)) =                          :f(WSDumpDeps2)
+            findDepth         =     findDepth + 1
+            WSDumpDeps(wsTbl, dep)
+            findDepth         =     findDepth - 1                                            :(WSDumpDeps1)
+WSDumpDeps2 findDone[pnm]     =     TRUE                                                     :(RETURN)
+WSDumpDepsEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('WSDump(wsTbl)wsArr,dep,i,p')                                             :(WSDumpEnd)
+WSDump      wsArr             =     DIFFER(wsTbl) SORT(wsTbl, 2)                             :f(FRETURN)
+            findDone          =
+WSDump1     i                 =     i + 1
+            p                 =     wsArr[i, 2]                                              :f(RETURN)
+            WSDumpDeps(wsTbl, project_name(p))                                               :(WSDump1)
+WSDumpEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            d                 =     TRUE
+            v                 =     FALSE
+            EXIT(3, 'dsw.exe')
+            Utility()
+            argPos            =     HOST(3) - 1
+arg1        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :f(arg2)
+            arg               POS(0) '-' 'd' . *assign(.d, *FALSE) RPOS(0)                   :s(arg1)
+            arg               POS(0) '-' 'v' . *assign(.v, *TRUE)  RPOS(0)                   :s(arg1)
+            arg               POS(0) input_parm  RPOS(0)                                     :s(arg1)
+            arg               POS(0) output_parm RPOS(0)                                     :s(arg1)f(usage)
+arg2        dsw_outfn         =     IDENT(dsw_outfn) dsw_infn '-dep'
+            dsw_infn          =     dsw_infn '.dsw'
+            dsw_outfn         =     dsw_outfn '.dsw'
+            wsTbl             =     DswRead(dsw_infn)                                        :f(END)
+            (EQ(d, TRUE) Dependents(wsTbl, '.'))
+            (EQ(d, TRUE) EQ(v, TRUE) WSDump(wsTbl))
+            (EQ(d, TRUE) Prune(wsTbl))
+            (EQ(v, TRUE) WSDump(wsTbl))
+            DswWrite(dsw_outfn, wsTbl)                                                       :(END)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+ioerr       OUTPUT            =     "i/o error: " dsp_infn                                   :(END)
+*-INCLUDE   'debug.sno'
+END

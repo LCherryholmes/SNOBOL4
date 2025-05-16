@@ -1,0 +1,59 @@
+*-------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'system.inc'
+-INCLUDE 'utility.inc'
+-INCLUDE 'random.inc'
+-INCLUDE 'datetime.inc'
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            cString         =   'L"' ARBNO(bSlash '"' | NOTANY('"')) '"'
+            addMsg          =   'gMsgs.addMsg('
++                               BREAK(',') . cat ', '
++                               *cString . fmt
++                               (', ' BREAKX(')') | epsilon) . args ');'
+            tDict           =   TABLE()
+            aFiles          =   ARRAY('1:2')
+            aFiles[1]       =   'OR.cpp'
+            aFiles[2]       =   'ORNative.cpp'
+main00      iFiles          =   iFiles + 1
+            cppFileName     =   aFiles[iFiles]                                      :F(fini)
+            newFileName     =   cppFileName '-new'
+            INPUT(.cppInput, 3, cppFileName)                                        :F(err1)
+            OUTPUT(.newOutput, 4, newFileName)                                      :F(err2)
+main10      cppLine         =   cppInput                                            :F(main99)
+            cppLine         POS(0) ARB . pfx *addMsg RTAB(0) . sfx                  :S(main30)
+main20      newOutput       =   cppLine                                             :(main10)
+main30      fmt             POS(0) 'L"' = '"'
+            fmt             POS(0) '"%' ANY('Ss') '"'                               :S(main20)
+            fmt             POS(0) '""'                                             :S(main20)
+            id              =   fmt
+            id              POS(0) '"' RTAB(1) . id '"'
+            id              POS(0) ARB . id bSlash 'n'
+            id              =   REPLACE(id, " ()[]:,'#-.;" bSlash '"', '______________')
+main40      id              '%4_4S' = 'SS'                                          :S(main40)
+main41      id              '%04_4X' = 'XX'                                         :S(main41)
+main42      id              '%08_8X' = 'XX'                                         :S(main42)
+main43      id              '%I64d' = 'dd'                                          :S(main43)
+main44      id              '%s' = 'ss'                                             :S(main44)
+main45      id              '%S' = 'SS'                                             :S(main45)
+main46      id              '%d' = 'dd'                                             :S(main46)
+main47      id              '__' = '_'                                              :S(main47)
+            id              '_' RPOS(0) =
+            id              =   'IDS_' id
+            newOutput       =   pfx 'gMsgs.addMsg(' cat ', ' id args ');' sfx
+            tDict[id]       =   fmt                                                 :(main10)
+main99      ENDFILE(4)
+            ENDFILE(3)                                                              :(main00)
+err1        OUTPUT          =   'Unable to open file ' cppFileName                  :(END)
+err2        OUTPUT          =   'Unable to open file ' newFileName                  :(END)
+fini        aDict           =   SORT(tDict)
+fini10      i               =   i + 1
+            OUTPUT          =   '    ' aDict[i, 1] ' ' aDict[i, 2]                  :S(fini10)
+            i               =   0
+fini20      i               =   i + 1
+            OUTPUT          =   '#define ' aDict[i, 1] ' ' (i + 3000)               :S(fini20)F(END)
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+*-INCLUDE 'debug.sno'
+END

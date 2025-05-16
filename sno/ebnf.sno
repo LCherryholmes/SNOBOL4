@@ -1,0 +1,113 @@
+*---------------------------------------------------------------------------------------------------
+* Program: Extended BNF Processing
+* Author:  Lon Cherryholmes
+*---------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'io.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'ShiftReduce.inc'
+-INCLUDE 'detect.inc'
+-INCLUDE 'instrument.inc'
+-INCLUDE 'normalize.inc'
+-INCLUDE 'Populate.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'TGen.inc'
+-INCLUDE 'pp.inc'
+-INCLUDE 'ebnf.inc'
+-INCLUDE 'trace.inc'
+*---------------------------------------------------------------------------------------------------
+               doDebug        =  1
+               doDetect       =  FALSE
+               doExtendedOps  =  FALSE
+               doInstrument   =  FALSE
+               doNormalize    =  FALSE
+               doPurify       =  FALSE
+               doXdump        =  FALSE
+               doTestGen      =  FALSE
+
+*              ebnf           =  TZ(1, 'ebnf',        ebnf)
+*              productions    =  TZ(1, 'productions', productions)
+*              production     =  TZ(1, 'production',  production)
+*              alternates     =  TZ(1, 'alternates',  alternates)
+*              subsequents    =  TZ(1, 'subsequents', subsequents)
+*              repetition     =  TZ(1, 'repetition',  repetition)
+*              optional       =  TZ(1, 'optional',    optional)
+*              name           =  TZ(1, 'name',        name)
+*              element        =  TZ(1, 'element',     element)
+*              expression     =  TZ(1, 'expression',  expression)
+*              expression1    =  TZ(1, 'expression1', expression1)
+*              expression2    =  TZ(1, 'expression2', expression2)
+*              expression3    =  TZ(1, 'expression3', expression3)
+*              expression4    =  TZ(1, 'expression4', expression4)
+
+               EXIT(3, 'ebnf.exe')
+               argPos         =  HOST(3) - 1
+a1             argPos         =  argPos + 1
+               arg            =  HOST(2, argPos)                                    :F(a3)
+               arg            POS(0) '-d' . *assign(.doDetect, TRUE)                :S(a1)
+               arg            POS(0) '-e' . *assign(.doExtendedOps, TRUE)           :S(a1)
+               arg            POS(0) '-i' . *assign(.doInstrument, TRUE)            :S(a1)
+               arg            POS(0) '-n' . *assign(.doNormalize, TRUE)             :S(a1)
+               arg            POS(0) '-p' . *assign(.doPurify, TRUE)                :S(a1)
+               arg            POS(0) '-t' . *assign(.doTestGen, TRUE)               :S(a1)
+               arg            POS(0) '-x' . *assign(.doXdump, TRUE)                 :S(a1)
+               arg            POS(0) '-' ANY(&LCASE &UCASE) . doSwitch              :S(a2)
+               ebnfFile       =  arg                                                :(a1)
+a2             OUTPUT         =  "Unrecognized switch -" doSwitch                   :(a1)
+a3             OUTPUT         =  IDENT(ebnfFile) "Must supply EBNF File!"           :S(END)
+
+main00         ebnfStr        =  Read(ebnfFile, .t8Map)                             :F(error)
+               ebnfStr        POS(0) *ebnf $' ' RPOS(0)                             :F(errorSyntax)
+               bnf            =  Pop()                                              :F(error)
+               DIFFER(bnf)                                                          :F(error)
+               (EQ(doXdump,      TRUE) XDump(bnf, 'bnf'))
+               (EQ(doDetect,     TRUE) Visit(bnf, .Xdef))
+               (EQ(doDetect,     TRUE) Visit(bnf, .Xref))
+               (EQ(doInstrument, TRUE) Visit(bnf, .Xinstr))
+               (EQ(doDetect,     TRUE) Xreport())
+               (EQ(doNormalize,  TRUE) PNorm())
+               (EQ(doPurify,     TRUE) PPure())
+*              (EQ(doTestGen,    TRUE) TGen(bnf, "expr"))                           :S(END)
+*              (EQ(doTestGen,    TRUE) TGen(bnf, "sql_statement"))                  :S(END)
+               (EQ(doTestGen,    TRUE) TGen(bnf, "SELECT_statement"))               :S(END)
+               ebnfFile       POS(0) BREAKX(bSlash) . dirnm bSlash
++                             ARBNO(NOTANY(bSlash)) . basenm RPOS(0)
+               basenm         '.ebnf' RPOS(0) =
+               lispnm         =  'ebnf-' basenm '.lisp'
+               OUTPUT(.OUTPUT, 3, TERMINAL = lispnm)                                :F(error)
+               SetLevel(0)
+               TDump(bnf)
+               ENDFILE(3)
+               incnm          =  'ebnf-' basenm '.ebnf'
+               OUTPUT(.OUTPUT, 3, incnm)                                            :F(xerr)
+               ppSetStyle('ebnf')
+               pp(bnf)
+               ENDFILE(3)
+               yynm           =  'ebnf-' basenm '.yy'
+               OUTPUT(.OUTPUT, 3, yynm)                                             :F(xerr)
+               ppSetStyle('yy')
+               pp(bnf)
+               ENDFILE(3)
+               snonm          =  'ebnf-' basenm '.inc'
+               OUTPUT(.OUTPUT, 3, snonm)                                            :F(xerr)
+               ppSetStyle('sno')
+               ppOps          =  doExtendedOps
+               pp(bnf)
+               ENDFILE(3)                                                           :(END)
+errorSyntax    OUTPUT         =  'Syntax Error: ' txOfs                             :(END)
+*---------------------------------------------------------------------------------------------------
+*-INCLUDE 'debug.sno'
+END

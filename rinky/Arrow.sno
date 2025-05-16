@@ -1,0 +1,27 @@
+START
+    n_nodes = 32
+    type    = 'SAYS'
+    li_node = *(  '<li class="node" data-node-id="' node_id '" data-x="' x '" data-y="' y '">'
++                 '<span class="caption">' (EQ(REMDR(node_id, 2), 0) 'I', 'P') '</span>'
++                 '</li>'
++             )
+    li_rel  = *(  '<li class="relationship" data-from="' node_id '" data-to="' (node_id + 1) '">'
++                 '<span class="type">' type '</span>'
++                 '</li>'
++             )
+    x       = 0
+    y       = -2400 ;* -1200
+    x_delta = 400
+    y_delta = -200 ;* 0
+    OUTPUT  = '<ul class="graph-diagram-markup" data-internal-scale="0.15" data-external-scale="1">'
+    node_id = -1
+L10 node_id = LT(node_id, n_nodes - 1) node_id + 1  :F(L19)
+    OUTPUT  = '  ' EVAL(li_node)
+    x       = x + x_delta
+    y       = y + y_delta                           :(L10)
+L19 node_id = -1
+L20 node_id = LT(node_id, n_nodes - 2) node_id + 1  :F(L29)
+    OUTPUT  = '  ' EVAL(li_rel)                     :(L20)
+L29 OUTPUT  = '</ul>'                               :(END)
+*-INCLUDE 'debug.sno'
+END

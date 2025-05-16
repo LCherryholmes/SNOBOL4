@@ -1,0 +1,85 @@
+*-------------------------------------------------------------------------------
+* rcdiff.sno
+*-------------------------------------------------------------------------------
+START   &ALPHABET   POS(9) LEN(1) . ht
+        $'  '       =   SPAN(' ' ht)
+        $' '        =   $'  ' | epsilon
+        rcDigits    =   '0123456789'
+        rcId        =   (  ANY(&UCASE '_' &LCASE)
++                              FENCE(SPAN(rcDigits &UCASE '_' &LCASE) | epsilon)
++                           ) . id
+        rcLiteral   =   ('L"' | '"') ARBNO(BREAK('"') FENCE('""' | epsilon)) '"'
+        rcLiterals  =   (rcLiteral FENCE($'  ' *rcLiterals | epsilon)) . literal
+        rcLang      =   'ENGLISH' | 'JAPANESE'
+        LANGUAGE    =   POS(0) $' ' 'LANGUAGE LANG_' rcLang . lang ','
+        STRINGTABLE =   POS(0) $' ' 'STRINGTABLE' $' ' RPOS(0)
+        BEGIN       =   POS(0) $' ' 'BEGIN' $' ' RPOS(0)
+        END         =   POS(0) $' ' 'END' $' ' RPOS(0)
+*-------------------------------------------------------------------------------
+        DEFINE('Read(filePath)rcInput,rcLine,rcStrings')    :(ReadEnd)
+Read    INPUT(.rcInput, 3, filePath '[-l2048]')             :F(FRETURN)
+Read1   rcLine      =   rcInput                             :F(Read9)
+        rcLine      LANGUAGE                                :S(Read1)
+        rcLine      STRINGTABLE                             :F(Read1)
+        rcLine      =   rcInput                             :F(err4)
+        rcLine      BEGIN                                   :F(err3)
+        rcStrings   =
+Read3   rcLine      =   rcInput                             :F(err4)
+        rcLine      END                                     :S(Read5)
+        rcStrings   =   rcStrings ' ' rcLine                :(Read3)
+Read5   DIFFER(lang)                                        :F(err3)
+        IDENT(lang, targetLang)                             :F(Read1)
+        rcStrings   POS(0) $'  ' rcId $'  ' rcLiterals =    :S(Read7)
+        rcStrings   POS(0) $' ' RPOS(0)                     :S(Read1)F(What)
+Read7   Read        =   IDENT(Read) TABLE()
+        Read[id]    =   literal                             :(Read5)
+Read9   ENDFILE(3)                                          :(RETURN)
+What    OUTPUT      =   rcStrings                           :(END)
+ReadEnd
+*-------------------------------------------------------------------------------
+        DEFINE('Diff(tL,tR)aL,aR,iL,iR,idL,idR,litL,litR')  :(DiffEnd)
+Diff    aL          =   SORT(tL)                            :F(err3)
+        aR          =   SORT(tR)                            :F(err3)
+        iL          =   1
+        iR          =   1
+Diff1   idL         =
+        idR         =
+        idL         =   aL[iL, 1]
+        idR         =   aR[iR, 1]
+        (IDENT(idL) IDENT(idR))                             :S(RETURN)
+        IDENT(idL)                                          :S(DiffGT)
+        IDENT(idR)                                          :S(DiffLT)
+        LEQ(idL, idR)                                       :S(DiffEQ)
+        LLT(idL, idR)                                       :S(DiffLT)
+        LGT(idL, idR)                                       :S(DiffGT)F(err3)
+DiffEQ  litL        =   aL[iL, 2]
+        litR        =   aR[iR, 2]
+        OUTPUT      =   LNE(litL, litR) 'Update ' idL
+        iL          =   iL + 1
+        iR          =   iR + 1                              :(Diff1)
+DiffLT  OUTPUT      =   'Delete ' idL
+        iL          =   iL + 1                              :(Diff1)
+DiffGT  OUTPUT      =   'Insert ' idR
+        iR          =   iR + 1                              :(Diff1)
+DiffEnd
+*-------------------------------------------------------------------------------
+        EXIT(3, 'rcdiff.exe')
+        argPos      =   HOST(3) - 1
+        targetLang  =   HOST(2, argPos + 1)                 :F(usage)
+        filePathL   =   HOST(2, argPos + 2)                 :F(usage)
+        filePathR   =   HOST(2, argPos + 3)                 :F(usage)
+        targetLang  =   REPLACE(targetLang, &LCASE, &UCASE)
+        targetLang  POS(0) rcLang RPOS(0)                   :F(usage)
+        tLeft       =   Read(filePathL)                     :F(err1)
+        tRight      =   Read(filePathR)                     :F(err2)
+        DIFFER(tLeft)                                       :F(err5)
+        DIFFER(tRight)                                      :F(err5)
+        Diff(tLeft, tRight)                                 :(END)
+usage   OUTPUT      =   'Usage: rcdiff <English|Japanese>'
++                       ' <FilePath> <FilePath>'            :(END)
+err1    OUTPUT      =   'Unable to open file: ' filePathL   :(END)
+err2    OUTPUT      =   'Unable to open file: ' filePathR   :(END)
+err3    OUTPUT      =   'Unexpected error.'                 :(END)
+err4    OUTPUT      =   'Unexpected end-of-file.'           :(END)
+err5    OUTPUT      =   'No strings found.'                 :(END)
+END

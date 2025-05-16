@@ -1,0 +1,112 @@
+*     ----------------------------------------------------------
+*     word1.spt
+*
+      PAT      =  " the " ARB . OUTPUT (" of " | " a ")
+LOOP  LINE     =  INPUT                            :F(END)
+      LINE     ?  PAT                              :(LOOP)
+END
+*     ----------------------------------------------------------
+*     word2.spt
+*
+      PAT      =  POS(0) LEN(4) . WHEN
++                 TAB(6) ARB . WHO " :"
++                 TAB(24) REM . WHAT
+LOOP  LINE     =  INPUT                            :F(END)
+      LINE     ?  PAT                              :F(LOOP)
+      OUTPUT   =  WHO " invented the " WHAT " in " WHEN  :(LOOP)
+END
+*     ----------------------------------------------------------
+*     word3.spt
+*
+      PAT      =  POS(0) BREAK(' ') . WHEN (' ' SPAN(' '))
++                 ARB . WHO (' ' SPAN(' :'))
++                 REM . WHAT
+LOOP  LINE     =  INPUT                            :F(END)
+      LINE     ?  PAT                              :F(LOOP)
+      OUTPUT   =  WHO " invented the " WHAT " in " WHEN  :(LOOP)
+END
+*     ----------------------------------------------------------
+*     word4.spt
+*
+      PAT      =  POS(0) BREAK(' ') . WHEN (' ' SPAN(' '))
++                 BREAKX(' ') . WHO (' ' SPAN(' :'))
++                 REM . WHAT
+LOOP  LINE     =  INPUT                            :F(END)
+      LINE     ?  PAT                              :F(LOOP)
+      OUTPUT   =  WHO " invented the " WHAT " in " WHEN  :(LOOP)
+END
+*     ----------------------------------------------------------
+*     Simple word counting program, words.spt.
+*
+*     A word is defined to be a contiguous run of letters,
+*     digits, apostrophe and hyphen. This definition of
+*     legal letters in a word can be altered for specialized
+*     text.
+*
+*     Input is read from the standard input file
+*
+      &TRIM    =  1
+      NUMERALS =  '0123456789'
+      WORD     =  "'-" NUMERALS &UCASE &LCASE
+      WPAT     =  BREAK(WORD) SPAN(WORD)
+NEXTL LINE     =  INPUT                            :F(DONE)
+NEXTW LINE     ?  WPAT =                           :F(NEXTL)
+      N        =  N + 1                            :(NEXTW)
+DONE  OUTPUT   =  +N ' words'
+END
+
+*     ----------------------------------------------------------
+*     cross.spt - Print all intersections between two words
+*
+      &TRIM    =  1
+*
+*     Get words from user
+*
+AGAIN OUTPUT   =  'ENTER HORIZONTAL WORD:'
+      H        =  INPUT                            :F(END)
+      OUTPUT   =  'ENTER VERTICAL WORD:'
+      V        =  INPUT                            :F(END)
+*
+*     Make copy of horizontal word to track position.
+*
+      HC       =  H
+*
+*     Find next intersection in horizontal word. Save
+*     the number of preceding horizontal characters in NH.
+*     Save the intersecting character in CROSS.
+*     Replace with '*' to remove from further consideration.
+*     Go to AGAIN to get new words if horizontal exhausted.
+*
+NEXTH HC       ?  @NH ANY(V) . CROSS = '*'         :F(AGAIN)
+*
+*     For each horizontal hit, iterate over possible
+*     vertical ones. Make copy of vertical word to track
+*     vertical position.
+*
+      VC       =  V
+*
+*     Find where the intersection was in the vertical word.
+*     Save the number of preceding vertical characters in NV.
+*     Replace with '#' to prevent finding it again in that
+*     position. When vertical exhausted, try horizontal again.
+*
+NEXTV VC       ?  @NV CROSS = '#'                  :F(NEXTH)
+*
+*     Now display this particular intersection.
+*     We make a copy of the original vertical word,
+*     and mark the intersecting position with '#'.
+*
+      OUTPUT   =
+      PRINTV   =  V
+      PRINTV   ?  POS(NV) LEN(1) = '#'
+*
+*     Peel off the vertical characters one-by-one. Each will
+*     be displayed with NH leading blanks to get it in the
+*     correct column. When the '#' is found, display the full
+*     horizontal word instead.
+*     When done, go to NEXTV to try another vertical position.
+*
+PRINT PRINTV   ?  LEN(1) . C =                     :F(NEXTV)
+      OUTPUT   =  DIFFER(C, '#') DUPL(' ', NH) C   :S(PRINT)
+      OUTPUT   =  H                                :(PRINT)
+END

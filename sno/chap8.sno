@@ -1,0 +1,59 @@
+*   -------------------------------------------------------------------
+*   SPITBOL - Chapter 8
+*   -------------------------------------------------------------------
+*   SHIFT(S, N) - Shift string S left N character positions.
+*   As characters are removed from the left side of the string,
+*   they are placed on the end.
+*
+*   The function fails if N is larger than the size of string S.
+*
+         DEFINE('SHIFT(S,N)FRONT,REST')
+         SHIFT_PAT   =  LEN(*N) . FRONT REM . REST    :(SHIFT_END)
+SHIFT    S           ?  SHIFT_PAT                     :F(FRETURN)
+         SHIFT       =  REST FRONT                    :(RETURN)
+SHIFT_END
+*   -------------------------------------------------------------------
+*   ASC(S) - Return the ASCII code for the first character of string S.
+*
+*   The value returned is an integer between 0 and 255.
+*   The function fails if S is null.
+*
+         DEFINE('ASC(S)C')
+         ASC_ONE     =  LEN(1) . C
+         ASC_PAT     =  BREAK(*C) @ASC                :(ASC_END)
+ASC      S           ?  ASC_ONE                       :F(FRETURN)
+         &ALPHABET   ?  ASC_PAT                       :(RETURN)
+ASC_END
+*   -------------------------------------------------------------------
+*   SWAP(.V1, .V2) - Exchange the contents of two variables.
+*   The variables must be prefixed with the name operator when
+*   the function is called.
+*
+         DEFINE('SWAP(X,Y)TEMP')                      :(SWAP_END)
+SWAP     TEMP        =  $X
+         $X          =  $Y
+         $Y          =  TEMP                          :(RETURN)
+SWAP_END
+*   -------------------------------------------------------------------
+*   FACT(N) - Compute N! using recursion.
+*   N must be less than 171.0 to prevent real overflow
+*
+         DEFINE('FACT(N)')                            :(FACT_END)
+FACT     FACT        =  LE(N, 1) 1                    :S(RETURN)  ;* If argument is 1 or less, return 1 as result
+         FACT        =  N * FACT(N - 1)               :(RETURN)   ;* Otherwise, result is N * (N-1)!
+FACT_END
+*   -------------------------------------------------------------------
+*   Roman(n) - Convert integer n to Roman numeral form
+*   n must be positive and less than 4000
+*   An asterisk appears in the result if n >= 4000
+*   The function fails if n is not an integer
+*
+         DEFINE('Roman(n)units')
+         RomanXlat   =  '0,1I,2II,3III,4IV,5V,6VI,7VII,8VIII,9IX,'      :(RomanEnd)
+Roman    n           RPOS(1) LEN(1) . units =                           :F(RETURN)           ;* Get rightmost digit to units and remove it from n
+                                                                                             ;* Return null result if argument is null
+         RomanXlat   units BREAK(',') . units                           :F(FRETURN)          ;* Search for digit, replace with its Roman form.
+                                                                                             ;* Return failing if not a digit.
+         Roman       =  REPLACE(Roman(n), 'IVXLCDM', 'XLCDM**') units   :S(RETURN)F(FRETURN) ;* Convert rest of n and multiply by 10.  Propagate a
+                                                                                             ;* failure return from recursive call back to caller
+RomanEnd

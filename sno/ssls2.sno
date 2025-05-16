@@ -1,0 +1,68 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'portable.inc'
+-INCLUDE    'ss.inc'
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            sslsPrj           =     ('$/' BREAK(nl '*:')) . sslsproject ':' nl
++                             |     ('$/' BREAK(nl '*:')) . proj1 nl BREAK(nl ':') . proj2 ':'
++                                   nl . *assign(.sslsproject, *(proj1 " " proj2))
++                             |     ('$' ARBNO('/' BREAK(nl '/:'))) . sslsproject '/' BREAK(nl '/:') ':' nl
+            sslsSubPrj        =     '$' NOTANY(nl '/') BREAK(nl) nl
++                                   (epsilon | NOTANY('$' nl) BREAK(nl) nl)
+            sslsItems         =     SPAN(digits) ' item(s)' nl
+            sslsNoItems       =     'No items found under ' BREAK(nl) nl
+            sslsEmpty         =     nl
+            sslsFile          =     (NOTANY('$' nl) BREAK(nl)) . file nl
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            sslsRecognizeP    =     epsilon $ ls . *assign(.ls, *TABLE())
++                                   ARBNO(
++                                      *sslsPrj . *assign(.ls[0],     *(ls[0] + 1))
++                                               . *assign(.ls[ls[0]], *sslsproject)
++                                      ARBNO(*sslsSubPrj)
++                                      (*sslsEmpty | epsilon)
++                                   )
++                                   (*sslsItems | epsilon)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            sslsRecognizeF    =     epsilon $ ls . *assign(.ls, *TABLE())
++                                   ARBNO(
++                                      *sslsPrj
++                                      (  *sslsNoItems
++                                      |  ARBNO(*sslsSubPrj)
++                                         ARBNO(
++                                            *sslsFile  . *assign(.ls[0],     *(ls[0] + 1))
++                                                       . *assign(.ls[ls[0]], *(sslsproject '/' file))
++                                         )
++                                      )
++                                      *sslsEmpty
++                                   )
++                                   *sslsItems
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('sslsReport()i')                                                          :(sslsReportEnd)
+sslsReport  i                 =     0
+sslsReport1 i                 =     LT(i, ls[0]) i + 1                                       :f(RETURN)
+            OUTPUT            =     DIFFER(ls[i]) ls[i]                                      :s(sslsReport1)f(xerr2)
+sslsReportEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            EXIT(3, 'ssls.exe')
+            i                 =     0
+args0       i                 =     i + 1
+            arg               =     HOST(2, i)                                               :f(args1)
+            arg               db                                                             :s(args0)
+            arg               curprj                                                         :s(args0)
+            label             =     IDENT(arg, '-p') 'paths'                                 :s(args0)
+            label             =     IDENT(arg, '-f') 'files'                                 :s(args0)f(args0)
+args1       label             =     IDENT(label)     'paths'
+            ssdb              =     IDENT(ssdb)      'maxm'
+            ssCurPrj          =     IDENT(ssCurPrj) '$/'                                     :($label)
+paths       ssCmd             =     'ls -f- -r "' ssCurPrj '"'
+            sslsResponse      =     system('@-' ssbin[ssdb] '/ss.exe', ssCmd)
+            sslsResponse      POS(0) *sslsRecognizeP RPOS(0)                                 :s(report)f(xerr2)
+files       ssCmd             =     'ls -r "' ssCurPrj '"'
+            sslsResponse      =     system('@-' ssbin[ssdb] '/ss.exe', ssCmd)
+            sslsResponse      POS(0) *sslsRecognizeF RPOS(0)                                 :s(report)f(xerr2)
+report      sslsReport()                                                                     :(END)
+xerr1       OUTPUT            =   '*** unexpected error table element: ' sslsResponse        :(END)
+xerr2       OUTPUT            =   '*** unexpected error in pattern match: ' sslsResponse     :(END)
+xeof        OUTPUT            =   '*** unexpected end of file'                               :(END)
+*-INCLUDE   'debug.sno'
+END

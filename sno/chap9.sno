@@ -1,0 +1,62 @@
+* -------------------------------------------------------------------
+* SPITBOL - Chapter 9
+* -------------------------------------------------------------------
+* Push(x) - Push item x onto the stack.
+* Returns the name of the top stack element.
+*
+         DEFINE('Push(x)')
+         stk      =  TABLE()                       :(PushEnd)
+Push     stk[0]   =  stk[0] + 1                                ;* Increment the index to the first free element
+         Push     =  .stk[stk[0]]                              ;* We'll return the name of this new stack element
+         $Push    =  x                             :(NRETURN)  ;* If a value was supplied, store it there
+PushEnd
+*   -------------------------------------------------------------------
+* Pop() - Remove an item from the top of the stack
+* The stk table is declared in the Push() function.
+*
+         DEFINE('Pop()')                           :(PopEnd)
+Pop      Pop      =  stk[stk[0]]                               ;* Return the value currently on top of the stack
+         stk[0]   =  stk[0] - 1                    :(RETURN)   ;* Decrement the index
+PopEnd
+*   -------------------------------------------------------------------
+         DEFINE('Unary()arg,op')                   :(UnaryEnd)
+Unary    arg      =  Pop()
+         op       =  Pop()
+         Push()   =  EVAL(op arg)
+         Unary    =  .dummy                        :(NRETURN)
+UnaryEnd
+*   -------------------------------------------------------------------
+         DEFINE('Binary()op,left,right')           :(BinaryEnd)
+Binary   right    =  Pop()
+         op       =  Pop()
+         left     =  Pop()
+         Push()   =  EVAL(left ' ' op ' ' right)
+         Binary   =  .dummy                        :(NRETURN)
+BinaryEnd
+*   -------------------------------------------------------------------
+         integer  =  SPAN('0123456789')
+         exponent =  ANY('eEdD') (ANY('+-') | epsilon) integer
+         real     =  integer '.' (integer | epsilon) (exponent | epsilon)
++                 |  integer exponent
+
+         addop    =  ANY('+-') . *Push()
+         mulop    =  ANY('*/') . *Push()
+         constant =  (real | integer) . *Push()
+
+         primary  =  constant | '(' *expr ')'
+
+         factor   =  addop *factor . *Unary()
++                 |  *primary
+
+         term     =  *factor mulop *term . *Binary()
++                 |  *factor
+
+         expr     =  *term addop *expr . *Binary()
++                 |  *term
+*   -------------------------------------------------------------------
+         &TRIM    =  1
+loop     line     =  INPUT                         :F(END)
+         line     POS(0) expr RPOS(0)              :F(error)
+         OUTPUT   =  Pop()                         :(loop)
+error    OUTPUT   = 'Bad input, try again'         :(loop)
+END

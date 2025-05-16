@@ -1,0 +1,67 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-include '/home/build/bin/portable.inc'
+         nl          =   char(10)
+         $' '        =   span(' ')
+         integer     =   span('0123456789')
+         bdfHeader   =   pos(0) 'Filesystem           kbytes    used   avail capacity Mounted on'
++                    |   pos(0) 'Filesystem          kbytes    used   avail %used Mounted on'
+         bdfInfo     =   pos(0) break(' ')
++                        $' ' integer . bdfKbytes
++                        $' ' integer . bdfUsed
++                        $' ' integer . bdfAvail
++                        $' ' integer . bdfCapacity '%'
++                        $' ' rem
+         dirMain     =   '/nfs/ram/export/pdb/brazos'
+         dirNames    =   array('1:2')
+         dirNames[1] =   '/nfs/ram/export/pdb/bldexe'
+         dirNames[2] =   '/nfs/ram/export/bmcsta/metasrv/bldexe'
+*        &trace      =   32768
+*        trace(.cmdOption, 'value')
+*        trace(.cmdLine, 'value')
+*        trace(.actPath, 'value')
+*        trace(.lnkPath, 'value')
+*        trace(.cmdInfo, 'value')
+*        trace(.cmdInput, 'value')
+*        trace(.subDir, 'value')
+         cmdLine     =   &parm
+arg1     cmdLine     pos(0) arb . cmdOption ($' ' | rpos(0)) =
+         cmdOption   pos(0) arb '.sno' rpos(0)                :f(arg1)
+         cmdLine     pos(0) arb . subDir ($' ' | rpos(0)) =
+main0    i           =    i + 1
+         dirName     =   dirNames[i]                          :f(fini)
+         cmd         =   'bdf ' dirName
+         input(.cmdInput, 3, '!!' cmd)                        :f(cmderr)
+main1    cmdInfo     =    cmdInput                            :f(eoferr)
+         cmdInfo     bdfHeader                                :f(unxerr)
+         cmdInfo     =    cmdInput                            :f(eoferr)
+         cmdInfo     bdfInfo                                  :f(unxerr)
+         endfile(3)
+         ge(bdfAvail, 1000000)                                :f(main0)
+         ident(subDir)                                        :f(main3)
+         datetime    =   datetime()
+         year        =   substr(datetime, 1, 4)
+         date        =   substr(datetime, 1, 10)
+         time        =   substr(datetime, 12, 8)
+         lge(time, '18:30:00')                                :f(main2)
+         julian      =   date2julian(date)
+         date        =   julian2date(julian + 1, year)
+main2    subDir      =   substr(date, 1, 4)
++                        substr(date, 6, 2)
++                        substr(date, 9, 2)
+main3    actPath     =   dirName '/' subDir
+         lnkPath     =   dirMain '/' subDir
+         input(.cmdInput, 4, '!!ls -d1 "' lnkPath '" 2>&1')   :f(cmderr)
+         cmdInfo     =
+main4    cmdInfo     =   cmdInfo cmdInput nl                  :s(main4)
+         endfile(4)
+         cmdInfo     'not found' nl                           :f(already)
+         system('mkdir', '"' actPath '"')
+         system('ln', '-s "' actPath '" "' lnkPath '"')
+fini                                                          :(end)
+cmderr   output      =   'cmd error: ' cmd                    :(end)
+eoferr   output      =   'unexpected eof: ' cmd               :(end)
+unxerr   output      =   'unexpected error: ' cmdInfo         :(end)
+already  output      =   'already created'                    :(end)
+usage    output      =   'mkblddir <sub-directory>'           :(end)
+END

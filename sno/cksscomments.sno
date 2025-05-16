@@ -1,0 +1,43 @@
+*-------------------------------------------------------------------------------------------------------------------------
+            nl             =   char(10)
+            digits         =   '0123456789'
+            ssExe          =   '//baddog/maxm/win32/ss'
+            ntDirPat       =   (span(digits) . ntBldDate '.' span(digits) . ntBldVersion) . ntBldDir
+            riverPat       =   ('brazos' | 'colorado' | 'grande') . aRiver
+            windowsHostPat =   ('client' | 'ntsrv') . aWindowsHost
+            unixHostPat    =   ('SunOS' | 'OSF1' | 'hp1020_11' | 'AIX4' | 'DYNIX' | 'ATT' | 'SINIX') . aUnixHost
+            modePat        =   ('debug' | 'release') . aMode
+            ini_nt_match   =   '/' riverPat '/dev/' windowsHostPat '/' modePat '/' ntDirPat
+            ini_unix_match =   '/' span(digits) . unix_date '/' unixHostPat
+*---------- --------------------------------------------------------------------- -----------------
+            ssDb           =   'maxm'
+            ssCurPrj       =   '$/bom'
+            ssCmd          =   './sshist ' ssDb ' "' ssCurPrj '"'
+            input(.ssHistInput, 3, '!!' ssCmd)                                    :f(cmderr)
+main1       ssHistInfo     =    ssHistInput                                       :f(main9)
+            ssHistInfo     pos(0) len(16)
++                          epsilon $ ssFullPath $ ssVersion $ ssComment
++                          ' ' len(120) . ssFullPath
++                          ' ' len(3) . ssVersion
++                          ' ' len(19)
++                          ' ' rem . ssComment                                    :f(xerr)
+            ssVersion      pos(0) span(' ') =
+            ssFullPath     =   trim(ssFullPath)
+            ssFullPath     '.bom' rpos(0)                                         :f(main1)
+            ssComment      pos(0) '//'                                            :f(main1)
+            ssCmd          =    ssExe ' comment -v' ssVersion ' "' ssFullPath '"'
+            ssComment      ini_nt_match                                           :s(main2)
+            ssComment      ini_unix_match                                         :s(main3)
+            output         =    ssVersion ' ' trim(ssFullPath) ' ' ssComment      :(main1)
+main2       ssCmd          =    ssCmd ' -c"' ntBldDir '"'                         :(main4)
+main3       ssCmd          =    ssCmd ' -c"' unix_date '"'                        :(main4)
+main4       output         =    ssCmdk
+            input(.ssCommentInput, 4, '!!' ssCmd)                                 :f(cmderr)
+main5       output         =    ssCommentInput                                    :s(main5)
+            endfile(4)                                                            :(main1)
+main9       endfile(3)                                                            :(fini)
+*---------- --------------------------------------------------------------------- -----------------
+fini                                                                              :(end)
+cmderr      output         =    '*** command error: ' ssCmd                       :(end)
+xerr        output         =    '*** unexpected error: ' ssHistInfo               :(end)
+end

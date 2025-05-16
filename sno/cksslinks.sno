@@ -1,0 +1,65 @@
+*-------------------------------------------------------------------------------------------------------------------------
+            nl             =   char(10)
+            ssExe          =   '//baddog/maxm/win32/ss'
+*---------- --------------------------------------------------------------------- -----------------
+            define('SSExists(ssPrj)nm,ssCmd,ssInfo,ssPhysInput')
+            ssNms          =    table()                                           :(SSExistsEnd)
+SSExists    ident(ssNms[ssPrj])                                                   :f(return)
+            ssCmd          =    ssExe ' physical "' ssPrj '"'
+            input(.ssPhysInput, 5, '!!' ssCmd)                                    :f(cmderr)
+            ssInfo         =
+SSExists1   ssInfo         =    ssInfo ssPhysInput nl                             :s(SSExists1)
+            endfile(5)
+            ssInfo         pos(0) len(32) len(8) . nm nl rpos(0)                  :f(freturn)
+            nm             pos(0) span(&ucase) rpos(0)                            :f(freturn)
+            ssNms[ssPrj]   =    nm                                                :(return)
+SSExistsEnd
+*---------- --------------------------------------------------------------------- -----------------
+            define('SSLinks(ssFile)nm,ssCmd,ssInfo,ssLinksInput,ssParent,ssPrj')  :(SSLinksEnd)
+SSLinks     ssCmd          =    ssExe ' links "' ssFile '"'
+            ssFile         pos(0) arb . ssParent '/' arbno(notany('/')) rpos(0)   :f(xerr)
+            input(.ssLinksInput, 4, '!!' ssCmd)                                   :f(cmderr)
+SSLinks1    ssInfo         =    ssLinksInput                                      :f(SSLinks3)
+            ssInfo         pos(0) 'Projects that file "' break('"') '" is in...'  :s(SSLinks1)
+            ssInfo         pos(0) span(' ') ('$/' rem) . ssPrj                    :s(SSLinks2)
+            ssInfo         '$/'                                                   :f(SSLinks1)
+            output         =    'missed: ' ssInfo                                 :(SSLinks1)
+SSLinks2    differ(ssPrj, ssParent)                                               :f(SSLinks1)
+            SSLinks        =    differ(SSLinks) SSLinks ',' ssPrj                 :s(SSLinks1)
+            SSLinks        =    ident(SSLinks) ssPrj                              :(SSLinks1)
+SSLinks3    endfile(4)                                                            :(return)
+SSLinksEnd
+*---------- --------------------------------------------------------------------- -----------------
+            ssDb           =   'maxm'
+            ssRootPrj      =   array('1:2')
+            ssRootPrj[1]   =   '$/colorado'
+            ssRootPrj[2]   =   '$/grande'
+            ssRootPrj[3]   =   '$/rio'
+            ssI            =   0
+main0       ssI            =   ssI + 1
+            ssCurPrj       =   ssRootPrj[ssI]                                     :f(fini)
+            ssCmd          =   './ssls -f ' ssDb ' "' ssCurPrj '"'
+            input(.ssls, 3, '!!' ssCmd)                                           :f(cmderr)
+main1       ssTgtFile      =    ssls                                              :f(main9)
+            ssTgtFile      pos(0) arb . ssTgtParent
++                          '/' arbno(notany('/')) . ssTgtFileNm rpos(0)           :f(xerr)
+            output         =    dupl('=', 40) ' ' ssTgtFile
+            ssSrcFile      =    ssTgtFile
+            ssSrcFile      pos(0) ssCurPrj '/' = '$/dev/'
+            ssSrcLinks     =    SSLinks(ssSrcFile)
+            ssSrcTrys      =    ssSrcLinks
+main2       ssSrcTrys      pos(0) ('$/' arb) . ssSrcTry (',' | rpos(0)) =         :f(main1)
+            ssTgtTry       =    ssSrcTry
+            ssTgtTry       pos(0) '$/dev/' = ssCurPrj '/'
+            SSExists(ssTgtTry)                                                    :f(main2)
+            ssTryLinks     =    SSLinks(ssTgtTry '/' ssTgtFileNm)
+            ssTryLinks     (pos(0) | ',') ssTgtParent (',' | rpos(0))             :s(main2)
+            output         =    'ss cp ' ssTgtTry
+            output         =    'ss destroy ' ssTgtTry '/' ssTgtFileNm
+            output         =    'ss share ' ssTgtFile                             :(main2)
+main9       endfile(3)                                                            :(main0)
+*---------- --------------------------------------------------------------------- -----------------
+fini                                                                              :(end)
+cmderr      output         =    '*** command error: ' ssCmd                       :(end)
+xerr        output         =    '*** unexpected error: ' ssPrj ': ' ssInfo        :(end)
+end

@@ -1,0 +1,327 @@
+*-------------------------------------------------------------------------------------------------------
+*   Listen2Bing.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all topics ... ------------------------------------------------
+*---------- FOR every search alternative ... ----------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =========== === ======================================================= ====================
+            xListener       =   'Listen2Bing'
+            userAgent       =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies         =   xListener 'Cookies.txt'
+            doParseTree     =   FALSE
+            urlReferer      =   'LonCherryholmes.BlogSpot.com'
+            bgUrl           =   'http://api.bing.net/json.aspx'
+            bgAppId         =   '22FD5DA61D07B834DCB34006C8F68F2442C7C570'
+            bgST            =   TABLE()
+            bgST[0]         =   2
+            bgST[1]         =   'News'
+            bgST[2]         =   'Web'
+            bgST[3]         =   'Image'
+            bgST[4]         =   'Video'
+            bgCT            =   TABLE(4)
+            bgCT['News']    =   15 ;* 15
+            bgCT['Web']     =   50 ;* 50
+            bgCT['Image']   =   25 ;* 50
+            bgCT['Video']   =   25 ;* 50
+            bgBT            =   TABLE(4)
+            bgBT['News']    =   '&' 'News.SortBy=Date'  ;* Relevance
+            bgBT['Image']   =   '&' 'Image.SortBy=Date' ;* Relevance
+            bgBT['Video']   =   '&' 'Video.SortBy=Date' ;* Relevance
+            bgOT            =   TABLE(4)
+            bgOT['News']    =   '&' 'Options=DisableLocationDetection'
+            bgOT['Web']     =   '&' 'Options=DisableLocationDetection'
++                               '&' 'Web.Options=DisableHostCollapsing+DisableQueryAlterations'
+            bgOT['Image']   =   '&' 'Options=DisableLocationDetection'
++                               '&' 'Adult=Strict'
+            bgOT['Video']   =   '&' 'Adult=Strict'
+            bgNewsCategory  =
+            bgNewsLocationOverride = ;* 'US.NC'
+*---------- ----------- --- ------------------------------------------------------------------------
+            bgExpr      =  *(   'Query=' URLEncode(qxQuery)
++                           '&' 'Sources=' bgSource
++                          ('&' bgSource '.Count=' bgCT[bgSource] DIFFER(bgCT[bgSource]), NULL)
++                          ('&' bgSource '.Offset=' bgOffset DIFFER(bgOffset), NULL)
++                               bgBT[bgSource]
++                               bgOT[bgSource]
++                           '&' 'JsonType=raw'
++                           '&' 'AppId=' bgAppId
++                           )
+*+                          '&' 'Market=en-US'
+*---------- ----------- --- ------------------------------------------------------------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            qQuery      =   POS(0) $ xQT . *assign(.iQT, 0) . *assign(.xQT, TABLE()) *qAlts RPOS(0)
+            qAlts       =   *qAlt ARBNO(*qOR *qAlt)
+            qOR         =   $'  ' 'OR' $'  '
+            qAlt        =   ('"' BREAK('"') '"') . qxAlt . *assign(.iQT, iQT + 1) . *assign(.xQT[iQT], qxAlt)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(LEnd)
+            SetupCancel()                                                       :F(LEnd)
+L05         SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+            SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            curl        =   curl_easy_init()                                    :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            periodSecs  =   IDENT(periodSecs) 30
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   90 * 24 * 60 * 60  ;* day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+*           backTime    =   '2011-01-01 00:00:00'
+            timeZone    =   -4 * 60 * 60  ;* North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;* Israel, GMT+2 hours in seconds
+            bgCntT      =   TABLE()
+            bgModT      =   TABLE()
+            ReadSchema('Bing')                                                  :F(error)
+            ReadConfig(xListener, TRUE)                                         :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+            ReadConfig(xListener, TRUE)                                         :F(error)
+            bgTotT      =   TABLE()
+*---------- FOR all topics ... ------------------------------------------------
+            iT          =   xIT[0]['Topic']
+L20         iT          =   LT(iT, xMaxEntity) iT + 1                           :F(L90)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            xT          =   DIFFER(xIT[iT]) xIT[iT]                             :F(L20)
+            iTopic      =   iT
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xD          =   xT['Domain']
+            xQ          ?   *qQuery                                             :F(error)
+            bgCntT[iT]  =   GT(bgCntT[iT], 1) bgCntT[iT] - 1                    :S(L20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(L25)
+            xT['Until'] =
+            xT['Since'] =
+            xT['Max']   =
+            xT['Alt']   =
+            xT['Ofs']   =
+L25         nowDT       =   DTDecode(Datetime())
+            thenDT      =   DTDecode(backTime)
+            xT['Until'] =   IDENT(xT['Until']) DTEncode(nowDT)
+            xT['Since'] =   IDENT(xT['Since']) DTEncode(thenDT)
+            xT['Max']   =   IDENT(xT['Max']) xT['Until']
+            bgxMinBatch =
+            bgxMaxBatch =
+*---------- FOR each source type ... ------------------------------------------
+            iSource     =   xT['Source']
+L30         iSource     =   LT(iSource, bgST[0]) iSource + 1                    :F(L80)
+            bgSource    =   DIFFER(bgST[iSource]) bgST[iSource]                 :F(L30)
+            (DIFFER(bgSource, 'Web') IDENT(xD), IDENT(bgSource, 'Web'))         :F(L30)
+            iAltsTotal  =
+*---------- FOR every search alternative ... ----------------------------------
+            iAlt        =   xT['Alt']
+L40         iAlt        =   iAlt + 1
+            qxQuery     =   DIFFER(xQT[iAlt]) xQT[iAlt]                         :F(L70)
+            qxQuery     =   IDENT(bgSource, 'Web') DIFFER(xD) qxQuery ' site:' xD
+            bgOffset    =   xT['Ofs']
+            iPagesTotal =
+            bgxMinSave  =
+            bgxMaxSave  =
+*---------- FOR every page ... ------------------------------------------------
+            bgxHasMore  =   TRUE
+            iPage       =   0
+L50         iPage       =   EQ(bgxHasMore, TRUE) iPage + 1                      :F(L60)
+*           Get result ...
+            bgxExpr     =   EVAL(bgExpr)
+            url         =   bgUrl '?' bgxExpr
+L53         iTry        =   0
+L54         iTry        =   LT(iTry, 10) iTry + 1                               :F(LErr)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 6) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 6) DTEncode(prevTime) ' GET ...?' bgxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(L54)
+            json        =   curl_easy_getdata()
+            json        ?   POS(0) '<!DOCTYPE ' ('HTML' | 'html')               :S(L50E)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                    :F(L50X)
+*           Process result ...
+L55         Write(xListener '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :S(L50S)F(L50F)
+L50S        iIter       =   iIter + 1
+            r           =   Pop()
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Bing'
+            tK['$Bing'] =   '@id$'
+            BATCH       =
+            Schema(.BATCH, r, 'Bing')
+            DIFFER(BATCH)                                                       :F(L50S1)
+            SQL_A_ExecDirect(hstmt, BATCH)                                      :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+L50S1       BATCH       =
+            BATCH       =   BATCH 'DECLARE @id$ int' nl
+            Save(.BATCH, r, 'Bing', 0)
+            hBatch      =   SQL_AllocStmt()                                     :F(SQLFail)
+            SQL_W_ExecDirect(hBatch, utf8_to_wstr(BATCH))                       :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+            SQL_FreeStmt(hBatch)                                                :F(SQLFail)
+            bgxC        =
+            bgxMinDate  =
+            bgxMaxDate  =
+            bgxSpace    =   DUPL(' ', 8192)
+            bgxSpace    ?              FENCE
++                                     *IDENT(t(r), 'JSON')
++                                   *IDENT(t(c(r)[1]), '{}')
++                                      *GE(n(c(r)[1]), i = 1)
++                                ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                                 *IDENT(t(c(c(r)[1])[i]), ':')
++                               *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                               *IDENT(v(c(c(c(r)[1])[i])[1]), 'SearchResponse')
++                               *IDENT(t(c(c(c(r)[1])[i])[2]), '{}')
++                                  *GE(n(c(c(c(r)[1])[i])[2]), j = 1)
++                            ARBNO(*GE(n(c(c(c(r)[1])[i])[2]), j = j + 1) ' ')
++                             *IDENT(t(c(c(c(c(r)[1])[i])[2])[j]), ':')
++                           *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'Name')
++                           *IDENT(v(c(c(c(c(c(r)[1])[i])[2])[j])[1]), bgSource)
++                           *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[2]), '{}')
++                              *GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = 1)
++                        ARBNO(*GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = k + 1) ' ')
++                         *IDENT(t(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), ':')
++                       *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[1]), 'Name')
++                       *IDENT(v(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[1]), 'Results')
++                       *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), '[]')
++                          *GE(n(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), m = 1)
++                    ARBNO(*GE(n(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), m = m + 1) ' ') *?(bgxC = bgxC + 1)
++                     *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), '{}')
++                        *GE(n(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), n = 1)
++                  ARBNO(*GE(n(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), n = n + 1) ' ')
++                   *IDENT(t(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n]), ':')
++                 *IDENT(t(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[1]), 'Name')
++                 *IDENT(v(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[1]), ('Date' IDENT(bgSource, 'News'), 'DateTime'))
++                 *IDENT(t(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[2]), 'Datetime')
++           *?(bgxDate = v(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[2]))
++           *?(bgxMinDate = MinDate(bgxDate, bgxMinDate))
++           *?(bgxMaxDate = MaxDate(bgxDate, bgxMaxDate))
++           FAIL
+            OUTPUT      =   GE(xVerbose, 5) Datetime() ':'
++                           ' ' LPAD(bgxMinDate, 19) ' ' LPAD(bgxMaxDate, 19)
++                           ' ' iPoll ' ' iT ' ' iSource ' ' iAlt
++                           ' ' iPage '(' +bgOffset ')' (' ' bgxC DIFFER(bgxC), NULL)
+            iPagesTotal =   DIFFER(bgxC) iPagesTotal + bgxC
+            iAltsTotal  =   DIFFER(bgxC) iAltsTotal + bgxC
+            bgTotT[iT]  =   DIFFER(bgxC) bgTotT[iT] + bgxC
+            bgOffset    =   bgOffset + bgxC
+            xT['Ofs']   =   bgOffset
+            xT['Until'] =   DIFFER(bgxMinDate) bgxMinDate
+            bgxMinBatch =   MinDate(bgxMinDate, bgxMinBatch)
+            bgxMaxBatch =   MaxDate(bgxMaxDate, bgxMaxBatch)
+            bgxHasMore  =   EQ(bgxC, 0) FALSE                                       :S(L50)
+*           bgxHasMore  =   LT(bgxC, bgCT[bgSource]) FALSE                          :S(L50)
+            bgxHasMore  =   DIFFER(bgxMinDate) DIFFER(bgxMinSave)
++                           DIFFER(bgxMaxDate) DIFFER(bgxMaxSave)
++                           LEQ(bgxMinDate, bgxMinSave)
++                           LEQ(bgxMaxDate, bgxMaxSave)
++                           FALSE                                                   :S(L50)
+            bgxMinSave  =   bgxMinDate
+            bgxMaxSave  =   bgxMaxDate
+            bgxHasMore  =   IDENT(bgSource, 'Image') GE(iPagesTotal, 100) FALSE     :S(L50)
+            bgxHasMore  =   IDENT(bgSource, 'Video') GE(iPagesTotal, 100) FALSE     :S(L50)
+            bgxHasMore  =   DIFFER(bgxMaxDate) LLT(bgxMaxDate, xT['Since']) FALSE   :(L50)
+L50F        TERMINAL    =   'failure'                                               :(END)
+L50X        TERMINAL    =   'terminal failure'                                      :(END)
+L50E        TERMINAL    =   'HTML RESPONSE !!!'
+            TERMINAL    =   json                                                    :(L50)
+*---------- END FOR every page ----------------------------------------------------
+L60         OUTPUT      =   GE(xVerbose, 4) Datetime() ':'
++                           ' ' LPAD(bgxMinBatch, 19) ' ' LPAD(bgxMaxBatch, 19)
++                           ' ' iPoll ' ' iT ' ' iSource
++                           ' ' iAlt ' ' qxQuery (' ' iPagesTotal DIFFER(iPagesTotal), NULL)
+            xT['Until'] =   xT['Max']
+            xT['Ofs']   =
+            xT['Alt']   =   iAlt
+            IniWrite(xListener '.ini', xIT)                                         :(L40)
+*---------- END FOR every search alternative --------------------------------------
+L70         OUTPUT      =   GE(xVerbose, 3) Datetime() ':'
++                           ' ' LPAD(bgxMinBatch, 19) ' ' LPAD(bgxMaxBatch, 19)
++                           ' ' iPoll ' ' iT
++                           ' ' iSource ' "' bgSource '"' (' ' iAltsTotal DIFFER(iAltsTotal), NULL)
+            xT['Alt']   =
+            xT['Src']   =   iSource
+            IniWrite(xListener '.ini', xIT)                                         :(L30)
+*---------- END FOR each source type ... ------------------------------------------
+L80         OUTPUT      =   GE(xVerbose, 2) Datetime() ':'
++                           ' ' DUPL('-', 19) ' ' DUPL('-', 19)
++                           ' ' iPoll ' ' iT ' "' xE '"' (' ' bgTotT[iT] DIFFER(bgTotT[iT]), NULL)
+            bgModT[iT]  =   EQ(bgTotT[iT]) LT(bgModT[iT], 5) bgModT[iT] + 1
+            bgModT[iT]  =   GT(bgTotT[iT]) GT(bgModT[iT], 1) bgModT[iT] - 1
+            bgCntT[iT]  =   bgModT[iT]
+            xT['Since'] =   xT['Max']
+            xT['Until'] =
+            xT['Max']   =
+            xT['Src']   =
+            xIT[0]['Topic'] = iT
+            IniWrite(xListener '.ini', xIT)                                         :(L20)
+*---------- END FOR all topics ----------------------------------------------------
+L90         xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            bgReport    =
+            iTotal      =   0
+            iT          =   0
+L93         iT          =   LT(iT, xMaxEntity) iT + 1                               :F(L95)
+            DIFFER(xT = xIT[iT])                                                    :F(L93)
+            iTotal      =   iTotal + bgTotT[iT]
+            bgReport    =   bgReport ' ' LPAD(bgTotT[iT], 3)                        :(L93)
+L95         OUTPUT      =   GE(xVerbose, 1) Datetime() ':'
++                           ( GT(xVerbose, 1) ' ' DUPL('-', 19) ' ' DUPL('-', 19)
++                           , NULL
++                           ) ' ' LPAD(iPoll, 5) ' ' LPAD(iTotal, 5) bgReport       :(L10)
+*---------- ----------- --- -------------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                           :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                            :(L05)
+*---------- ----------- --- -------------------------------------------------------
+LErr1       OUTPUT      =   'Failure (' iT ', ' iPage ', ' bgxC ').'
+            OUTPUT      =   bgxChunk                                                :(LEnd)
+LErr2       OUTPUT      =   'Weird error.'                                          :(LEnd)
+LErr        curl_easy_error_info(curl, cc)                                          :(LEnd)
+*---------- ----------- --- -------------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                                 :(END)
+*========== =========== === =======================================================
+*-INCLUDE 'debug.sno'
+END

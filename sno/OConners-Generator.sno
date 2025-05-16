@@ -1,0 +1,109 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'OConners-Generator.inc'
+-INCLUDE 'OConners.inc'
+*------ ----------- --- ----------------------------------------------- ------------------
+        EXIT(3, 'OConners-Generator.exe')
+A0      g           =   FALSE
+        l           =   FALSE
+        j           =   FALSE
+        s           =   FALSE
+        argPos      =   HOST(3) - 1
+A1      argPos      =   argPos + 1
+        arg         =   HOST(2, argPos)                                 :F(A3)
+        arg         ?   POS(0) '-' 'g' . *assign(.g, TRUE) RPOS(0)      :S(A1)
+        arg         ?   POS(0) '-' 'l' . *assign(.l, TRUE) RPOS(0)      :S(A1)
+        arg         ?   POS(0) '-' 'j' . *assign(.j, TRUE) RPOS(0)      :S(A1)
+        arg         ?   POS(0) '-' 's' . *assign(.s, TRUE) RPOS(0)      :S(A1)
+        arg         ?   POS(0) '-' 'form' . opt RPOS(0)                 :S(A2)
+        arg         ?   POS(0) '-' 'json' . opt RPOS(0)                 :S(A2)
+        arg         ?   POS(0) '-' 'sno'  . opt RPOS(0)                 :S(A2)
+        arg         ?   POS(0) '-'                                      :S(Usage)
+A2      argPos      =   argPos + 1
+        arg         =   HOST(2, argPos)                                 :F(Usage)
+        arg         ?   POS(0) '-'                                      :S(Usage)
+        arg         ?   POS(0) RPOS(0)                                  :S(Usage)
+        arg         ?   POS(0) REM . $opt RPOS(0)                       :(A1)
+A3      EQ(l, TRUE)                                                     :S(L60)
+        formId      =   DIFFER(form) form                               :F(Usage)
+        (NE(g + l + j + s, 1))                                          :S(Usage)
+        (DIFFER(json) DIFFER(sno))                                      :S(Usage)
+        DIFFER(form = Form[formId])                                     :F(Error1)
+        description =   Description(form)
+        paramTable  =   Parameters(form)
+        genExpr     =   Generator(form)
+*------ ----------- --- ----------------------------------------------- ------------------
+L00     EQ(j, TRUE)                                                     :S(L10)
+        EQ(s, TRUE)                                                     :S(L10)
+        EQ(g, TRUE)                                                     :S(L20)F(Yikes)
+*------ ----------- --- ----------------------------------------------- ------------------
+L10     paramArray  =   SORT(paramTable)                                :F(Yikes)
+        paramI      =   0
+L13     paramI      =   paramI + 1
+        paramName   =   paramArray[paramI, 1]                           :F(END)
+        paramValues =   paramArray[paramI, 2]
+        macroName   =   MacroName(paramName)
+        line        =   '  ' macroName ' ='
+        valueCount  =   IDENT(DATATYPE(paramValues), 'ARRAY')           :F(L19)
+        valueProto  =   PROTOTYPE(paramValues)
+        valueProto  ?   POS(0) SPAN(digits) ':' SPAN(digits) . valueN RPOS(0)
+        valueI      =   0
+L15     valueI      =   LT(valueI, valueN) valueI + 1                   :F(L19)
+        value       =   paramValues[valueI]
+        line        =   line EQ(valueI, 1) ' ' SQize(value)
+        line        =   line EQ(valueI, 2) ' ;* ' SQize(value)
+        line        =   line GE(valueI, 3) ' ' SQize(value)             :(L15)
+L19     OUTPUT      =   line                                            :(L13)
+*------ ----------- --- ----------------------------------------------- ------------------
+L20     DIFFER(json)                                                    :S(L30)
+        DIFFER(sno)                                                     :S(L40)F(L50)
+*------ ----------- --- ----------------------------------------------- ------------------
+L30                                                                     :(L50)
+*------ ----------- --- ----------------------------------------------- ------------------
+L40     INPUT(.snoInput, 3, sno)                                        :F(Error2)
+        snoCode     =
+L43     snoLine     =   snoInput                                        :F(L47)
+        snoLine     ';*' RTAB(0) =
+        snoCode     =   DIFFER(snoCode) snoCode ';' snoLine
+        snoCode     =   IDENT(snoCode) snoLine                          :(L43)
+L47     ENDFILE(3)
+        snoCode     =   snoCode '; :(L49)'
+        code        =   CODE(snoCode)                                   :S<code>F(Error3)
+L49     TERMINAL    =   'Processed "' sno '" parameters.'               :(L50)
+*------ ----------- --- ----------------------------------------------- ------------------
+L50     html        =   '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">' nl nl
++                       '<html>' nl
++                       '<head>' nl
++                       '  <title>Form ' formId ' ' description '</title>' nl
++                       '</head>' nl
++                       '<body lang="en-US" dir="ltr">' nl
++                       EVAL(genExpr)
++                       '</body>' nl
++                       '</html>' nl
+L55     html        ?   POS(0) BREAK(nl) . htmlLine nl =                :F(END)
+        OUTPUT      =   htmlLine                                        :(L55)
+*------ ----------- --- ----------------------------------------------- ------------------
+L60     aForm       =   SORT(Form)                                      :F(Yikes)
+        iForm       =   0
+L65     iForm       =   iForm + 1
+        formId      =   aForm[iForm, 1]                                 :F(END)
+        form        =   aForm[iForm, 2]
+        description =   Description(form)
+        OUTPUT      =   RPAD(formId, 7) ' ' description                 :(L65)
+*------ ----------- --- ----------------------------------------------- ------------------
+Error1  TERMINAL    =   "Error: Form '" formId "' not found."           :(END)
+Error2  TERMINAL    =   'Error: Unable to open file "' sno '".'         :(END)
+Error3  TERMINAL    =   'Error: Syntax error processing parameters.'    :(END)
+Usage   TERMINAL    =   "Usage : OConners-Generator -form <form-id> {-g | -l | -j | -s} [-json <json-params> | -sno <snobol-params>]"
+        TERMINAL    =   "-form : specify form identifier"
+        TERMINAL    =   "   -g : generate HTML"
+        TERMINAL    =   "   -l : list forms"
+        TERMINAL    =   "   -j : generate JSON parameters"
+        TERMINAL    =   "   -s : generate SNOBOL4 parameters"
+        TERMINAL    =   "-json : specify JSON parameter file for HTML generation"
+        TERMINAL    =   " -sno : specify SNOBOL4 parameter file for HTML generation"
+                                                                        :(END)
+*-INCLUDE 'debug.sno'
+END

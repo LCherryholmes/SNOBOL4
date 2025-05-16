@@ -1,0 +1,1037 @@
+START
+         &TRIM           =  0
+         &MAXLNGTH       =  131072
+         &FULLSCAN       =  1
+         dodebug         =  0
+
+-INCLUDE 'io.inc'
+
+         DEFINE('psh(x)')
+         DEFINE('pul()')
+         DEFINE('top()')
+         DATA('link(nxt,val)')                                          :(psh_end)
+psh      psh             =  .dummy
+         psh_pul         =  link(psh_pul,x)
+         DIFFER(x)                                                      :s(NRETURN)
+         psh             =  .val(psh_pul)                               :(NRETURN)
+pul      IDENT(psh_pul)                                                 :s(FRETURN)
+         pul             =  val(psh_pul)
+         psh_pul         =  nxt(psh_pul)                                :(RETURN)
+top      IDENT(psh_pul)                                                 :s(FRETURN)
+         top             =  .val(psh_pul)                               :(NRETURN)
+psh_end
+
+-INCLUDE 'Gen.inc'
+
+         DEFINE('genproto(id)count,dlm,i')                              :(genproto_end)
+genproto genproto        =  .dummy
+         max             =  proto[lwr(id)]
+         count           =  0
+genprot0 gen('Var ' class '::' id '(')
+         i               =  0
+         dlm             =  ''
+genprot1 i               =  LT(i, count) i + 1                          :f(genprot2)
+         gen(dlm 'Var a' i)
+         dlm             =  ', '                                        :(genprot1)
+genprot2 gen(') { return _' id '(' count )
+         i               =  0
+         dlm             =  ', '
+genprot3 i               =  LT(i, count) i + 1                          :f(genprot4)
+         gen(dlm 'a' i)
+         dlm             =  ', '                                        :(genprot3)
+genprot4 gen('); }' nl)
+         count           =  LT(count, max) count + 1                    :s(genprot0)
+         count           =  proto[lwr(id)]
+         gen('Var ' class '::' '_' id '(int a0')
+         i               =  0
+         dlm             =  ', '
+genprot5 i               =  LT(i, count) i + 1                          :f(genprot6)
+         gen(dlm 'Var a' i)                                             :(genprot5)
+genprot6 gen(')' nl)                                                    :(NRETURN)
+genproto_end
+
+-INCLUDE 'assign.inc'
+
+        DEFINE('gendict()dict,dictarr,i')                               :(gendict_end)
+gendict gendict          =  .dummy
+*       DIFFER(dbms, 'alo')                                             :s(NRETURN)
+        dict             =  $dictionary
+        dictarr          =  SORT(CONVERT(dict, 'ARRAY'))                :f(NRETURN)
+        i                =  1
+gendic1 gen('Var ' dictarr[i, 1] ';' nl)                                :f(gendic2)
+        i                =  i + 1                                       :s(gendic1)
+gendic2 gen(nl)                                                         :(NRETURN)
+gendict_end
+
+        DEFINE('enter(var,val)')                                        :(enter_end)
+enter   enter            =  .dummy
+        dict             =  $dictionary
+        IDENT(val,'LOAD') IDENT(dict[var])                              :s(enter1)f(enter2)
+enter1  OUTPUT           =  '*** ' var
+enter2  dict[var]        =  1                                           :(NRETURN)
+enter_end
+
+        DEFINE('regstr(var,action)')                                    :(regstr_end)
+regstr  regstr           =  .dummy
+        IDENT(action,'LOAD') IDENT(registry[var])                       :s(regstr1)
+        IDENT(action,'LOAD') EQ(registry[var],0)                        :s(NRETURN)
+        IDENT(action,'LOAD') EQ(registry[var],1)                        :s(NRETURN)
+        IDENT(action,'STORE')                                           :s(regstr2)f(error)
+regstr1 registry[var]    =  0                                           :(NRETURN)
+regstr2 registry[var]    =  1                                           :(NRETURN)
+regstr_end
+
+         DEFINE('debug(lvl,str)')                                       :(debug_end)
+debug    debug           =  .dummy
+         IDENT(dodebug)                                                 :s(NRETURN)
+         GT(lvl,dodebug)                                                :s(NRETURN)
+         OUTPUT          =  str                                         :(NRETURN)
+debug_end
+
+-INCLUDE 'case.inc'
+
+         DEFINE('cstring(str)chr')                                      :(cstring_end)
+cstring  cstring         =
+cstring0 IDENT(str)                                                     :s(RETURN)
+         str             POS(0) '"' =                                   :s(cstring1)
+         str             POS(0) '~"' =                                  :s(cstring1)
+         str             POS(0) '\' =                                   :s(cstring2)
+         str             POS(0) '~\' =                                  :s(cstring2)
+         str             POS(0) '~' LEN(1) . chr =                      :s(cstring3)
+         str             POS(0) LEN(1) . chr =                          :s(cstring3)f(error)
+cstring1 cstring         =      cstring '\"'                            :(cstring0)
+cstring2 cstring         =      cstring '\\'                            :(cstring0)
+cstring3 cstring         =      cstring chr                             :(cstring0)
+cstring_end
+
+         DEFINE('progname(filename)x')                                  :(progname_end)
+progname filename        '.' 'tpl' ''   . x RPOS(0) =                   :s(prognam1)
+         filename        '.' 't'   '3x' . x RPOS(0) =                   :s(prognam1)
+         filename        '.' 't'   '41' . x RPOS(0) =                   :s(prognam1)
+         filename        '.' 't'   '51' . x RPOS(0) =                   :s(prognam1)
+         filename        '.' 't'   '61' . x RPOS(0) =                   :s(prognam1)f(error)
+prognam1 progname        =  filename x                                  :(RETURN)
+progname_end
+
+         &ALPHABET       POS(10) LEN(1) . nl
+         digit           =  '0123456789'
+         uc              =  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+         lc              =  'abcdefghijklmnopqrstuvwxyz'
+         ident           =  (ANY(uc lc) (SPAN(uc lc '_' digit) | '')) $ id do $ *debug(9, id)
+         integer         =  (ANY('123456789') (SPAN('0123456789') | '') | '0')
+         do              =  ''
+         eol             =  nl $ *debug(9, "eol")
+
+         $' '            =  (SPAN(' ') | '')
+         $'='            =  '='               do $ *debug(9, '=')
+         $'@'            =  '@'               do $ *debug(9, '@')
+         $'('            =  '('               do $ *debug(9, '(')
+         $','            =  ','               do $ *debug(9, ',')
+         $')'            =  ')'               do $ *debug(9, ')')
+         $'*'            =  '*'               do $ *debug(9, '*')
+
+         char            =  &ALPHABET
+         char            '~' =
+         char            '@' =
+         char            '(' =
+         char            ',' =
+         char            ')' =
+         char            nl  =
+
+         mcharacters     =  SPAN(char)  | '~~' | '~@' | '~(' | '~,' | '~)' | '~%'
++                        |  '~$' | '~;' | '~.' | '~_' | '~=' | '~"' | "~'" | '('
+         characters      =  mcharacters | ',' | ')'
+         characters0     =  mcharacters | ','
+         mstring         =  (mcharacters  (*mstring | '')) $ tz do $ *debug(9, "mstring " tz)
+         string          =  (characters   (*string  | '')) $ tz do $ *debug(9, "string " tz)
+         string0         =  (characters0  (*string  | '')) $ tz do $ *debug(9, "string " tz)
+         intstring       =  SPAN('0123456789') *string
+
+         elif            =  icase('ELIF')             do $ *debug(9, 'ELIF')
+         else            =  icase('ELSE')             do $ *debug(9, 'ELSE')
+         endif           =  icase('ENDIF')            do $ *debug(9, 'ENDIF')
+         endloop         =  icase('ENDLOOP')          do $ *debug(9, 'ENDLOOP')
+         endmacro        =  icase('ENDMACRO')         do $ *debug(9, 'ENDMACRO')
+         eof             =  icase('EOF')              do $ *debug(9, 'EOF')
+         include         =  icase('INCLUDE')          do $ *debug(9, 'INCLUDE')
+         section         =  icase('SECTION')          do $ *debug(9, 'SECTION')
+         iterate         =  icase('ITERATE')          do $ *debug(9, 'ITERATE')
+         leave           =  icase('LEAVE')            do $ *debug(9, 'LEAVE')
+         loop            =  icase('LOOP')             do $ *debug(9, 'LOOP')
+         macro           =  icase('MACRO')            do $ *debug(9, 'MACRO')
+         redirect        =  icase('REDIRECT')         do $ *debug(9, 'REDIRECT')
+         redirectnew     =  icase('REDIRECTNEW')      do $ *debug(9, 'REDIRECTNEW')
+         set             =  icase('SET')              do $ *debug(9, 'SET')
+         setg            =  icase('SETG')             do $ *debug(9, 'SETG')
+         sets            =  icase('SETS')             do $ *debug(9, 'SETS')
+         a0              =  icase('A0')               do $ *debug(9, 'A0')
+         a1              =  icase('A1')               do $ *debug(9, 'A1')
+         a2              =  icase('A2')               do $ *debug(9, 'A2')
+         a3              =  icase('A3')               do $ *debug(9, 'A3')
+         a4              =  icase('A4')               do $ *debug(9, 'A4')
+         a5              =  icase('A5')               do $ *debug(9, 'A5')
+         a6              =  icase('A6')               do $ *debug(9, 'A6')
+         a7              =  icase('A7')               do $ *debug(9, 'A7')
+         a8              =  icase('A8')               do $ *debug(9, 'A8')
+         a9              =  icase('A9')               do $ *debug(9, 'A9')
+         rc              =  icase('RC')               do $ *debug(9, 'RC')
+
+         add             =  icase('add')              do $ *debug(9, 'add')
+         and             =  icase('and')              do $ *debug(9, 'and')
+         div             =  icase('div')              do $ *debug(9, 'div')
+         eq              =  icase('eq')               do $ *debug(9, 'eq')
+         if              =  icase('if')               do $ *debug(9, 'if')
+         mod             =  icase('mod')              do $ *debug(9, 'mod')
+         mul             =  icase('mul')              do $ *debug(9, 'mul')
+         not             =  icase('not')              do $ *debug(9, 'not')
+         or              =  icase('or')               do $ *debug(9, 'or')
+         sub             =  icase('sub')              do $ *debug(9, 'sub')
+         v               =  icase('v')                do $ *debug(9, 'v')
+         xeq             =  icase('xeq')              do $ *debug(9, 'xeq')
+         numEq           =  icase('numEq')            do $ *debug(9, 'numEq')
+         numGt           =  icase('numGt')            do $ *debug(9, 'numGt')
+         numLt           =  icase('numLt')            do $ *debug(9, 'numLt')
+
+         dumpAttr        =  icase('dumpAttr')         do . *gen('dumpAttr')
+
+         api_function    =  icase('dumpProc')         do . *gen('dumpProc')
++                        |  icase('getAttr')          do . *gen('getAttr')
++                        |  icase('getInternalAttr')  do . *gen('getIntAttr')
++                        |  icase('nextObj')          do . *gen('nextObj')
++                        |  icase('objExternalType')  do . *gen('objExternalType')
++                        |  icase('objId')            do . *gen('objId')
++                        |  icase('objImpact')        do . *gen('objImpact')
++                        |  icase('objInternalType')  do . *gen('objInternalType')
++                        |  icase('objName')          do . *gen('objName')
++                        |  icase('objState')         do . *gen('objState')
++                        |  icase('resetObj')         do . *gen('resetObj')
++                        |  icase('setObj')           do . *gen('setObj')
++                        |  icase('s')                do . *gen('s')
+
+         tpl_function    =  icase('chr')              do . *gen('chr')
++                        |  icase('copies')           do . *gen('copies')
++                        |  icase('date')             do . *gen('date')
++                        |  icase('index')            do . *gen('indx')
++                        |  icase('dq')               do . *gen('dq')
++                        |  icase('length')           do . *gen('length')
++                        |  icase('msg')              do . *gen('msg')
++                        |  icase('outPos')           do . *gen('outPos')
++                        |  icase('pos')              do . *gen('pos')
++                        |  icase('subStr')           do . *gen('subStr')
++                        |  icase('sq')               do . *gen('sq')
++                        |  icase('test')             do . *gen('test')
++                        |  icase('verify')           do . *gen('verify')
+
+         session         =  icase('session')          do $ *debug(9, 'session')
+         global          =  icase('global')           do $ *debug(9, 'global')
+
+         getAttr         =  icase('getAttr')          do $ *debug(9, 'getAttr')
+         getInternalAttr =  icase('getInternalAttr')  do $ *debug(9, 'getInternalAttr')
+
+         bmcANewVal      =  icase('bmcANewVal')       do $ *debug(9, 'bmcANewVal')
+         bmcAOldVal      =  icase('bmcAOldVal')       do $ *debug(9, 'bmcAOldVal')
+         bmcANewLen      =  icase('bmcANewLen')       do $ *debug(9, 'bmcANewLen')
+         bmcAOldLen      =  icase('bmcAOldLen')       do $ *debug(9, 'bmcAOldLen')
+         bmcAState       =  icase('bmcAState')        do $ *debug(9, 'bmcAState')
+         bmcAName        =  icase('bmcAName')         do $ *debug(9, 'bmcAName')
+
+         bmcInstPath     =  icase('bmcInstPath')      do $ *debug(9, 'bmcInstPath')
+
+         isAttrMod       =  icase('isAttrMod')        do $ *debug(9, 'isAttrMod')
+         isAttrSet       =  icase('isAttrSet')        do $ *debug(9, 'isAttrSet')
+         isImpact        =  icase('isImpact')         do . *gen('isImpact')
+         isEmpty         =  icase('isEmpty')          do . *gen('isEmpty')
+         isNull          =  icase('isNull')           do . *gen('isNull')
+
+         builtin_name    =  bmcANewVal
++                        |  bmcAOldVal
++                        |  bmcANewLen
++                        |  bmcAOldLen
++                        |  bmcAState
++                        |  bmcAName
+
+         v_function      =              do $ *debug(9, "%v_function")
++        (  '@' v $'(' a0 $')'          do . *gen('a0')
++        |  '@' v $'(' a1 $')'          do . *gen('a1')
++        |  '@' v $'(' a2 $')'          do . *gen('a2')
++        |  '@' v $'(' a3 $')'          do . *gen('a3')
++        |  '@' v $'(' a4 $')'          do . *gen('a4')
++        |  '@' v $'(' a5 $')'          do . *gen('a5')
++        |  '@' v $'(' a6 $')'          do . *gen('a6')
++        |  '@' v $'(' a7 $')'          do . *gen('a7')
++        |  '@' v $'(' a8 $')'          do . *gen('a8')
++        |  '@' v $'(' a9 $')'          do . *gen('a9')
++        |  '@' v $'(' rc $')'          do . *gen('rc')
++        |  '@' v $'(' '~@ses'              '@' v $'(' icase('bmcConnId') $')' icase('Ora') SPAN('0123456789') . id $')' do . *gen('sesOra' id)
++        |  '@' v $'(' '~@' 'bmcDbVer' . id '@' v $'(' icase('bmcConnId') $')' $')'  do . *gen(id)
++        |  '@' v $'(' *builtin_name                 $ id . id  $')'     do . *gen(id)
++        |  '@' v $'(' *const_name                   $ id . id  $')'     do . *gen(id)
++        |  '@' v $'(' *session_name                 $ id       $')'
++        |  '@' v $'(' *global_name                  $ id       $')'     do $ *regstr(id, 'LOAD')
++        |  '@' v $'(' ('~' | '') ('$' *session_name $ id)      $')'
++        |  '@' v $'(' ('~' | '') (('@@' | '@') *global_name  $ id) $')' do $ *regstr(id, 'LOAD')
++        |  '@' v $'(' ('~' | '') (('@@' | '@') *session_name $ id) $')'
++        |  '@' v $'(' *global_name      $ id $',' global  $')'          do $ *regstr(id, 'LOAD')
++        |  '@' v $'(' *global_name      $ id $',' session $')'          do $ *regstr(id, 'LOAD')
++        |  '@' v $'(' *session_name     $ id $',' session $')'
++        |  '@' v $'(' ident             $ id  . id $')'                 do $ *enter(id, 'LOAD')
++                                                                        do $ *regstr(id, 'LOAD')
++                                                                        do . *gen(id)
++        |  '@' v $'(' ident             $ id  . id $',' session $')'    do $ *enter(id, 'LOAD')
++                                                                        do $ *regstr(id, 'LOAD')
++                                                                        do . *gen(id)
++        |  '@' v $'(' do . *gen('v(') *mtext $')' do . *gen(')')
++        ) $ tz                        do $ *debug(9, "v_function " tz)
+
+         function        =             do $ *debug(2, "%function")
++        (  *v_function
++        |  $'@' getAttr               do . *gen('getNewAttr(')
++           $'('
++           *mtext
++           $',' '%' bmcANewVal '%'
++           $')'                       do . *gen(')')
++        |  $'@' getAttr               do . *gen('getOldAttr(')
++           $'('
++           *mtext
++           $',' '%' bmcAOldVal '%'
++           $')'                       do . *gen(')')
++        |  $'@' getAttr               do . *gen('getNewAttrLen(')
++           $'('
++           *mtext
++           $',' '%' bmcANewLen '%'
++           $')'                       do . *gen(')')
++        |  $'@' getAttr               do . *gen('getOldAttrLen(')
++           $'('
++           *mtext
++           $',' '%' bmcAOldLen '%'
++           $')'                       do . *gen(')')
++        |  $'@' getAttr               do . *gen('getAttrState(')
++           $'('
++           *mtext
++           $',' '%' bmcAState '%'
++           $')'                       do . *gen(')')
++        |  $'@' getInternalAttr       do . *gen('getNewIntAttr(')
++           $'('
++           *mtext
++           $',' '%' bmcANewVal '%'
++           $')'                       do . *gen(')')
++        |  $'@' getInternalAttr       do . *gen('getOldIntAttr(')
++           $'('
++           *mtext
++           $',' '%' bmcAOldVal '%'
++           $')'                       do . *gen(')')
++        |  $'@'
++           (  sub                     do . *psh(" - ")
++           |  add                     do . *psh(" + ")
++           )
++           $'('
++           *arith_1
++           $','                       do . *gen(pul())
++           $' ' *arith_1
++           $')'
++        |  $'@'
++           (  mod                     do . *psh(" % ")
++           |  div                     do . *psh(" / ")
++           |  mul                     do . *psh(" * ")
++           )
++           $'('
++           *arith_2
++           $','                       do . *gen(pul())
++           $' ' *arith_2
++           $')'
++        |  $'@'
++           (  if $'('                 do . *gen('test(')
++              *expr
++              $','                    do . *gen(', ')
++              (  ''                   do . *gen('""')
++              |  *mtext
++              )
++              $','                    do . *gen(', ')
++              (  ''                   do . *gen('""')
++              |  *mtext
++              )
++              $')'                    do . *gen(')')
++           |  *tpl_function
++              $'('                    do . *gen('(')
++              ('' | *mtext_list)
++              $')'                    do . *gen(')')
++           |  *api_function
++              $'('                    do . *gen('(')
++              ('' | *mtext_list)
++              $')'                    do . *gen(')')
++           |  *function_name
++              $'('                    do . *gen('(')
++              (  ''                   do . *gen('')
++              |                       do . *gen('')
++                 *mtext_list
++              )
++              $')'                    do . *gen(')')
++           )
++        |  $'@' isAttrMod $'('        do . *gen('isAttrMod(') *mtext $')' do . *gen(')')
++        |  $'@' isAttrSet $'('        do . *gen('isAttrSet(') *mtext $')' do . *gen(')')
++        ) $ tz                        do $ *debug(2, "function " tz)
+
+         procedure       =             do $ *debug(2, "%procedure")
++        (  $'@' dumpAttr
++           $'('                       do . *gen('(')
++           ('' | *mtext_list)
++           $')'                       do . *gen(')')
++        ) $ tz                        do $ *debug(2, "procedure " tz)
+
+         arith_1         =             do $ *debug(2, "%arith_1")
++        (  $'@'
++           (  sub                     do . *psh(" - ")
++           |  add                     do . *psh(" + ")
++           )
++           $'('
++           *arith_1
++           $','                       do . *gen(pul())
++           $' ' *arith_1
++           $')'
++        |  *arith_2
++        )  $ tz                       do $ *debug(2, "arith_1 " tz)
+
+         arith_2         =             do $ *debug(2, "%arith_2")
++        (  $'@'
++           (  mod                     do . *psh(" % ")
++           |  div                     do . *psh(" / ")
++           |  mul                     do . *psh(" * ")
++           )
++           $'('
++           *arith_2
++           $','                       do . *gen(pul())
++           $' ' *arith_2
++           $')'
++        |  *arith_3
++        )  $ tz                       do $ *debug(2, "arith_2 " tz)
+
+         arith_3         =             do $ *debug(2, "%arith_3")
++        (
++           *integer . s               do . *gen(s)
++        |  *mstring . s               do . *gen('"' cstring(s) '"')
++        |  *function
++        |  $'('                       do . *gen('(')
++           $' ' *arith_1
++           $')'                       do . *gen(')')
++        |                             do . *gen('(')
++           *arith_1
++                                      do . *gen(')')
++        )  $ tz                       do $ *debug(2, "arith_3 " tz)
+
+         text0           =             do $ *debug(9, "%text0")
++        (
++           (  (*intstring) . s        do . *gen('"' cstring(s) '"')
++           |  *integer . s            do . *gen(s)
++           |  *string0 . s            do . *gen('"' cstring(s) '"')
++           |  *function
++           )
++           (  ''
++           |                          do . *gen(' | ')
++              *text
++           )
++        ) $ tz                        do $ *debug(9, "text0 " tz)
+
+         text            =             do $ *debug(9, "%text")
++        (
++           (  (*intstring) . s        do . *gen('"' cstring(s) '"')
++           |  *integer . s            do . *gen(s)
++           |  *string . s             do . *gen('"' cstring(s) '"')
++           |  *function
++           )
++           (  ''
++           |                          do . *gen(' | ')
++              *text
++           )
++        ) $ tz                        do $ *debug(9, "text " tz)
+
+         opt_text        =
++        (
++           (  ''                      do . *gen('""')
++           |  *procedure
++           |  *text
++           )
++        )
+
+         mtext           =             do $ *debug(9, "%mtext")
++        (
++           (  *integer . s            do . *gen(s)
++           |  *mstring . s            do . *gen('"' cstring(s) '"')
++           |  *function
++           )
++           (  ''
++           |                          do . *gen(' | ')
++              *mtext
++           )
++        ) $ tz                        do $ *debug(9, "mtext " tz)
+
+         mtext_list      =
++        (
++           (  ''                      do . *gen('""')
++           |  *mtext
++           )
++           (  ''
++           |  $','                    do . *gen(', ')
++              *mtext_list
++           )
++        )
+
+         isAttrMod_mtext_list      =   do $ *debug(3, "%isAttrMod_mtext_list")
++        (
++           *mtext
++           (  ''
++           |  $','                    do . *gen(') || isAttrMod(')
++              *isAttrMod_mtext_list
++           )
++        )  $ tz                       do $ *debug(3, "isAttrMod_mtext_list " tz)
+
+         isAttrSet_mtext_list      =
++        (
++           *mtext
++           (  ''
++           |  $','                    do . *gen(') || isAttrSet(')
++              *isAttrSet_mtext_list
++           )
++        )
+
+         expr            =   *expr_1
+
+         expr_1          =             do $ *debug(2, "%expr_1")
++        (  $'@' or
++           $'('
++           $' ' *expr_1
++           $' ' $','                  do . *gen(' || ')
++           $' ' *expr_1
++           $')'
++        |  *expr_2
++        )  $ tz                       do $ *debug(2, "expr_1 " tz)
+
+         expr_2          =             do $ *debug(2, "%expr_2")
++        (  $'@' and
++           $'('
++           $' ' *expr_2
++           $' ' $','                  do . *gen(' && ')
++           $' ' *expr_2
++           $')'
++        |  *expr_3
++        )  $ tz                       do $ *debug(2, "expr_2 " tz)
+
+         expr_3          =             do $ *debug(2, "%expr_3")
++        (
++           *expr_4
++           (  ''
++           |                          do . *gen(' | ')
++              *expr_3
++           )
++        ) $ tz                        do $ *debug(2, "expr_3 " tz)
+
+         expr_4          =             do $ *debug(2, "%expr_4")
++        (  $'@' eq
++           $'('
++           *expr_5
++           $','                       do . *gen(' == ')
++           (  ''                      do . *gen('""')
++           |  $' ' *expr_5
++           )
++           $')'
++        |  $'@' xeq                   do . *gen('strcmp(')
++           $'('
++           *expr_5
++           $','                       do . *gen(", ")
++           (  ''                      do . *gen('""')
++           |  $' ' *expr_5
++           )
++           $')'                       do . *gen(') == 0')
++        |  $'@'
++           (  numEq                   do . *psh(" == ")
++           |  numLt                   do . *psh(" < ")
++           |  numGt                   do . *psh(" > ")
++           )
++           $'('
++           *expr_5
++           $','                       do . *gen(pul())
++           $' ' *expr_5
++           $')'
++        |  $'@' not
++           $'('
++           (  $'@' eq
++              $'('
++              *expr_5
++              $','                    do . *gen(' != ')
++              (  ''                   do . *gen('""')
++              |  $' ' *expr_5
++              )
++              $')'
++           |  $'@' xeq                do . *gen('strcmp(')
++              $'('
++              *expr_5
++              $','                    do . *gen(", ")
++              (  ''                   do . *gen('""')
++              |  $' ' *expr_5
++              )
++              $')'                    do . *gen(') != 0')
++           |  $'@'
++              (  numEq                do . *psh(" != ")
++              |  numLt                do . *psh(" >= ")
++              |  numGt                do . *psh(" <= ")
++              )
++              $'('
++              *expr_5
++              $','                    do . *gen(pul())
++              $' ' *expr_5
++              $')'
++           )
++           $')'
++        |  *expr_5
++        )  $ tz                       do $ *debug(2, "expr_4 " tz)
+
+         expr_5          =             do $ *debug(2, "%expr_5")
++        (  $'@'
++           (  sub                     do . *psh(" - ")
++           |  add                     do . *psh(" + ")
++           )
++           $'('
++           *expr_5
++           $','                       do . *gen(pul())
++           $' ' *expr_5
++           $')'
++        |  *expr_6
++        )  $ tz                       do $ *debug(2, "expr_5 " tz)
+
+         expr_6          =             do $ *debug(2, "%expr_6")
++        (  $'@'
++           (  mod                     do . *psh(" % ")
++           |  div                     do . *psh(" / ")
++           |  mul                     do . *psh(" * ")
++           )
++           $'('
++           *expr_6
++           $','                       do . *gen(pul())
++           $' ' *expr_6
++           $')'
++        |  *expr_7
++        )  $ tz                       do $ *debug(2, "expr_6 " tz)
+
+         expr_7          =             do $ *debug(2, "%expr_7")
++        (  $'@'
++           not                        do . *gen("!")
++           $'('
++           *expr_8
++           $')'
++        |  *expr_8
++        )  $ tz                       do $ *debug(2, "expr_7 " tz)
+
+         expr_8          =             do $ *debug(2, "%expr_8")
++        (
++           $'@'
++           (  nextObj   $'(' $')'     do . *gen('nextObj()')
++           |  isEmpty   $'('          do . *gen('(') *mtext       $')' do . *gen(')')
++           |  isImpact  $'('          do . *gen('(') *mtext       $')' do . *gen(')')
++           |  isNull    $'('          do . *gen('(') *mtext       $')' do . *gen(')')
++           |  isAttrMod $'('          do . *gen('isAttrMod(')  *mtext                $')' do . *gen(')')
++           |  isAttrMod $'('          do . *gen('(isAttrMod(') *isAttrMod_mtext_list $')' do . *gen('))')
++           |  isAttrSet $'('          do . *gen('isAttrSet(')  *mtext                $')' do . *gen(')')
++           |  isAttrSet $'('          do . *gen('(isAttrSet(') *isAttrSet_mtext_list $')' do . *gen('))')
++           )
++        |  *integer . s               do . *gen(s)
++        |  *mstring . s               do . *gen('"' cstring(s) '"')
++        |  *function
++        |  $'('                       do . *gen('(')
++           $' ' *expr_1
++           $')'                       do . *gen(')')
++        |                             do . *gen('(')
++           *expr_1
++                                      do . *gen(')')
++        )  $ tz                       do $ *debug(2, "expr_8 " tz)
+
+         comment           =              do $ *debug(1, "%comment")
++        (
++           $')' $' ' $'*' BREAK(nl) . x  do . *gen('//' x nl) eol
++        )  $ tz                          do $ *debug(1, "comment " tz)
+
+         macro_stmt        =  $')' $' ' macro $' ' ident $ id . id $' ' integer eol
+         endmacro_stmt     =  $')' $' ' $'*' $' ' endmacro BREAK(nl) eol
+         macro_block       =              do $ *debug(1, "%macro_block")
++        (
++           ARBNO(*comment)
++           *macro_stmt
++                                         do $ *assign("dictionary", '"' id '"')
++                                         do $ *assign(id, "TABLE()")
++                                         do . *assign("dictionary", '"' id '"')
++           (
++                                         do . *genproto(id)
++                                         do . *gen('{' nl)
++                                         do . *inclevel()
++                                         do . *gen('Var rc;' nl nl)
++                                         do . *gendict()
++                                         do . *assign('exit:', '""')
++              ARBNO(*stmt)
++                                         do . *gen($'exit:' 'return rc;' nl)
++                                         do . *declevel()
++                                         do . *gen('}' nl)
++           )
++           *endmacro_stmt
++        )  $ tz                          do $ *debug(1, "macro_block " tz)
+
+         loop_stmt         =              do $ *debug(1, "%loop_stmt")
++        (
++           $')' $' ' loop $' ' eol
++        )  $ tz                          do $ *debug(1, "loop_stmt " tz)
+
+         endloop_stmt      =              do $ *debug(1, "%endloop_stmt")
++        (
++           $')' $' ' endloop $' ' eol
++        )  $ tz                          do $ *debug(1, "endloop_stmt " tz)
+
+         ifnotnext_stmt    =              do $ *debug(1, "%ifnotnext_stmt")
++        (
++           $')' $' ' if $' ' $'@' not $'(' $'@' nextObj $'(' $')' $')' eol
++           $')' $' ' leave $' ' eol
++           *endif_stmt
++        ) $ tz                           do $ *debug(1, "ifnotnext_stmt " tz)
+
+         loop_block        =              do $ *debug(1, "%loop_block")
++        (
++           *loop_stmt
++                                         do . *gen('for (;;)' nl)
++                                         do . *gen('{' nl)
++                                         do . *inclevel()
++              ARBNO(*stmt)
++                                         do . *declevel()
++                                         do . *gen('}' nl)
++           *endloop_stmt
++        )  $ tz                          do $ *debug(1, "loop_block " tz)
+
+         eof_stmt         =               do $ *debug(1, "%eof_stmt")
++        (
++           $')' $' ' eof                 do . *gen('goto exit;' nl)
++                                         do . *assign('exit:', '"exit: "')
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "eof_stmt " tz)
+
+         leave_stmt       =               do $ *debug(1, "%leave_stmt")
++        (
++           $')' $' ' leave               do . *gen('break;'     nl)
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "leave_stmt " tz)
+
+         iterate_stmt     =               do $ *debug(1, "%iterate_stmt")
++        (
++           $')' $' ' iterate             do . *gen('continue;'  nl)
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "iterate_stmt " tz)
+
+         include_stmt     =               do $ *debug(1, "%include_stmt")
++        (
++           $')' $' ' include
++           $' '
++           (  $'@' v $'(' bmcInstPath $')'
++              (ident '.t' LEN(2)) . fnm  do . *gen(progname(fnm) '();' nl)
++           |                             do . *gen('include(')
++              *mtext . OUTPUT            do . *gen(');' nl)
++           )
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "include_stmt " tz)
+
+         section_stmt     =               do $ *debug(1, "%section_stmt")
++        (
++           $')' $' ' section             do . *gen('section(')
++           $' ' *integer . s
++           $',' *ident   . id            do . *gen(s ', "' id '");' nl)
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "section_stmt " tz)
+
+         redirect_stmt    =               do $ *debug(1, "%redirect_stmt")
++        (
++           $')' $' ' redirect            do . *gen('redirect(')
++                                         do . *gen(');' nl) eol
++        )  $ tz                          do $ *debug(1, "redirect_stmt " tz)
+
+         redirectnew_stmt =               do $ *debug(1, "%redirectnew_stmt")
++        (
++           $')' $' ' redirectnew         do . *gen('redirectnew(')
++           $' ' *mtext                   do . *gen(');' nl) eol
++        )  $ tz                          do $ *debug(1, "redirectnew_stmt " tz)
+
+         empty           =                do $ *debug(1, "%empty")
++        (
++                                         do . *gen('output(')
++           ''                            do . *gen('""')
++                                         do . *gen(');' nl)
++           eol
++        )  $ tz                          do $ *debug(1, "empty " tz)
+
+         process         =                do $ *debug(1, "%process_stmt")
++        (
++           (  *procedure                 do . *gen('; output(')
++              (
++                 *text                   do . *gen(');')
++              |  ''                      do . *gen('"");')
++              )
++           |                             do . *gen('output(')
++              *text0
++              (                          do . *gen(', NO_NL); ')
++                 *procedure              do . *gen('; output(')
++                 (
++                    *text
++                    (                    do . *gen(', NO_NL); ')
++                       *procedure        do . *gen('; output(')
++                       (
++                          *text
++                          (              do . *gen(', NO_NL); ')
++                             *procedure  do . *gen('; output(')
++                             (
++                                *text    do . *gen(');')
++                             |  ''       do . *gen('"");')
++                             )
++                          |  ''          do . *gen(');')
++                          )
++                       |  ''             do . *gen('"");')
++                       )
++                    |  ''                do . *gen(');')
++                    )
++                 |  ''                   do . *gen('"");')
++                 )
++              |  ''                      do . *gen(');')
++              )
++           )
++           eol                           do . *gen(nl)
++        )  $ tz                          do $ *debug(1, "process_stmt " tz)
+
+         set_stmt        =                do $ *debug(1, "%set_stmt")
++        (
++           $')' $' '
++           (  set $' ' a0 $' ' $'='      do . *gen('a0 = ') *opt_text
++           |  set $' ' a1 $' ' $'='      do . *gen('a1 = ') *opt_text
++           |  set $' ' a2 $' ' $'='      do . *gen('a2 = ') *opt_text
++           |  set $' ' a3 $' ' $'='      do . *gen('a3 = ') *opt_text
++           |  set $' ' a4 $' ' $'='      do . *gen('a4 = ') *opt_text
++           |  set $' ' a5 $' ' $'='      do . *gen('a5 = ') *opt_text
++           |  set $' ' a6 $' ' $'='      do . *gen('a6 = ') *opt_text
++           |  set $' ' a7 $' ' $'='      do . *gen('a7 = ') *opt_text
++           |  set $' ' a8 $' ' $'='      do . *gen('a8 = ') *opt_text
++           |  set $' ' a9 $' ' $'='      do . *gen('a9 = ') *opt_text
++           |  set $' ' rc $' ' $'='      do . *gen('rc = ') *opt_text
++           |  set  $' ' *const_name   $ id $' ' $'=' BREAK(nl)
++           |  set  $' ' *session_name $ id $' ' $'=' do . *gen(' = ')
++              *opt_text
++           |  set  $' ' *global_name  $ id          do $ *regstr(id, 'STORE')
++              $' ' $'='                             do . *gen(' = ')
++              *opt_text
++           |  setg $' ' *global_name  $ id          do $ *regstr(id, 'STORE')
++              $' ' $'='                             do . *gen(' = ')
++              *opt_text
++           |  sets $' ' *global_name  $ id          do $ *regstr(id, 'STORE')
++              $' ' $'='                             do . *gen(' = ')
++              *opt_text
++           |  sets $' ' *session_name $ id
++              $' ' $'='                             do . *gen(' = ')
++              *opt_text
++           |  set  $' ' ident         $ id . id     do $ *regstr(id, 'STORE') $' ' $'='
++                                                    do $ *enter(id, 'STORE') do . *gen(id ' = ')
++              *opt_text
++           |  (  set                     do . *gen('set')
++              |  setg                    do . *gen('setg')
++              |  sets                    do . *gen('sets')
++              )                          do . *gen('(')
++              $' '
++              (  ident . id              do . *gen('"' id '"')
++              |  *v_function
++              )
++              $' ' $'='                  do . *gen(', ')
++              (  ''                      do . *gen('""')
++              |  *text
++              |  *procedure
++              )                          do . *gen(')')
++           )                             do . *gen(';' nl)
++           eol
++        )  $ tz                          do $ *debug(1, "set_stmt " tz)
+
+         if_stmt         =                do $ *debug(1, "%if_stmt")
++        (
++           $')' $' ' if                  do . *gen('if (')
++           $' ' *expr                    do . *gen(')' nl)
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "if_stmt " tz)
+
+         elif_stmt       =                do $ *debug(1, "%elif_stmt")
++        (
++           $')' $' ' elif                do . *gen('else if (')
++           $' ' *expr                    do . *gen(')' nl)
++           $' ' eol
++        )  $ tz                          do $ *debug(1, "elif_stmt " tz)
+
+         else_stmt       =                do $ *debug(1, "%else_stmt")
++        (
++           $')' $' ' else $' ' eol
++        )  $ tz                          do $ *debug(1, "else_stmt " tz)
+
+         endif_stmt      =                do $ *debug(1, "%endif_stmt")
++        (
++           $')' $' ' endif $' ' eol
++        )  $ tz                          do $ *debug(1, "endif_stmt " tz)
+
+         elif_block      =                do $ *debug(1, "%elif_block")
++        (
++           *elif_stmt
++                                         do . *gen('{' nl)
++                                         do . *inclevel()
++           ARBNO(*stmt)
++                                         do . *declevel()
++                                         do . *gen('}' nl)
++        ) $ tz                           do $ *debug(1, "elif_block " tz)
+
+         else_block      =                do $ *debug(1, "%else_block")
++        (
++           *else_stmt
++                                         do . *gen('else' nl '{' nl)
++                                         do . *inclevel()
++           ARBNO(*stmt)
++                                         do . *declevel()
++                                         do . *gen('}' nl)
++        ) $ tz                           do $ *debug(1, "else_block " tz)
+
+         if_block        =                do $ *debug(1, "%if_block")
++        (
++           *if_stmt
++                                         do . *gen('{' nl)
++                                         do . *inclevel()
++           ARBNO(*stmt)
++                                         do . *declevel()
++                                         do . *gen('}' nl)
++           ARBNO(*elif_block)
++           ARBNO(*else_block)
++           (*endif_stmt | RPOS(0) FENCE  do $ *gen('Error: Missing ENDIF' nl) FAIL)
++        ) $ tz                           do $ *debug(1, "if_block " tz)
+
+         stmt            =                do $ *debug(1, "%stmt")
++        (  *if_block
++        |  *loop_block
++        |  *comment
++        |  *eof_stmt
++        |  *include_stmt
++        |  *section_stmt
++        |  *iterate_stmt
++        |  *leave_stmt
++        |  *redirect_stmt
++        |  *redirectnew_stmt
++        |  *set_stmt
++        |  *empty
++        |  *process
++        ) $ tz                           do $ *debug(1, "stmt " tz)
+
+        comments         =  *comment (*comments | '')
+        stmts            =  *stmt ARBNO(*stmt)
+
+        program          =  POS(0)           do $ *debug(9, "%program")
++                                            do $ *assign("dictionary", '"main"')
++                                            do $ *assign("main", "TABLE()")
++                           (*comments | '') do . *gen(nl)
++                                            do . *assign("dictionary", '"main"')
++                                            do . *gen('#include <' dbms 'tpl.h>' nl nl)
++                                            do . *gen('int ' class '::' progname(filename) '()' nl '{' nl)
++                                            do . *inclevel()
++                                            do . *gendict()
++                                            do . *assign('exit:', '""')
++                           ARBNO(*stmt)
++                                            do . *gen($'exit:' 'return 0;' nl)
++                                            do . *declevel()
++                                            do . *gen('}' nl)
++                           ARBNO(*macro_block)
++                           ARBNO(*comment)
++                           RPOS(0)
+
+
+
+        args             =  (  'void'
++                           |  ('Var' | 'int') do . *assign("count", "count + 1")
++                              ('' | $' ' $'=' $' ' '""')
++                              ('' | $',' $' ' *args)
++                           )
+
+        dbms_list        =  'alo/al2/alm/akm/als/ali/sch/'
+loop    dbms_list        ident . dbms '/' =                             :f(END)
+        class            =  upr(dbms) 'TPL'
+        filename         =  '/bmc/meta/include/' dbms 'tpl.h'
+        INPUT_(.HEADER, 8, 512, filename)                               :f(ioerror)
+        proto            =  TABLE()
+        registry         =  TABLE()
+        function_name    =  ''
+        global_name      =  ''
+        session_name     =  ''
+        const_name       =  ''
+loop0   line             =  HEADER                                      :f(doglob)
+        line             POS(0) '// ------'                             :s(doglob)
+        count            =  0
+        line             POS(0)
++                        $' ' ('Var' | 'int')
++                        $' ' ('DLLPORT' | '')
++                        $' ' ident . id
++                        $' ' $'(' ('' | $' ' *args) $')' ';'
++                        RPOS(0)                                        :f(loop0)
+        IDENT(id, "v")                                                  :s(loop0)
+        proto[lwr(id)]   =  count
+        DIFFER(function_name)                                           :s(func1)
+        function_name    =  EVAL('icase("' id '") do . *gen("' id '")') :(loop0)
+func1   function_name    =  function_name
++                        |  EVAL('icase("' id '") do . *gen("' id '")') :(loop0)
+
+doglob  filename         =  '/bmc/template/' dbms 'global.lst'
+        ENDFILE(8)
+        INPUT_(.IDFILE, 8, 80, filename)                                :f(ioerror)
+doglob0 id               =  IDFILE                                      :f(doses)
+        id               POS(0) ('$' | '@' | '@@') =
+        DIFFER(global_name)                                             :s(doglob1)
+        global_name      =  EVAL('icase("' id '") do . *gen("' id '")') :(doglob0)
+doglob1 global_name      =  global_name
++                        |  EVAL('icase("' id '") do . *gen("' id '")') :(doglob0)
+
+doses   filename         =  '/bmc/template/session.lst'
+        ENDFILE(8)
+        INPUT_(.IDFILE, 8, 80, filename)                                :f(ioerror)
+doses0  id               =  IDFILE                                      :f(docnst)
+        id               POS(0) ('$' | '@' | '@@') =
+        DIFFER(session_name)                                            :s(doses1)
+        session_name     =  EVAL('icase("' id '") do . *gen("' id '")') :(doses0)
+doses1  session_name     =  session_name
++                        |  EVAL('icase("' id '") do . *gen("' id '")') :(doses0)
+
+docnst  filename         =  '/bmc/template/' dbms 'const.lst'
+        ENDFILE(8)
+        INPUT_(.IDFILE, 8, 80, filename)                                :f(ioerror)
+docnst0 id               =  IDFILE                                      :f(dolist)
+        DIFFER(const_name)                                              :s(docnst1)
+        const_name       =  EVAL('icase("' id '")')                     :(docnst0)
+docnst1 const_name       =  const_name
++                        |  EVAL('icase("' id '")')                     :(docnst0)
+
+dolist  ENDFILE(8)
+        INPUT_(.LIST, 8, 80, '/bmc/template/' dbms 'tpl.lst')           :f(ioerror)
+loop1   filename         =  LIST                                        :f(report)
+        DIFFER(filename)                                                :f(report)
+        filename         POS(0) ident '/' =
+        infilenm         =  '/bmc/template/' dbms '/' filename
+        outfilenm        =  '/bmc/meta/' dbms 'tpl/' progname(filename) '.cpp'
+        INPUT_(.INPUT,    5, 512, infilenm)                             :f(ioerr1)
+        OUTPUT_(.OUTFILE, 9, 512, outfilenm)                            :f(ioerr2)
+        OUTPUT           =  DUPL('=', 50) ' ' progname(filename) ' ...'
+        tpl              =  ''
+loop2   line             =  INPUT                                       :f(doit)
+        tpl              =  tpl line nl                                 :(loop2)
+doit    tpl              *program
+        ENDFILE(5)
+        ENDFILE(9)                                                      :(loop1)
+
+report  ENDFILE(8)
+        OUTPUT           =  ''
+        regarr           =  SORT(CONVERT(registry, 'ARRAY'))            :f(error)
+        i                =  1
+report1 regarr[i, 1]                                                    :f(loop)
+        EQ(regarr[i, 2],1)                                              :s(report2)
+        OUTPUT           =  regarr[i, 1]
+report2 i                =  i + 1                                       :s(report1)
+
+error   OUTPUT           =  "Error: " lineno                            :(END)
+ioerror OUTPUT           =  "I/O Error: " filename                      :(END)
+ioerr1  OUTPUT           =  "I/O Error: " infilenm                      :(END)
+ioerr2  OUTPUT           =  "I/O Error: " outfilenm                     :(END)
+END

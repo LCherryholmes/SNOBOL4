@@ -1,0 +1,5 @@
+   INPUT(.INPUT, 3, './testpgms.spt') :F(error)
+L1 line = INPUT :F(END)
+   line POS(0) LEN(72) . line :F(error)
+   OUTPUT = TRIM(line) :(L1)
+END

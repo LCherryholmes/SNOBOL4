@@ -1,0 +1,191 @@
+*-------------------------------------------------------------------------------------------------------
+* Activists.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'RANDOM.inc'
+-INCLUDE 'HTTP.inc'
+-INCLUDE 'XML.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'export.inc'
+*========== =========== === =================================================== ====================
+            dir         =   'C:/LegalEarth/Activists'
+            doHTTP      =   TRUE
+            months      =   TABLE(12)
+            months['Jan'] = 1
+            months['Feb'] = 2
+            months['Mar'] = 3
+            months['Apr'] = 4
+            months['May'] = 5
+            months['Jun'] = 6
+            months['Jul'] = 7
+            months['Aug'] = 8
+            months['Sep'] = 9
+            months['Oct'] = 10
+            months['Nov'] = 11
+            months['Dec'] = 12
+            $'  '       =   SPAN(' ' cr lf vt ht)
+            $' '        =   FENCE($'  ' | epsilon)
+            p_month     =   'Jan' | 'Feb' | 'Mar' | 'Apr' | 'May' | 'Jun' | 'Jul' | 'Aug' | 'Sep' | 'Oct' | 'Nov' | 'Dec'
+            p_date      =   p_month . month ' ' SPAN(digits) . dom ', ' SPAN(digits) . year
+            p_subscribers = epsilon $ subscribers '<span class="about-stat"><b>' BREAK('<') . subscribers '</b> subscribers</span>'
+            p_views       = epsilon $ views '<span class="about-stat"> &bull; <b>' BREAK('<') . views '</b> views</span>'
+            p_joined      = epsilon $ joined '<span class="about-stat">Joined ' BREAK('<') . joined '</span>'
+            p_description = epsilon $ description
++                           '<div class="about-description branded-page-box-padding" >'
++                           $' ' '<pre>' BREAK('<') . description '</pre>'
++                           $' ' '</div>'
+            p_country   =   epsilon $ country
++                           '<div class="country-container branded-page-box-padding">'
++                           $' ' '<span class="country-label">'
++                           $' ' 'Country:'
++                           $' ' '</span>'
++                           $' ' '<span class="country-inline">'
++                           $' ' BREAK('<') . country '</span>'
++                           $' ' '</div>'
+            p_language  =   epsilon $ language
++                           '<span class="yt-uix-button-content">'
++                           $' ' '<span class="yt-picker-button-label">'
++                           $' ' 'Language:'
++                           $' ' '</span>'
++                           $' ' BREAK('<') . language
++                           '</span>'
+            p_email     =   epsilon $ email_ref
++                           ( ANY(digits &UCASE &LCASE) FENCE(SPAN(digits '-.' &UCASE '_' &LCASE) | epsilon) '@'
++                             ARBNO(ANY(digits &UCASE &LCASE) FENCE(SPAN(digits '-' &UCASE '_' &LCASE) | epsilon) '.')
++                             ('com' | 'io' | 'net' | 'org')
++                           ) . email_ref
+            p_http      =   'http' ('s' | epsilon) '://'
+            p_www       =   'www.' | epsilon
+            p_urls      =   '<a href="' (p_http BREAK('"')) . tx '"' BREAK('>') '>'
++                           . *assign(.urls, (DIFFER(urls) urls ' ', NULL) tx)
+            p_ignore    =   (  'https://www.google.com/intl/en/policies/privacy/'
++                           |  'https://accounts.google.com/ServiceLogin?'
++                           ) ARBNO(NOTANY(' ' cr lf vt ht))
+            p_reddit    =   p_http p_www icase('reddit.com')    '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_twitter   =   p_http p_www icase('twitter.com')   '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_facebook  =   p_http p_www icase('facebook.com')  '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_instagram =   p_http p_www icase('instagram.com') '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_linkedin  =   p_http p_www icase('linkedin.com')  '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_gofundme  =   p_http p_www icase('gofundme.com')  '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_patreon   =   p_http p_www icase('patreon.com')   '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_paypal    =   p_http p_www icase('paypal.me')     '/' ARBNO(NOTANY(' ' cr lf vt ht))
+            p_u_reddit    = epsilon $ reddit_link    p_reddit    . reddit_link
+            p_u_twitter   = epsilon $ twitter_link   p_twitter   . twitter_link
+            p_u_facebook  = epsilon $ facebook_link  p_facebook  . facebook_link
+            p_u_instagram = epsilon $ instagram_link p_instagram . instagram_link
+            p_u_linkedin  = epsilon $ linkedin_link  p_linkedin  . linkedin_link
+            p_u_gofundme  = epsilon $ gofundme_link  p_gofundme  . gofundme_link
+            p_u_patreon   = epsilon $ patreon_link   p_patreon   . patreon_link
+            p_u_paypal    = epsilon $ paypal_link    p_paypal    . paypal_link
+            p_d_reddit    = p_reddit    . tx . *assign(.reddit_link,    *(IDENT(reddit_link)    tx))
+            p_d_twitter   = p_twitter   . tx . *assign(.twitter_link,   *(IDENT(twitter_link)   tx))
+            p_d_facebook  = p_facebook  . tx . *assign(.facebook_link,  *(IDENT(facebook_link)  tx))
+            p_d_instagram = p_instagram . tx . *assign(.instagram_link, *(IDENT(instagram_link) tx))
+            p_d_linkedin  = p_linkedin  . tx . *assign(.linkedin_link,  *(IDENT(linkedin_link)  tx))
+            p_d_gofundme  = p_gofundme  . tx . *assign(.gofundme_link,  *(IDENT(gofundme_link)  tx))
+            p_d_patreon   = p_patreon   . tx . *assign(.patreon_link,   *(IDENT(patreon_link)   tx))
+            p_d_paypal    = p_paypal    . tx . *assign(.paypal_link,    *(IDENT(paypal_link)    tx))
+            p_left      =   (POS(0) | ' ') . ltx
+            p_right     =   (' ' | RPOS(0)) . rtx
+            e_delim     =   *(SUBSTR(ltx rtx, 2, 1), NULL)
+            p_line      =   POS(0) BREAK(',') . channel
++                           ',' BREAK(',')
++                           ',' BREAK(',') . videos
++                           ',' BREAK(',')
++                           ',' BREAK(',')
++                           ',' BREAK(',') . link
++                           ',' BREAK(',') . email
++                           ',' RTAB(0)
+            e_line      =   *(     channel
++                              ',' subscribers
++                              ',' videos
++                              ',' views
++                              ',' joined
++                              ',' link
++                              ',' email
++                              ',' country
++                              ',' language
++                              ',' reddit_link
++                              ',' twitter_link
++                              ',' facebook_link
++                              ',' instagram_link
++                              ',' linkedin_link
++                              ',' gofundme_link
++                              ',' patreon_link
++                              ',' paypal_link
++                              ',' urls
++                              ',"' CsvDQize(description) '"'
++                           )
+*========== =========== === =================================================== ====================
+*           EXIT(3, 'Activists.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+L00         HTTP_Init('Activists')                                              :F(Yikes)
+            INPUT(.input, 3, 'Activists.csv')                                   :F(Yikes)
+            OUTPUT      =   input                                               :F(Yikes)
+L10         line        =   input                                               :F(L90)
+            line        ?   p_line                                              :F(Yikes)
+            seconds     =   RANDOM(30)
+            TERMINAL    =   channel '(' seconds ')'
+            link        ?   '/' ARBNO(NOTANY('/')) . key RPOS(0)
+            path        =   dir '/' key '.html'
+            html        =
+            html        =   Read(path)                                          :S(L30)
+            html        =   HTTP_Get('Activists', link '/about')                :F(LE1)
+            Write(path, html)                                                   :F(Yikes)
+            Pause(seconds)
+L30         urls        =
+            html        ?   p_subscribers =
+            html        ?   p_views =
+            html        ?   p_joined =                                          :F(Yikes)
+            html        ?   p_description =
+            html        ?   p_country =
+            html        ?   p_language =
+L3u         html        ?   p_urls =                                            :S(L3u)
+L3i         urls        ?   p_left p_ignore p_right = EVAL(e_delim)             :S(L3i)
+            urls        ?   p_left p_u_reddit p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_twitter p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_facebook p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_instagram p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_linkedin p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_gofundme p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_patreon p_right = EVAL(e_delim)
+            urls        ?   p_left p_u_paypal p_right = EVAL(e_delim)
+            country     ?   $'  ' RPOS(0) =
+            language    ?   $'  ' RPOS(0) =
+            joined      ?   POS(0) p_date RPOS(0)                               :F(Yikes)
+            joined      =   year '-' LPAD(months[month], 2, 0) '-' LPAD(dom, 2, 0)
+            description =   XMLDecode(description)
+L31         subscribers ?   ',' =                                               :S(L31)
+L32         views       ?   ',' =                                               :S(L32)
+L34         description ?   (nl | cr | vt | ht) = ' '                           :S(L34)
+L35         description ?   '  ' = ' '                                          :S(L35)
+            description ?   p_left p_d_reddit p_right
+            description ?   p_left p_d_twitter p_right
+            description ?   p_left p_d_facebook p_right
+            description ?   p_left p_d_instagram p_right
+            description ?   p_left p_d_linkedin p_right
+            description ?   p_left p_d_gofundme p_right
+            description ?   p_left p_d_patreon p_right
+            description ?   p_left p_d_paypal p_right
+            description ?   p_left p_email p_right
+            email       =   IDENT(email, '?') DIFFER(email_ref) email_ref
+            OUTPUT      =   EVAL(e_line)                                        :(L10)
+L90         ENDFILE(3)                                                          :(LFini)
+LE1         TERMINAL    =   'HTTP GET Error ... ' link
+            curl_easy_error_info(curl, cc)                                      :(L10)
+LFini       curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === =================================================== ====================
+*-INCLUDE 'debug.sno'
+END

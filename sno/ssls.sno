@@ -1,0 +1,51 @@
+*------------------------------------------------------------------------------------------------
+-INCLUDE 'global.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'host.inc'
+-INCLUDE 'ss.inc'
+-INCLUDE 'utility.inc'
+*------- ----------- ----- ---------------------------------------- -----------------------------
+         EXIT(3, 'ssls.exe')
+         Utility()
+         ssUserId    =     ' -Y' lwr(userId)
+         ssUserId    =     IDENT(userId, 'BUILD')
+         ssUserId    =     IDENT(userId, 'LCHERRYH') ' -Ylcherryholmes'
+         ssUserId    =     IDENT(userId, 'LON CHERRYHOLMES') ' -Ylcherryholmes'
+         i           =     0
+args0    i           =     i + 1
+         arg         =     GETARG(i)                                :F(args1)
+         arg         db                                             :S(args0)
+         arg         curprj                                         :S(args0)
+         label       =     IDENT(arg, '-p') 'paths'                 :S(args0)
+         label       =     IDENT(arg, '-f') 'files'                 :S(args0)F(args0)
+args1    label       =     IDENT(label)     'paths'
+         ssDB        =     IDENT(ssDB) 'SourceSafe'
+         ssCurPrj    =     IDENT(ssCurPrj) '$/'
+         ssCurPrj    '*'                                            :F(args3)
+         ssCurPrj    POS(0) ARB . ppath '/' ARBNO(NOTANY('/')) '*' ARB RPOS(0)
+         ssCmd       =     SSDIR[ssDB] '/win32/ss ls' ssUserId      :(args5)
+args3    ssCmd       =     SSDIR[ssDB] '/win32/ss ls -r' ssUserId   :(args5)
+args5    ssCmd       =     ssCmd ' "' ssCurPrj '"'
+         INPUT(.INPUT, 0, '!!' ssCmd)                               :S($label)F(xerr)
+paths    line        =     INPUT                                    :F(END)
+         line        POS(0) ('$/' ARB) . path ':' RPOS(0)           :F(paths)
+         OUTPUT      =     path                                     :(paths)
+files    line        =     INPUT                                    :F(xeof)
+files1   line        POS(0) '$' . path '/:' RPOS(0)                 :S(files2)
+         line        POS(0) ('$/' ARB) . path ':' RPOS(0)           :S(files2)
+         line        'item(s)' RPOS(0)                              :S(END)
+         line        =     line ' ' INPUT                           :S(files1)F(xeof)
+files2   line        =     INPUT
+         line        POS(0) 'No items found under'                  :F(files4)
+files3   line        =     INPUT                                    :F(xeof)
+         line        POS(0) RPOS(0)                                 :S(files)F(files3)
+files4   line        POS(0) '$'                                     :F(files5)
+         line        =     INPUT                                    :S(files4)F(xeof)
+files5   line        POS(0) RPOS(0)                                 :S(files)
+         OUTPUT      =     IDENT(ppath) path '/' line
+         OUTPUT      =     DIFFER(ppath) ppath '/' line
+         line        =     INPUT                                    :S(files5)F(xeof)
+ioerr    OUTPUT      =     '*** i/o error'                          :(END)
+xerr     OUTPUT      =     '*** unexpected error: ' line            :(END)
+xeof     OUTPUT      =     '*** unexpected end of file'             :(END)
+END

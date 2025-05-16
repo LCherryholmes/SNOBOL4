@@ -1,0 +1,124 @@
+*-------------------------------------------------------------------------------------------------------------------------
+*
+*      this program reads a list of source safe project path names
+*      and in some cases produces new path names which are rearranged
+*      by a set of patterns with replacement rules.
+*
+       digits   =   '0123456789'
+       id       =   (span(digits &ucase '_' &lcase) | '')
+       pdb      =   '' $ prj
++                   (  '.' . prj
++                   |  '$' . prj '/pdb'
++                   |  '$/Usability'                  . prj
++                   |  '$/NewFeatures/MigWizard'      . prj
++                   |  '$/NewFeatures/Reports'        . prj
++                   |  '$/NewFeatures/Tip of the Day' . prj
++                   )
+       pdbtext  =   '' $ prj
++                   (  '$' . prj '/pdbtext'
++                   |  '$/Usability'                  . prj '/pdbtext'
++                   |  '$/NewFeatures/MigWizard'      . prj '/pdbtext'
++                   |  '$/NewFeatures/Reports'        . prj '/pdbtext'
++                   |  '$/NewFeatures/Tip of the Day' . prj '/pdbtext'
++                   )
+       dpfx     =   '' $ pfx
++                   (  'ado' . *assign(.pfx, '"alo"')
++                   |  'ald' . *assign(.pfx, '"al2"')
++                   |  'alq' . *assign(.pfx, '"alm"')
++                   |  'd22' . *assign(.pfx, '"al2"')
++                   |  'syb' . *assign(.pfx, '"als"')
++                   |  'sy4' . *assign(.pfx, '"als"')
++                   |  ('al2' | 'ali' | 'alm' | 'alo' | 'als' | 'akm' | 'pqo' | 'pse') . pfx
++                   )
+       cpfx     =   '' $ pfx
++                   (  'ALX' . *assign(.pfx, '"alx"')
++                   |  'Alx' . *assign(.pfx, '"alx"')
++                   |  'CMX' . *assign(.pfx, '"cmx"')
++                   |  (  'acl' | 'acm' | 'alx' | 'alz' | 'cgs' | 'lcn' | 'msl'
++                      |  'mvs' | 'cmx' | 'jzs' | 'pdb' | 'sch' | 'scr'
++                      ) . pfx
++                   )
+       i18nifx  =   '_' (('de_DE' | 'en_US' | 'ja_JP') '.' ('iso88591' | 'eucJP' | 'SJIS')) . ifx
+       txttfx   =   ('inifiles' | 'msgfiles' | 'scripts' | 'template') . tfx
+
+       p        =   array('1:64')
+       r        =   array('1:64')
+       n        =   0
+       n = n + 1; p[n] = pdb '/' *i18nifx '/' (*cpfx id) . nm;        r[n] = *(prj '/common/' ifx '/' nm)
+       n = n + 1; p[n] = pdb '/' *i18nifx '/' (*dpfx id) . nm;        r[n] = *(prj '/' pfx '/' ifx '/' nm)
+       n = n + 1; p[n] = pdb '/' *i18nifx '/pam';                     r[n] = *(prj '/common/' ifx '/pam')
+       n = n + 1; p[n] = pdb '/' *i18nifx '/images';                  r[n] = *(prj '/common/' ifx '/images')
+       n = n + 1; p[n] = pdb '/OEMIntegration';                       r[n] = *(prj '/common/OEMIntegration')
+       n = n + 1; p[n] = pdb '/ThirdParty';                           r[n] = *(prj '/ThirdParty')
+       n = n + 1; p[n] = pdb '/bitmaps';                              r[n] = *(prj '/common/resources')
+       n = n + 1; p[n] = pdb '/build';                                r[n] = *(prj '/common/build')
+       n = n + 1; p[n] = pdb '/btools/client';                        r[n] = *(prj '/common/build/client')
+       n = n + 1; p[n] = pdb '/common/getopt';                        r[n] = *(prj '/common/getopt')
+       n = n + 1; p[n] = pdb '/common/mvsutil';                       r[n] = *(prj '/common/mvsutil')
+       n = n + 1; p[n] = pdb '/common/acmhhgen';                      r[n] = *(prj '/common/tools/acmhhgen')
+       n = n + 1; p[n] = pdb '/common/acmebnf';                       r[n] = *(prj '/common/tools/acmebnf')
+       n = n + 1; p[n] = pdb '/common/yacc';                          r[n] = *(prj '/common/tools/yacc')
+       n = n + 1; p[n] = pdb '/common/' (*cpfx '/' arb) . nm;         r[n] = *(prj '/common/' nm)
+       n = n + 1; p[n] = pdb '/common/' (*cpfx id) . nm;              r[n] = *(prj '/common/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/etc';                                  r[n] = *(prj '/common/etc')
+       n = n + 1; p[n] = pdb '/grids';                                r[n] = *(prj '/common/grids')
+       n = n + 1; p[n] = pdb '/chk4dlls';                             r[n] = *(prj '/common/tools/chk4dlls')
+       n = n + 1; p[n] = pdb '/helptour';                             r[n] = *(prj '/common/helptour')
+       n = n + 1; p[n] = pdb '/include';                              r[n] = *(prj '/include')
+       n = n + 1; p[n] = pdb '/lib';                                  r[n] = *(prj '/common/lib')
+       n = n + 1; p[n] = pdb '/th';                                   r[n] = *(prj '/common/th')
+       n = n + 1; p[n] = pdb '/meta/' (*cpfx id) . nm;                r[n] = *(prj '/common/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/meta/' (*dpfx id) . nm;                r[n] = *(prj '/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/meta/analyzet';                        r[n] = *(prj '/alm/analyzet')
+       n = n + 1; p[n] = pdb '/meta/cursors';                         r[n] = *(prj '/common/resources')
+       n = n + 1; p[n] = pdb '/meta/icons';                           r[n] = *(prj '/common/resources')
+       n = n + 1; p[n] = pdb '/meta/include';                         r[n] = *(prj '/include')
+       n = n + 1; p[n] = pdb '/meta/sspcvt';                          r[n] = *(prj '/alm/sspcvt')
+       n = n + 1; p[n] = pdb '/oms/bundle';                           r[n] = *(prj '/common/bundle')
+       n = n + 1; p[n] = pdb '/oms/' (*cpfx id) . nm;                 r[n] = *(prj '/common/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/pam';                                  r[n] = *(prj '/common/pam')
+       n = n + 1; p[n] = pdb '/patapi';                               r[n] = *(prj '/common/patapi')
+       n = n + 1; p[n] = pdb '/pdbkm';                                r[n] = *(prj '/common/pdbkm')
+       n = n + 1; p[n] = pdb '/scr20/spedit';                         r[n] = *(prj '/common/scr/spedit')
+       n = n + 1; p[n] = pdb '/scr20/' (*cpfx id) . nm;               r[n] = *(prj '/common/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/server/sapsvp';                        r[n] = *(prj '/common/server/sapsvp')
+       n = n + 1; p[n] = pdb '/server/acmunix';                       r[n] = *(prj '/common/server/acmunix')
+       n = n + 1; p[n] = pdb '/server/acmwinnt';                      r[n] = *(prj '/common/server/acmwinnt')
+       n = n + 1; p[n] = pdb '/server/scriptmsgs';                    r[n] = *(prj '/common/server/scriptmsgs')
+       n = n + 1; p[n] = pdb '/server/' (*cpfx id) . nm;              r[n] = *(prj '/common/server/' pfx '/' nm)
+       n = n + 1; p[n] = pdb '/server/' (*dpfx id) . nm;              r[n] = *(prj '/' pfx '/server/' nm)
+       n = n + 1; p[n] = pdb '/' (id ('.' id | '')) . nm rpos(0);     r[n] = *(prj '/common/build/' nm)
+       n = n + 1; p[n] = pdb '/DescribedSessions/'
++                            (*dpfx id '.mds') . nm rpos(0);          r[n] = *(prj '/' pfx '/mds/' nm)
+       n = n + 1; p[n] = pdbtext '/' *txttfx '/m41';                  r[n] = *(prj '/akm/' tfx '/m41')
+       n = n + 1; p[n] = pdbtext '/' *txttfx '/m51';                  r[n] = *(prj '/akm/' tfx '/m51')
+       n = n + 1; p[n] = pdbtext '/' *txttfx '/' *cpfx;               r[n] = *(prj '/common/' pfx '/' tfx)
+       n = n + 1; p[n] = pdbtext '/' *txttfx '/' *dpfx;               r[n] = *(prj '/' pfx '/' tfx)
+       n = n + 1; p[n] = pdbtext '/' *txttfx '/' *i18nifx;            r[n] = *(prj '/common/' ifx '/' tfx)
+
+-include 'host.inc'
+-include 'assign.inc'
+
+       infilenm =
+       nprojnm  =
+       exit(3, 'ssreorg.exe')
+args0  i        =  i + 1
+       arg      =  getarg(i)                                     :f(args1)
+       arg      pos(0) '-i' arb . infilenm rpos(0)               :s(args0)
+       arg      pos(0) '-p' arb . nprojnm  rpos(0)               :s(args0)f(args0)
+args1  again    =   ident(nprojnm) 'loop1'
+       again    =   differ(nprojnm) 'end'                        :s(loop2)
+       differ(infilenm)                                          :f(loop1)
+       input(.input, 0, infilenm)                                :f(ioerr)
+loop1  projnm   =   input                                        :f(end)
+       nprojnm  =   projnm
+loop2  i        =   0
+loop3  i        =   lt(i, n) i + 1                               :f(loop4)
+*      nprojnm  pos(0) p[i] rpos(0) = eval(r[i])                 :f(loop3)
+       nprojnm  pos(0) p[i] ('/' arb | '') . x rpos(0) = eval(r[i]) x :f(loop3)
+       output   =   ident(projnm) nprojnm                        :s($again)
+       output   =   rpad('"' projnm '"', 58) ' ' '"' nprojnm '"' :($again)
+loop4  output   =   ident(projnm) nprojnm                        :s($again)
+       output   =   '"' projnm '"'                               :($again)
+ioerr  output   =   'i/o error'                                  :(end)
+END

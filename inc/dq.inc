@@ -1,0 +1,11 @@
+              DEFINE('dq(path)part')                                                :(dq_end)
+dq            path           POS(0) RPOS(0)                                         :S(RETURN)
+              path           POS(0) ARBNO(NOTANY(' /')) . part '/' =                :S(dq3)
+              path           POS(0) ARBNO(NOTANY('/'))  . part '/' =                :S(dq5)
+              path           POS(0) ARBNO(NOTANY(' /')) . part RPOS(0) =            :S(dq7)
+              path           POS(0) ARBNO(NOTANY('/'))  . part RPOS(0) =            :S(dq9)F(error)
+dq3           dq             =   dq part '/'                                        :(dq)
+dq5           dq             =   dq '"' part '"/'                                   :(dq)
+dq7           dq             =   dq part                                            :(dq)
+dq9           dq             =   dq '"' part '"'                                    :(dq)
+dq_end

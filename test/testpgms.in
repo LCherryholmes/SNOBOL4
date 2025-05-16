@@ -1,0 +1,568 @@
+*
+*      A VARIETY OF CORRECT AND INCORRECT SPITBOL STATEMENTS FOLLOW
+*
+-LIST
+COMPUTE
+*      X   =  Y + 3 ** -'2'
+*      X   =   Y+Z
+*        ELEMENT<I,J>= ELEMENT<I,-J> + ELEMENT<-I,J>
+       ELEMENT<I><J><K>   =   ELEMENT<K><J><I>
+       A<X,Y,Z + 1>   =   F(X,STRUCTURE_BUILD(TYPE,LENGTH + 1))
+SETUP    PAT1   =   (BREAK(',:') $ FIRST | SPAN(' .') $ SECOND
+.                   . VALUE ARBNO(BAL | LEN(1))  :($SWITCH)
+       DEFINE('F(X,Y))
+       L   =   LT(N,B<J> L + 1
+NEWONE_TRIAL   X   =   !COORD<1,K> X * X
+       TRIM(INPUT)   PAT1    :S(OK)  :F(BAD)
+   X   =   3.01; Y = 2.    ; Z   =   X * -Y
+./*
+-TITLE SPITBOL TEST PROGRAM #5 -- DEMONSTRATION VERSION OF TREESORT4
+-STITL DRIVER
+ DEFINE('TREESORT4(DATA,NUMBER_TO_SORT)')
+ DEFINE('PRINTER()')
+ DATA = ARRAY(24)
+         INPUT(.INPUT,,72)
+READER J = J + 1
+ DATA<J> = TRIM(INPUT)  :S(READER)
+ OUTPUT = 'UNSORTED DATA'
+ OUTPUT =
+ PRINTER()
+ TREESORT4(DATA,24)
+ OUTPUT =
+ OUTPUT = 'SORTED DATA'
+ OUTPUT =
+ PRINTER() :(END)
+*
+PRINTER J = 0
+PRINTL J = J + 1
+ OUTPUT = DATA<J>    :S(PRINTL)F(RETURN)
+-STITL ACTUAL TREESORT4 SUBROUTINE
+*             TREESORT4
+*             ---------
+*
+*             SORTING ALGORITHM DERIVED FROM FLOYD'S TREESORT3 PUBLISHED
+*             IN CACM DEC. 1967 -- THE MODIFICATIONS DEVISED BY R. DEWAR
+*             AND L.FISHER REDUCE THE NUMBER OF COMPARES FROM 2NLOGN
+*             TO NLOGN -- THIS VERSION CODED IN SNOBOL4 BY R. DEWAR
+*
+TREESORT4
+.             NUMBER_IN_TREE = NUMBER_TO_SORT
+              NODE_TO_SIFT = NUMBER_TO_SORT / 2
+              RETURN_FROM_SIFT = .SIFT_RETURN_1
+SIFT_CALL_1
+.             HOLD_LOCATION = DATA<NODE_TO_SIFT> :(SIFT_NODE)
+SIFT_RETURN_1
+.             NODE_TO_SIFT = GT(NODE_TO_SIFT,1)
+.                              NODE_TO_SIFT - 1  :S(SIFT_CALL_1)
+SECOND_PHASE
+.             RETURN_FROM_SIFT = .SIFT_RETURN_2
+SIFT_RETURN_2
+.             HOLD_LOCATION = DATA<NUMBER_IN_TREE>
+              DATA<NUMBER_IN_TREE> = DATA<1>
+              NUMBER_IN_TREE = GT(NUMBER_IN_TREE,1)
+.                               NUMBER_IN_TREE - 1
+.                                                :S(SIFT_NODE)F(RETURN)
+-EJECT
+SIFT_NODE
+.             FATHER = NODE_TO_SIFT
+PULL_UP_LARGER_SON
+.             LEFT_SON = FATHER * 2
+              LT(LEFT_SON,NUMBER_IN_TREE)        :S(COMPARE_SONS)
+              EQ(LEFT_SON,NUMBER_IN_TREE)        :S(LEFT_SON_HIGH)
+                                                 :(CHECK_FATHERS)
+COMPARE_SONS
+.             RIGHT_SON = LEFT_SON + 1
+              LGT(DATA<LEFT_SON>,DATA<RIGHT_SON>)
+.                                                :S(LEFT_SON_HIGH)
+RIGHT_SON_HIGH
+.             DATA<FATHER> = DATA<RIGHT_SON>
+              FATHER = RIGHT_SON                 :(PULL_UP_LARGER_SON)
+LEFT_SON_HIGH
+.             DATA<FATHER> = DATA<LEFT_SON>
+              FATHER = LEFT_SON                  :(PULL_UP_LARGER_SON)
+CHECK_FATHERS
+.             HOLE_IN_TREE = FATHER
+TEST_NEXT_FATHER
+.             FATHER_OF_HOLE = HOLE_IN_TREE / 2
+              LT(FATHER_OF_HOLE,NODE_TO_SIFT)    :S(FILL_HOLE)
+              LGT(DATA<FATHER_OF_HOLE>,HOLD_LOCATION)
+.                                                :S(FILL_HOLE)
+              DATA<HOLE_IN_TREE> = DATA<FATHER_OF_HOLE>
+              HOLE_IN_TREE = FATHER_OF_HOLE      :(TEST_NEXT_FATHER)
+FILL_HOLE
+.             DATA<HOLE_IN_TREE> = HOLD_LOCATION
+.                                                :($RETURN_FROM_SIFT)
+END
+SHALL
+I
+COMPARE
+THEE
+TO
+A
+SUMMERS
+DAY
+THOU
+ART
+MORE
+LOVELY
+AND
+MORE
+TEMPORATE
+ROUGH
+WINDS
+DO
+SHAKE
+THE
+DARLING
+BUDS
+OF
+MAY
+./*
+-TITLE SPITBOL TEST PROGRAM #6 -- TOPOLOGICAL SORT
+*
+*        TOPOLOGICAL SORT
+*
+*   MAPS A PARTIAL ORDERING OF OBJECTS INTO A LINEAR ORDERING
+*
+*        A(1), A(2), ..., A(N)
+*
+*   SUCH THAT IF   A(S) < A(T) IN THE PARTIAL ORDERING,THEN S < T.
+*   (CF. D.E.KNUTH, THE ART OF COMPUTER PROGRAMMING,VOLUME 1,
+*   ADDISON-WESLEY,MASS.,1968, P.262)
+*
+         &DUMP = 2
+         OUTPUT('OUT',6,'(121A1)')
+         PAIR      = BREAK('<') . MU LEN(1) BREAK(',') . NU LEN(1)
+         DATA('ITEM(COUNT,TOP)')
+         DATA('NODE(SUC,NEXT)')
+         DEFINE('DECR(X)')
+         DEFINE('INDEX(TAU)')
+         INPUT(.INPUT,,72)
+*
+*     READ IN THE NUMBER OF ITEMS, N, AND GENERATE AN ARRAY OF ITEMS.
+*
+*   EACH ITEM HAS TWO FIELDS, (COUNT,TOP), WHERE
+*        COUNT = NO. OF ELEMENTS PRECEEDING IT.
+         TOP = TOP OF LIST OF ITEMS SUCCEEDING IT.
+*
+         N         = TRIM(INPUT)
+         X         = ARRAY('0:' N)
+*   INITIALIZE THE ITEMS TO (0,NULL).
+*
+T1       X<I>      =  ITEM(0,)              :F(T1A)
+         I         =  I + 1                 :(T1)
+*
+*   READ IN RELATIONS.
+*
+T1A      OUT       = '1 THE RELATIONS ARE:'
+T2A      REL       = TRIM(INPUT) ','        :F(T3A)
+         OUTPUT    = REL
+T2       REL       PAIR  =                  :F(T2A)
+         J         = INDEX(MU)
+         K         = INDEX(NU)
+*
+*   SINCE MU < NU, INCREASE THE COUNT OF THE KTH ITEM AND ADD A
+*   NODE TO THE LIST OF SUCCESSORS OF THE JTH ITEM.
+*
+T3       COUNT(X<K>) = COUNT(X<K>) + 1
+         TOP(X<J>) = NODE(K,TOP(X<J>))      :(T2)
+-EJECT
+*
+*    A QUEUE IS MAINTAINED OF THOSE ITEMS WITH ZERO COUNT FIELD.
+*    THE LINKS FOR THE QUEUE, QLINK, ARE KEPT IN THE COUNT FIELD.
+*    THE VARIABLES F,R POINT TO THE FRONT AND REAR OF THE QUEUE.
+*
+T3A      OPSYN('QLINK','COUNT')
+*
+*    INITIALIZE THE QUEUE FOR OUTPUT.
+*
+         R         = 0
+         QLINK(X<0>) = 0
+         K         = 0
+T4       K         = ?X<K + 1>  K + 1       :F(T4A)
+         QLINK(X<R>) = EQ(COUNT(X<K>),0)  K :F(T4)
+         R         = K                      :(T4)
+T4A      F         = QLINK(X<0>)
+*
+*    OUTPUT THE FRONT OF THE QUEUE.
+*
+         OUT       = '0 THE LINEAR ORDERING IS:'
+T5       OUTPUT    = NE(F,0)  $(F ':')      :F(T8)
+         N         = N - 1
+         P         = TOP(X<F>)
+*    ERASE RELATIONS.
+T6       IDENT(P)                           :S(T7)
+         DECR(.COUNT(X<SUC(P)>))            :S(T6A)
+*
+*    IF COUNT IS ZERO ADD  ITEM TO QUEUE.
+*
+         QLINK(X<R>) = SUC(P)
+         R         = SUC(P)
+T6A      P         = NEXT(P)                :(T6)
+*
+*    REMOVE FROM QUEUE.
+*
+T7       F         = QLINK(X<F>)            :(T5)
+*
+*    FUNCTION DEFINITIONS.
+*
+DECR     $X        = GT($X,1)  $X - 1       :S(RETURN)
+         $X        = 0                      :(FRETURN)
+*
+INDEX    INDEX     = DIFFER($(TAU ':'))  $(TAU ':')  :S(RETURN)
+         TERMCT    = LT(TERMCT,N)  TERMCT + 1    :F(FRETURN)
+         INDEX     = TERMCT
+         $(TERMCT ':')   =  TAU
+         $(TAU ':')   =  TERMCT             :(RETURN)
+*
+T8       OUTPUT    = NE(N,0) 'THE ORDERING CONTAINS A LOOP.'
+END
+14
+LETTERS<ALPHANUM,NUMBERS<ALPHANUM
+BLANKS<OPTBLANKS
+NUMBERS<REAL
+NUMBERS<INTEGER
+LETTERS<VARIABLE,ALPHANUM<VARIABLE
+BINARY<BINARYOP,BLANKS<BINARYOP
+UNQALPHABET<DLITERAL
+UNQALPHABET<SLITERAL
+SLITERAL<LITERAL,DLITERAL<LITERAL,INTEGER<LITERAL,REAL<LITERAL
+./*
+-TITLE SPITBOL TEST PROGRAM #7 -- SYMBOL TABLE GENERATOR
+*
+*        THIS PROGRAM DEMONSTRATES THE STORAGE OF SYMBOL TABLES
+*        USING A TECHIQUE IN WHICH NAMES ARE STORED AS LINKED LISTS
+*        OF CHARACTERS. THE DATA FUNCTION IS USED TO FORM THE
+*        REQUIRED NODES WHICH CONTAIN APPROPRIATE POINTERS TO BE
+*        USED ON FAILURE OR SUCCESS OF THE CHARACTER BY CHARACTER MATCH
+*
+-CODE
+         DATA('SYMB(CHAR,LINK,ALT,ASSOC,SUCC)')
+         INPUT(.INPUT,,72)
+         SPC = '     ::'
+         ALPH = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+CLEAR    HEAD =
+         SWITCH1 = .FIRST
+         X = 0
+READA    OUTPUT =
+READ     CARD = TRIM(INPUT)                      :F(END1)
+         OUTPUT = CARD
+         DIFFER(CARD)                            :F(BADCARD)
+         CARD POS(0) '$' =                       :S(CONTROL)
+         CARD NOTANY(ALPH)                       :F(INCX)
+BADCARD  OUTPUT = '  CARD ABOVE IS ILLEGAL'      :(READ)
+INCX     X = X + 1                               :($SWITCH1)
+FIRST    SWITCH1 = .SEARCH
+F1       CARD LEN(1) . CH =                      :F(ERR)
+         HEAD = SYMB(CH)
+         CURRENT = HEAD
+F2       CARD LEN(1) . CH =                      :F(INSERT)
+F3       SUCC(CURRENT) = SYMB(CH,CURRENT)
+         CURRENT = SUCC(CURRENT)                 :(F2)
+INSERT   ASSOC(CURRENT) = ASSOC(CURRENT) X ","   :(READ)
+SEARCH   CARD LEN(1) . CH =                      :F(ERR)
+         LGT(CHAR(HEAD), CH)                     :S(S7)
+         IDENT(CHAR(HEAD),CH)                    :S(S5)
+*
+*  FIRST CHARACTER OF HEAD IS < FIRST CHAR OF CHAR JUST READ
+*  IF ALT(HEAD) NULL THEN MUST EXTEND STRUCTURE
+*
+         IDENT(ALT(HEAD))                        :S(S3)
+         CURRENT = ALT(HEAD)
+S1       LGT(CHAR(CURRENT),CH)                   :S(S6)
+         IDENT(CHAR(CURRENT),CH)                 :S(S4)
+         IDENT(ALT(CURRENT))                     :S(S2)
+         CURRENT = ALT(CURRENT)                  :(S1)
+*
+*  NEW ALTERNATIVE MUST BE INSERTED AT END
+*
+S2       ALT(CURRENT) = SYMB(CH,CURRENT)
+*
+*  THEN REST OF WORD STRUNG OUT
+*
+         CURRENT = ALT(CURRENT)                  :(F2)
+*
+*  NEW ALTERNATIVE MUST BE INSERTED AT HEAD OF LIST
+*
+S3       ALT(HEAD) = SYMB(CH,HEAD)
+         CURRENT = ALT(HEAD)                     :(F2)
+-EJECT
+*
+*  CHARACTER HAS BEEN FOUND. NOW LOOK AT NEXT HCARACTER OF WORD
+*
+S4       CARD LEN(1) . CH  =                     :F(INSERT)
+*  IF NO SUCCESSORS, STRING OUT REST OF WORD
+*
+         IDENT(SUCC(CURRENT))                    :S(F3)
+*
+*  OTHERWISE CONTINUE EXAMINATION
+*
+         CURRENT = SUCC(CURRENT)                 :(S1)
+S5       CURRENT = HEAD                          :(S4)
+*
+*  CHAR IS SMALLER THAN CURRENT ALTERNATIVE
+*
+S6       Y = LINK(CURRENT)
+         ALT(Y) = IDENT(ALT(Y),CURRENT) SYMB(CH,Y)         :F(S6A)
+         Y = ALT(Y)                              :(S6B)
+S6A      SUCC(Y) = SYMB(CH,Y)
+         Y = SUCC(Y)
+S6B      ALT(Y) = CURRENT
+         LINK(CURRENT) = Y
+         CURRENT = Y                             :(F2)
+*
+*  NEW ALTERNATIVE MUST BE LINKED TO HEAD, AT TOP OF LIST
+*
+S7       Y = HEAD
+         HEAD = SYMB(CH)
+         LINK(Y) = HEAD
+         ALT(HEAD) = Y
+         CURRENT = HEAD                          :(F2)
+CONTROL  IDENT(CARD,"*")                         :F(C1)
+         OUTPUT =
+         OUTPUT = '  (STRUCTURE IS CLEARED)'
+         OUTPUT =                                :(CLEAR)
+C1       IDENT(CARD,'$')                         :F(C2)
+         OUTPUT =
+         OUTPUT = '  (PRINTOUT OF ENTIRE STRUCTURE FOLLOWS...)'
+         OUTPUT =
+         IDENT(HEAD)                             :S(C4)
+         HOLD =
+         START = HEAD                            :(LISTEM)
+C2       IDENT(CARD)                             :S(BADCARD)
+         CARD NOTANY(ALPH)                       :S(BADCARD)
+-EJECT
+*
+*  HERE TO PRINT WORDS STARTING WITH SPECIFIED HEAD
+*
+         OUTPUT =
+         OUTPUT = '  (PRINTOUT OF ALL WORDS BEGINNING WITH "'
++          CARD '"...)'
+         OUTPUT =
+         HOLD = CARD
+         CURRENT = HEAD
+         CARD LEN(1) . CH =
+C3       IDENT(CHAR(CURRENT),CH)                 :S(NEXT)
+         CURRENT = ALT(CURRENT)
+         IDENT(CURRENT)                          :F(C3)
+C4       OUTPUT = '  (NO WORDS)'                 :(READA)
+NEXT     CARD LEN(1) . CH =                      :F(SETUP)
+         CURRENT = SUCC(CURRENT)
+         IDENT(CURRENT)                          :S(C4)F(C3)
+SETUP    OUTPUT = DIFFER(ASSOC(CURRENT)) SPC HOLD '  ' ASSOC(CURRENT)
+         START = DIFFER(SUCC(CURRENT)) SUCC(CURRENT)  :F(C4)
+LISTEM   N = 0
+         CURRENT = START
+L1       HOLD = HOLD CHAR(CURRENT)
+L2       OUTPUT = DIFFER(ASSOC(CURRENT)) SPC HOLD '  ' ASSOC(CURRENT)
+         CURRENT = DIFFER(SUCC(CURRENT)) SUCC(CURRENT)  :S(L1)
+BACKUP   CURRENT = DIFFER(ALT(CURRENT)) ALT(CURRENT)  :F(B1)
+         N = N + 1
+         $('STACK' N) = LINK(CURRENT)
+         HOLD LEN(1) RPOS(0) = CHAR(CURRENT)     :(L2)
+B1       Y = LINK(CURRENT)
+         IDENT(Y)                                :S(READA)
+         IDENT(Y,START) IDENT(ALT(Y),CURRENT)    :S(READA)
+         IDENT(Y,START) IDENT(ALT(Y))            :S(READA)
+         CURRENT = Y
+         HOLD DIFFER($('STACK' N),Y)  LEN(1) RPOS(0) =  :S(BACKUP)
+         N = N - 1                               :(B1)
+END1     OUTPUT =
+         OUTPUT = '(ALL DATA PROCESSED)'
+END
+ABC
+ABCD
+ABCDE
+BCDEF
+$$
+$*
+ELASTIC
+HAPPILY
+BOX
+FOX
+CARS
+GAITERS
+ALL
+DUMP
+JUNE
+IN
+$$
+$*
+SISTER
+SUSIE
+SELLS
+SEA
+SHELLS
+BY
+THE
+SEA
+SHORE
+$$
+$S
+$SH
+SOME
+SEA
+SHELLS
+SEND
+SAILORS
+SWIMMING
+$$
+$S
+$SE
+$*
+$$
+CATTLE
+CARP
+CAT
+GORGE
+MONSTER
+MONEY
+CAR
+DOG
+METAL
+CAVE
+CAKE
+CAT
+$$
+$MON
+$M
+$C
+$CA
+$CAT
+$CATT
+$CAX
+$$
+./*
+-TITLE SPITBOL TEST PROGRAM #8 -- BRIDGE DEALER
+         DATA('CARD(NUM,NEXT)')
+*
+         OUTPUT('TITLE',6,'(14H1THIS IS HAND ,110A1)')
+         OUTPUT('DEALER',6,'(11H DEALER IS ,110A1)')
+         OUTPUT('SKIP',6,'(A1)')
+*
+         DEFINE('INSERT(LIST,CARD)TEMP')               :(INSERTEND)
+*
+INSERT   $LIST  =  IDENT($LIST)  CARD(NUM(CARD),NULL)  :S(RETURN)
+         $LIST  =  GT(NUM(CARD),NUM($LIST))  CARD(NUM(CARD),$LIST)
+.                                                      :S(RETURN)
+         TEMP  =  $LIST
+INS1     IDENT(NEXT(TEMP))                             :S(INS2)
+         NEXT(TEMP)  =  GT(NUM(CARD),NUM(NEXT(TEMP)))
+.                       CARD(NUM(CARD),NEXT(TEMP))     :S(RETURN)
+         TEMP  =  NEXT(TEMP)                           :(INS1)
+INS2     NEXT(TEMP)  =  CARD(NUM(CARD),NULL)           :(RETURN)
+INSERTEND
+*
+*
+         DEFINE('LINE(STR1,COL1,STR2,COL2)BL1,BL2')    :(LINEEND)
+*
+LINE     BL  LEN(COL1 - 1) . BL1
+         IDENT(STR2)                                   :S(LINE1)
+         BL  LEN(COL2 - (COL1 + SIZE(STR1))) . BL2
+LINE1    LINE  =  BL1  STR1  BL2  STR2                 :(RETURN)
+LINEEND
+*
+*
+         DEFINE('NTH(LIST,NUM)TEMP')                   :(NTHEND)
+*
+NTH      NTH  =  EQ(NUM,0)  $LIST                      :F(NTH1)
+         $LIST  =  NEXT($LIST)                         :(RETURN)
+NTH1     TEMP  =  $LIST
+NTH2     NUM  =  NUM - 1
+         NTH  =  EQ(NUM,0)  NEXT(TEMP)                 :S(NTH3)
+         TEMP  =  NEXT(TEMP)                           :(NTH2)
+NTH3     NEXT(TEMP)  =  NEXT(NEXT(TEMP))               :(RETURN)
+NTHEND
+*
+*
+         DEFINE('RANDOM(N)')                           :(RANDOMEND)
+RANDOM   RAN.VAR  =  RAN.VAR * 1061 + 3251
+         RAN.VAR  ARB  RPOS(5)  =
+         RANDOM  =  (RAN.VAR * N) / 100000             :(RETURN)
+RANDOMEND
+*
+*
+         DEFINE('SUITL(HAND,SUIT)')                    :(SUITLEND)
+*
+SUITL    SUITL  =  SUIT  '  '
+SUITL1   GT(NUM($HAND),$SUIT)                          :F(RETURN)
+         SUITL  =  SUITL  $(NUM($HAND) - $SUIT)
+         $HAND  =  DIFFER(NEXT($HAND))  NEXT($HAND) :S(SUITL1)F(RETURN)
+SUITLEND
+-EJECT
+*
+*                  CONSTANTS
+*
+         BL  =  '                                        '
+.               '                                        '
+         S  =  39
+         H  =  26
+         D  =  13
+         C  =  0
+         $1  =  2
+         $2  =  3
+         $3  =  4
+         $4  =  5
+         $5  =  6
+         $6  =  7
+         $7  =  8
+         $8  =  9
+         $9  =  10
+         $10  =  'J'
+         $11  =  'Q'
+         $12  =  'K'
+         $13  =  'A'
+         DEALSEQ  =  'NORTH,EAST,SOUTH,WEST,NORTH,'
+         RAN.VAR  =  157
+         DEALMAX  =  3
+         NTHDEAL  =
+         DEAL  =  'WEST'
+NEWDEAL  NTHDEAL  =  LT(NTHDEAL,DEALMAX)  NTHDEAL + 1  :F(END)
+         N  =  1
+         NORTH  =
+         EAST  =
+         SOUTH  =
+         WEST  =
+         DECK  =
+DLOOP    DECK  =  CARD(N,DECK)
+         N  =  LT(N,52)  N + 1                         :S(DLOOP)
+         DEALSEQ  DEAL  ','  BREAK(',') . DEAL         :F(ERR)
+         HAND  =  DEAL
+         N  =  52
+NLOOP    DEALSEQ  HAND  ','  BREAK(',') . HAND         :F(ERR)
+         INSERT(HAND,NTH('DECK',RANDOM(N)))
+         N  =  GT(N,1)  N - 1                          :S(NLOOP)
+-EJECT
+*
+*                  OUTPUT OF HAND
+*
+         TITLE  =  NTHDEAL
+         DEALER  =  DEAL
+         SKIP = '        '
+         OUTPUT  =  LINE('NORTH',40)
+         OUTPUT  =
+         OUTPUT  =  LINE(SUITL('NORTH','S'),40)
+         OUTPUT  =  LINE(SUITL('NORTH','H'),40)
+         OUTPUT  =  LINE(SUITL('NORTH','D'),40)
+         OUTPUT  =  LINE(SUITL('NORTH','C'),40)
+         SKIP = '        '
+         OUTPUT  =  LINE('WEST',20,'EAST',60)
+         OUTPUT  =
+         OUTPUT  =  LINE(SUITL('WEST','S'),20,
+.                        SUITL('EAST','S'),60)
+         OUTPUT  =  LINE(SUITL('WEST','H'),20,
+.                        SUITL('EAST','H'),60)
+         OUTPUT  =  LINE(SUITL('WEST','D'),20,
+.                        SUITL('EAST','D'),60)
+         OUTPUT  =  LINE(SUITL('WEST','C'),20,
+.                        SUITL('EAST','C'),60)
+         SKIP = '        '
+         OUTPUT  =  LINE('SOUTH',40)
+         OUTPUT  =
+         OUTPUT  =  LINE(SUITL('SOUTH','S'),40)
+         OUTPUT  =  LINE(SUITL('SOUTH','H'),40)
+         OUTPUT  =  LINE(SUITL('SOUTH','D'),40)
+         OUTPUT  =  LINE(SUITL('SOUTH','C'),40)
+.                                                      :(NEWDEAL)
+END
+./*

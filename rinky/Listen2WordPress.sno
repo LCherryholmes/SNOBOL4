@@ -1,0 +1,361 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2WordPress.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all entities ... ----------------------------------------------
+*---------- FOR posts and comments ... ----------------------------------------
+*---------- FOR every page ----------------------------------------------------
+*---------- FOR every chunk/entry ... -----------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'XML.inc'
+*========== =========== === ======================================================= ====================
+WP00        xListener   =   'Listen2WordPress'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'LonCherryholmes.BlogSpot.com'
+            wpUrl       =   'http://en.search.wordpress.com'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            wpExpr      =  *(   't'    '=' wpFeedType
++                           '&' 'f'    '=' 'feed'
++                           '&' 's'    '=' 'date'
++                           '&' 'page' '=' iPage
++                           '&' 'q'    '=' URLEncode(xQ)
++                           )
+*-------------------------------------------------------------------------------------------------------
+            DATA('ItemType(title,feed,link,pubDate,creator,guidUrl,description,sourceUrl,sourceName)')
+*---------- --------------------- -- -------------------------------------------------------------------
+            iColumns              =  13
+            wpColumns             =  ARRAY('1:' iColumns)
+            wpColumns[c = 1]      =  column("id$",          "int",           *NULL)
+            wpColumns[c = c + 1]  =  column("stamp$",       "timestamp",     *DUPL(CHAR(0), 8))
+            wpColumns[c = c + 1]  =  column("topic_id$",    "int",           *iE)
+            wpColumns[c = c + 1]  =  column("feed",         "char(7)",       *wpFeedType)
+            wpColumns[c = c + 1]  =  column("title",        "nvarchar(max)", *title(wpxItem))
+            wpColumns[c = c + 1]  =  column("link",         "varchar(892)",  *link(wpxItem))
+            wpColumns[c = c + 1]  =  column("pub_date",     "datetime",      *pubDate(wpxItem))
+            wpColumns[c = c + 1]  =  column("creator",      "nvarchar(max)", *creator(wpxItem))
+            wpColumns[c = c + 1]  =  column("guid_url",     "varchar(max)",  *guidUrl(wpxItem))
+            wpColumns[c = c + 1]  =  column("description",  "nvarchar(max)", *description(wpxItem))
+            wpColumns[c = c + 1]  =  column("source_url",   "varchar(max)",  *sourceUrl(wpxItem))
+            wpColumns[c = c + 1]  =  column("source_name",  "nvarchar(max)", *sourceName(wpxItem))
+            wpColumns[c = c + 1]  =  column("description_japanese", NULL,    *NULL)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DEFINE('SQLDate(dt)year,month,day,hour,minute,second')
+            wpMonthList =   '(Jan,01)(Feb,02)(Mar,03)(Apr,04)(May,05)(Jun,06)'
++                           '(Jul,07)(Aug,08)(Sep,09)(Oct,10)(Nov,11)(Dec,12)'      :(SQLDateEnd)
+SQLDate     dt          ?   POS(0) wpWeekDay
++                           ', ' wpDay . day
++                           ' ' wpMonth . month
++                           ' ' wpYear . year
++                           ' ' wpHour . hour
++                           ':' wpMinute . minute
++                           ':' wpSecond . second
++                           ' ' wpFraction
++                           RPOS(0)                                                 :F(error)
+            wpMonthList ?   '(' month ',' wpInt . month ')'                         :F(error)
+            SQLDate     =   year '-' month '-' day ' ' hour ':' minute ':' second   :(RETURN)
+SQLDateEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'<'        =   $' ' TY(1, '<', '<')
+            $'>'        =   $' ' TY(1, '>', '>')
+            $'/>'       =   $' ' TY(1, '/>', '/>')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            wpWeekDay   =   'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'
+            wpMonth     =   'Jan' | 'Feb' | 'Mar' | 'Apr' | 'May' | 'Jun'
++                       |   'Jul' | 'Aug' | 'Sep' | 'Oct' | 'Nov' | 'Dec'
+            wpInt       =   SPAN('0123456789') . wpxN
+            wpDay       =   wpInt $ wpxN *EQ(SIZE(wpxN), 2)
+            wpYear      =   (wpInt $ wpxN *EQ(SIZE(wpxN), 4) | '-0001' . *assign(.wpxN, '2011'))
+            wpHour      =   wpInt $ wpxN *EQ(SIZE(wpxN), 2)
+            wpMinute    =   wpInt $ wpxN *EQ(SIZE(wpxN), 2)
+            wpSecond    =   wpInt $ wpxN *EQ(SIZE(wpxN), 2)
+            wpFraction  =   '+' wpInt $ wpxN *EQ(SIZE(wpxN), 4)
+            wpDate      =   wpWeekDay ', ' wpDay ' ' wpMonth ' ' wpYear
+            wpTime      =   wpHour ':' wpMinute ':' wpSecond ' ' wpFraction
+            wpDateTime  =   (wpDate ' ' wpTime) . wpxDateTime
+            wpXmlVal    =   BREAK('<') . wpxXmlVal
+            wpAttrVal   =   '"' (ARBNO(BREAK('"' bSlash) | bSlash (bSlash | '"'))) . wpxAttrVal '"'
+            wpCDATA     =   '<![CDATA[' BREAKX(']') . wpxCDATA ']]>'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            wpTags      =   'channel/item/rss/'
+WP01        wpTags      ?   POS(0) BREAK('/') . wpxT '/' =                      :F(WP03)
+            $('<'  wpxT    ) = $' ' TY(1, '<'  wpxT    , '<'  wpxT         )
+            $('<'  wpxT '>') = $' ' TY(1, '<'  wpxT '>', '<'  wpxT $' ' '>')
+            $('</' wpxT    ) = $' ' TY(1, '</' wpxT    , '</' wpxT         )
+            $('</' wpxT '>') = $' ' TY(1, '</' wpxT '>', '</' wpxT $' ' '>')    :(WP01)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+WP03        wpResponse  =   POS(0) FENCE epsilon $ wpxResponse *wpXml $' ' RPOS(0)
+
+            wpXml       =   '<?xml version="1.0" encoding="UTF-8"?>'
++                           $' ' '<!-- generator="wordpress.com" -->'
++                           $'<rss' $'  ' 'version="2.0"'
++                                   $'  ' 'xmlns:atom=' *wpAttrVal
++                                   $'  ' 'xmlns:dc=' *wpAttrVal
++                                   $'  ' 'xmlns:opensearch=' *wpAttrVal $'>'
++                                   *wpChannel
++                           $'</rss>'
+
+            wpChannel   =   $'<channel>'
++                           $' ' '<title>' *wpXmlVal '</title>'
++                           $' ' '<link>' *wpXmlVal '</link>'
++                           $' ' '<description>' *wpXmlVal '</description>'
++                           $' ' '<pubDate>' *wpDateTime '</pubDate>'
++                           $' ' '<language>' *wpXmlVal '</language>'
++                           $' ' '<image>'
++                                    '<url>' *wpXmlVal '</url>'
++                                    '<width>' *wpInt '</width>'
++                                    '<height>' *wpInt '</height>'
++                                    '<title>' *wpXmlVal '</title>'
++                                    '<link>' *wpXmlVal '</link>'
++                                '</image>'
++                           $' ' '<generator>' *wpXmlVal '</generator>'
++                           $' ' '<atom:link rel="self"' $'  ' 'type=' *wpAttrVal
++                                                        $'  ' 'href=' *wpAttrVal
++                                $'/>'
++                           $' ' '<atom:link rel="search"' $'  ' 'type=' *wpAttrVal
++                                                          $'  ' 'href=' *wpAttrVal
++                                                          $'  ' 'title=' *wpAttrVal
++                                $'/>'
++                           $' ' '<opensearch:totalResults>' !*wpInt '</opensearch:totalResults>'
++                                '<opensearch:startIndex>' *wpInt '</opensearch:startIndex>'
++                                '<opensearch:itemsPerPage>' *wpInt '</opensearch:itemsPerPage>'
++                                '<opensearch:Query role="request" searchTerms=' *wpAttrVal $'/>'
++                                *wpChunks
++                           $'</channel>'
+
+            wpChunks    =   epsilon . *assign(.wpxC, 0)
++                           epsilon . *assign(.wpxChunks, TABLE())
++                           ARBNO(($'<item>' BREAKX('<') $'</item>') . wpxChunk . *assign(.wpxChunks[wpxC = wpxC + 1], wpxChunk))
+
+            wpItem      =   epsilon . *assign(.wpxItem, ItemType())
++                           epsilon . *assign(.feed(wpxItem), wpFeedType)
++                           $'<item>'
++                           $' ' '<title>' *wpCDATA '</title>'                              . *assign(.title(wpxItem), XMLDecode(wpxCDATA))
++                           $' ' '<link>' *wpXmlVal '</link>'                               . *assign(.link(wpxItem), XMLDecode(wpxXmlVal))
++                           $' ' '<pubDate>' *wpDateTime '</pubDate>'                       . *assign(.pubDate(wpxItem), SQLDate(wpxDateTime))
++                           $' ' '<dc:creator>' *wpXmlVal '</dc:creator>'                   . *assign(.creator(wpxItem), XMLDecode(wpxXmlVal))
++                           $' ' '<guid isPermaLink=' *wpAttrVal $'>' *wpXmlVal '</guid>'   . *assign(.guidUrl(wpxItem), XMLDecode(wpxXmlVal))
++                           $' ' '<description>' *wpCDATA '</description>'                  . *assign(.description(wpxItem), XMLDecode(wpxCDATA))
++                           $' ' '<source url=' *wpAttrVal $'>' *wpXmlVal '</source>'       . *assign(.sourceUrl(wpxItem), wpxAttrVal)
++                                                                                           . *assign(.sourceName(wpxItem), XMLDecode(wpxXmlVal))
++                           $'</item>'
+
+            wpCheckBack =   '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'
++                           $' ' '<html xmlns="http://www.w3.org/1999/xhtml">'
++                           $' ' '<head profile="http://gmpg.org/xfn/11">'
++                           $' ' '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
++                           $' ' '<title>Check back in a few minutes</title>'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            wpQuery     =   POS(0) $ wpxQuery . wpxQuery *wpAlts RPOS(0)
+            wpAlts      =   *wpAlt ARBNO(*wpOR . *assign(.wpxQuery, wpxQuery ' ') *wpAlts)
+            wpOR        =   $'  ' 'OR' $'  '
+            wpAlt       =   ('"' BREAK('"') '"') . wpxAlt . *assign(.wpxQuery, wpxQuery wpxAlt)
+*---------- ----------- --- --------------------------------------------------- --------------------
+*           wpResponse  =   TZ(1, 'wpResponse', wpResponse)
+*           wpXml       =   TZ(1, 'wpXml', wpXml)
+*           wpChannel   =   TZ(1, 'wpChannel', wpChannel)
+            wpItem      =   epsilon $ t8Max
++                           TZ(1, 'wpItem', wpItem)
+            wpDateTime  =   TY(1, 'wpDateTime', wpDateTime)
+            wpXmlVal    =   TY(1, 'wpXmlVal', wpXmlVal)
+            wpAttrVal   =   TY(1, 'wpAttrVal', wpAttrVal)
+            wpCDATA     =   TY(1, 'wpCDATA', wpCDATA)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(WPEnd)
+            SetupCancel()                                                       :F(WPEnd)
+WP05        SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+*           SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(wpColumns, xListener, 'Description')                       :F(SQLFail)
+            curl        =   curl_easy_init()                                    :F(WPErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(WPErr)
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   4 * 60 * 60 ;* hours in seconds
+            backSecs    =   2 * 24 * 60 * 60 ;* days in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+*           backTime    =   '2011-10-14 00:00:00'
+            wpCntT      =   TABLE()
+            wpModT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+WP10        iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(WPEnd)
+            wpTotT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- FOR all entities ... ----------------------------------------------
+            iE          =   xIT[0]['Topic']
+WP20        iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(WP90)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(WP20)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xQ          ?   *wpQuery = wpxQuery                                 :F(error)
+            wpCntT[iE]  =   GT(wpCntT[iE], 1) wpCntT[iE] - 1                    :S(WP20)
+*---------- FOR posts and comments ... ----------------------------------------
+            iFeed       =   0
+WP30        iFeed       =   LT(iFeed, 2) iFeed + 1                              :F(WP80)
+            EQ(IsCancelled(), FALSE)                                            :F(WP90)
+            wpFeedType  =   EQ(iFeed, 1) 'post'
+            wpFeedType  =   EQ(iFeed, 2) 'comment'
+            wpFeedLtr   =   EQ(iFeed, 1) 'P'
+            wpFeedLtr   =   EQ(iFeed, 2) 'C'
+            wpSince     =   .xT['Since' wpFeedLtr]
+            wpUntil     =   .xT['Until' wpFeedLtr]
+            wpMax       =   .xT['Max' wpFeedLtr]
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(WP35)
+            $wpSince    =
+            $wpUntil    =
+            $wpMax      =
+WP35        periodSecs  =   (IDENT($wpSince) 60, 120)
+            $wpSince    =   IDENT($wpSince) backTime
+            iPresses    =   0
+            wpxMinBatch =
+            wpxMaxBatch =
+            wpxMinSave  =
+            wpxMaxSave  =
+*---------- FOR every page ----------------------------------------------------
+            wpxHasMore  =   TRUE
+            iPage       =   0
+WP40        iPage       =   EQ(wpxHasMore, TRUE) iPage + 1                      :F(WP70)
+            EQ(IsCancelled(), FALSE)                                            :F(WP90)
+*           Get result ...
+            wpxExpr     =   EVAL(wpExpr)
+            url         =   wpUrl '?' wpxExpr
+WP43        iTry        =   0
+WP44        iTry        =   LT(iTry, 10) iTry + 1                               :F(WPErr)
+            EQ(IsCancelled(), FALSE)                                            :F(WP90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) DTEncode(prevTime) ' GET ...?' wpxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(WPErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(WPErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(WPErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(WP44)
+            xml         =   curl_easy_getdata()
+            LineMap(xml, .t8Map)
+*           Process result ...
+WP45        Write(xListener '.xml', xml)
+            Write(xListener '-' (iWritten = iWritten + 1) '.xml', xml)
+            xml         ?   POS(0) FENCE *wpResponse $' ' RPOS(0)               :S(WP50)
+            xml         ?   POS(0) FENCE *wpCheckBack                           :S(WP47)
+            wpError     =   'Response pattern failure.'
+            OUTPUT      =   'wpxExpr=' wpxExpr                                  :(WPEnd)
+WP47        OUTPUT      =   wpError
+            Wait(oneMin)                                                        :(WP43)
+WP48        OUTPUT      =   wpError
+            Wait(oneMin)                                                        :(WP70)
+*---------- FOR every chunk/entry ... -----------------------------------------
+WP50        PumpOpen(.wpOutput, xListener)
+            wpxMinDate  =
+            wpxMaxDate  =
+            iCount      =   0
+            wpiC        =   0
+WP53        wpiC        =   LT(wpiC, wpxC) wpiC + 1                             :F(WP60)
+            wpxChunk    =   wpxChunks[wpiC]                                     :F(error)
+            LineMap(wpxChunk, .t8Map)
+            wpxChunk    ?   POS(0) FENCE *wpItem $' ' RPOS(0)                   :F(WPErr1)
+            wpxDate     =   pubDate(wpxItem)
+            wpxMinDate  =   MinDate(wpxDate, wpxMinDate)
+            wpxMaxDate  =   MaxDate(wpxDate, wpxMaxDate)
+            (DIFFER($wpSince) LGT(wpxDate, $wpSince), IDENT($wpSince))          :F(WP53)
+            (DIFFER($wpUntil) LLE(wpxDate, $wpUntil), IDENT($wpUntil))          :F(WP53)
+            iCount      =   iCount + 1
+            PumpRow(.wpOutput, wpColumns)                                       :S(WP53)F(SQLFail)
+*---------- END FOR every chunk/entry -----------------------------------------
+WP60        PumpClose(.wpOutput, xListener, iCount)                             :F(SQLFail)
+            OUTPUT      =   GE(xVerbose, 4) iE ',' wpFeedLtr
++                           ',' wpxMinDate ',' wpxMaxDate ',' iPage ',' iCount
+            iPresses    =   iPresses + iCount
+            wpTotT[iE]  =   wpTotT[iE] + iCount
+            wpxMinBatch =   MinDate(wpxMinDate, wpxMinBatch)
+            wpxMaxBatch =   MaxDate(wpxMaxDate, wpxMaxBatch)
+            $wpUntil    =   DIFFER(wpxMinDate) wpxMinDate
+            $wpMax      =   DIFFER(wpxMaxDate) IDENT($wpMax) wpxMaxDate
+            wpxHasMore  =   LT(wpxC, 10) FALSE                                  :S(WP40)
+            wpxHasMore  =   DIFFER(wpxMinDate) DIFFER(wpxMinSave)
++                           DIFFER(wpxMaxDate) DIFFER(wpxMaxSave)
++                           LEQ(wpxMinDate, wpxMinSave)
++                           LEQ(wpxMaxDate, wpxMaxSave)
++                           FALSE                                               :S(WP40)
+            wpxMinSave  =   wpxMinDate
+            wpxMaxSave  =   wpxMaxDate
+            wpxHasMore  =   LLE(wpxMinBatch, $wpSince) FALSE                    :(WP40)
+*---------- END FOR every page ------------------------------------------------
+WP70        OUTPUT      =   GE(xVerbose, 3) iE ',' wpFeedLtr
++                           ',' wpxMinBatch ',' wpxMaxBatch ',' iPresses
+            $wpSince    =   DIFFER($wpMax) $wpMax                               :F(WP30)
+            $wpUntil    =
+            $wpMax      =                                                       :(WP30)
+*---------- END FOR posts and comments ----------------------------------------
+WP80        OUTPUT      =   GE(xVerbose, 2) iE ',' wpTotT[iE] ',"' xE '"'
+            wpModT[iE]  =   EQ(wpTotT[iE]) LT(wpModT[iE], 5) wpModT[iE] + 1
+            wpModT[iE]  =   GT(wpTotT[iE]) GT(wpModT[iE], 1) wpModT[iE] - 1
+            wpCntT[iE]  =   wpModT[iE]
+            xIT[0]['Topic'] = iE
+            IniWrite(xListener '.ini', xIT)                                     :(WP20)
+*---------- END FOR every entity ----------------------------------------------
+WP90        xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            wpReport    =
+            iTotal      =   0
+            iE          =   0
+WP93        iE          =   LT(iE, xMaxEntity) iE + 1                           :F(WP95)
+            DIFFER(xT = xIT[iE])                                                :F(WP93)
+            iTotal      =   iTotal + wpTotT[iE]
+            wpReport    =   wpReport ',' LPAD(wpTotT[iE], 3)                    :(WP93)
+WP95        OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           ',' LPAD(iPoll, 4) ',' LPAD(iTotal, 4) wpReport     :(WP10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(WPEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(WP05)
+*---------- ----------- --- ---------------------------------------------------
+WPErr1      OUTPUT      =   'Failure (' iE ', ' iPage ', ' wpxC ').'
+            OUTPUT      =   wpxChunk                                            :(WPEnd)
+WPErr2      OUTPUT      =   'Weird error.'                                      :(WPEnd)
+WPErr       curl_easy_error_info(curl, cc)                                      :(WPEnd)
+*---------- ----------- --- ---------------------------------------------------
+WPEnd       IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

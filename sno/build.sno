@@ -1,0 +1,1116 @@
+*----------------------------------------------------------------------------------------------------------
+* Filename: build.sno
+* %version: 10 %
+* %date_modified: Tue Jun 19 15:08:11 2001 %
+*----------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'dsw.inc'
+-INCLUDE    'nmake.inc'
+-INCLUDE    'ss.inc'
+-INCLUDE    'build.inc'
+-INCLUDE    'ini.inc'
+*----------------------------------------------------------------------------------------------------------
+    ContinuusFileinfo = 'build.sno %version: 10 %	%date_modified: Tue Jun 19 15:08:11 2001 %'
+*----------------------------------------------------------------------------------------------------------
+
+*----------------------------------------------------------------------------------------------------------
+*   Function: Xerror --> Called by any command that fails
+*                        The Error Number (n) points to the command that failed.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Xerror(n)emailSub,xEE,xErrorEmail')                                                 :(XerrorEnd)
+Xerror      Xerror           =    .END
+            xErrorEmail      =    rootLogDir '/' river '-ErrorMail.txt'
+            OUTPUT(.xEE, 13, xErrorEmail)
+            OUTPUT           =    xEE = auditLog = river ': build: unexpected error: ' n
+            ENDFILE(13)
+            emailSub         =    river ' Build Xerror'
+            system('blat', xErrorEmail ' -t ' emailTo   ' -s ' '"' emailSub '"' ' -f '  emailFrom)
+            system('blat', xErrorEmail ' -t ' pagerPin  ' -s ' '"' emailSub '"' ' -f '  emailFrom)
+                                                                                                        :(NRETURN)
+XerrorEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: DBMSPAths --> Called by Main program
+*                           Sets Library and include paths to the required Databases.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('DBMSPaths()')                                                                       :(DBMSPathsEnd)
+DBMSPaths   oraLibPath                 =    TABLE()
+            oraLibPath['alo73i32']     =    bldWorkDir '/ThirdParty/orant/pro22/lib/msvc'
+            oraLibPath['alo80i32']     =    bldWorkDir '/ThirdParty/orant/pro80/lib/msvc'
+            oraLibPath['alo81i32']     =    bldWorkDir '/ThirdParty/ora815/precomp/lib/msvc'
+            oraInclPath                =    TABLE()
+            oraInclPath['alo73i32']    =    bldWorkDir '/ThirdParty/orant/pro22/c/include'
+            oraInclPath['alo80i32']    =    bldWorkDir '/ThirdParty/orant/pro80/c/include'
+            oraInclPath['alo81i32']    =    bldWorkDir '/ThirdParty/ora815/precomp/public'
+            mssLibPath                 =    TABLE()
+            mssLibPath['alm65i32']     =    bldWorkDir '/ThirdParty/mssql7/DevTools/lib'
+            mssLibPath['almole32']     =    bldWorkDir '/ThirdParty/mssql7/DevTools/lib' ';'
++                                           bldWorkDir '/ThirdParty/mssql7/Binn/Resources/1033'
+            mssInclPath                =    TABLE()
+            mssInclPath['alm65i32']    =    bldWorkDir '/ThirdParty/mssql7/DevTools/include'
+            mssInclPath['almole32']    =    bldWorkDir '/ThirdParty/mssql7/DevTools/include'
+            infLibPath                 =    TABLE()
+            infLibPath['alisvi32']     =    informixDir '/lib'
+            infInclPath                =    TABLE()
+            infInclPath['alisvi32']    =    informixDir '/incl/esql'
+            sybLibPath                 =    TABLE()
+            sybLibPath['alssvi32']     =    bldWorkDir '/ThirdParty/sybase/lib'
+            sybInclPath                =    TABLE()
+            sybInclPath['alssvi32']    =    bldWorkDir '/ThirdParty/sybase/include'
+            udbLibPath                 =    TABLE()
+            udbLibPath['ald6_1_0svp']  =    bldWorkDir '/ThirdParty/udb/DevTools/lib'
+            udbLibPath['ald7_1_0svp']  =    bldWorkDir '/ThirdParty/udb/DevTools/lib'
+            udbLibPath['aldmpx32']     =    bldWorkDir '/ThirdParty/udb/DevTools/lib'
+            udbLibPath['aldsvp32']     =    bldWorkDir '/ThirdParty/udb/DevTools/lib'
+            udbLibPath['pdbdb2']       =    bldWorkDir '/ThirdParty/udb/DevTools/lib'
+            udbInclPath                =    TABLE()
+            udbInclPath['ald6_1_0svp'] =    bldWorkDir '/ThirdParty/udb/DevTools/include'
+            udbInclPath['ald7_1_0svp'] =    bldWorkDir '/ThirdParty/udb/DevTools/include'
+            udbInclPath['aldmpx32']    =    bldWorkDir '/ThirdParty/udb/DevTools/include'
+            udbInclPath['aldsvp32']    =    bldWorkDir '/ThirdParty/udb/DevTools/include'
+                                                                                                        :(RETURN)
+DBMSPathsEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: MSVCEnv --> Called by Main program
+*                         Sets path for the Microsoft Visual C++ 6.0 Compiler
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('MSVCEnv()')                                                                         :(MSVCEnvEnd)
+MSVCEnv     PATH              =
+            PATH              =    getenv('PATH')
+            PATH              =    env['MSDevDir'] '/bin;'
++                                  env['MSVCDir'] '/bin;'
++                                  env['VSCommonDir'] '/tools/' env['VcOsDir'] ';'
++                                  env['VSCommonDir'] '/tools;'
++                                  PATH
+            putenv('PATH=' PATH)                                                                        :f(Xerror(10))
+            putenv('VSCommonDir=' env['VSCommonDir'])                                                   :f(Xerror(20))
+            putenv('MSDevDir='    env['MSDevDir'])                                                      :f(Xerror(30))
+            putenv('MSVCDir='     env['MSVCDir'])                                                       :f(Xerror(40))
+            putenv('VcOsDir='     env['VcOsDir'])                                                       :f(Xerror(50))
+                                                                                                        :(RETURN)
+MSVCEnvEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: getExtractDateTime --> Called by main
+*                           This function will provide Data from <river>.ini on what time of day to perform
+*                           the extraction.  Also 'eDayNo' is a digit designed to be 1 or 0. If the build
+*                           is scheduled to happen before midnight 'eDayNo would be 0. If the build will
+*                           happen after midnight 'eDayNo' will be 1.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('getExtractDateTime()RiverINI,riverTbl')                                             :(gExtrDTEND)
+getExtractDateTime
+            EQ(extNow, TRUE)                                                                            :f(gExtrDT25)
+            eTime             =  SUBSTR(DATETIME(), 12, 8)
+            eDayNo            =  0                                                                      :(gExtrDT75)
+gExtrDT25   RiverINI          =  river '.ini'
+            riverTbl          =  IniRead(riverINI)
+            riverTbl          =  IDENT(riverTbl) TABLE()
+            riverTbl['ssExtract'] =  IDENT(riverTbl['ssExtract']) TABLE()
+            eTime             =  riverTbl['ssExtract']['ssExtractTime']
+            eDayNo            =  riverTbl['ssExtract']['ssExtractDateNo']
+gExtrDT75   curDateTime       POS(0) LEN(10) . curDate ' ' LEN(8) . curTime RPOS(0)                     :f(Xerror(51))
+            curDate           POS(0) LEN(4) . curYear '/'                                               :f(Xerror(53))
+            extractDateTime   =    LGE(curTime, eTime) curDate
+            extractDateTime   =    LLT(curTime, eTime) julian2date(date2julian(curDate) - eDayNo, curYear)
+            extractDateTime   =    extractDateTime ' ' eTime
+            extractDateTime   POS(0) LEN(10) . extractDate ' ' LEN(8) RPOS(0)                           :f(Xerror(55))
+            imageDateTime     =    julian2date(date2julian(extractDate) + eDayNo, curYear)              :(RETURN)
+gExtrDTEND
+*------------------------------------------------------------------------------------------------------------------
+*   Function: ssXtract --> Called by DswSrcs() and Extract()
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Xtract(extSrc,ssXDate)'
++                     'caseName,extSrcPlace,extSrcSplit,extSrcMatch,ssAction,'
++                     'ss1stRes,ssGetDatess,2ndRes'
++                 )                                                                                     :(XtractEnd)
+Xtract      ssGetDate         =    SSDateTime(ssXDate)
+Xtract1     extSrcPlace       =    splitname(extSrc)[1]
+            extSrcPlace       POS(0) bldSSRootProj '/' =
+            extSrcPlace       =    bldWorkDir '/' extSrcPlace
+            extSrcSplit       =    splitname(extSrc)[2]
+            extSrcMatch       =    icase(extSrcSplit)
+            mkdir(extSrcPlace, '  -p')
+            ss1stRes          =    ss(bldSSDb, '@-get', '-gck -gf -grn -gtc -gwr -i-y -vd"' ssGetDate '" "' extSrc '"')
+            ss1stRes          POS(0) extSrcSplit . caseName nl RPOS(0)                                  :s(Xtract3)
+            ss1stRes          POS(0) extSrcMatch . caseName nl RPOS(0)                                  :s(Xtract3)
+            ss1stRes          POS(0) 'Getting ' extSrcSplit . caseName nl RPOS(0)                       :s(Xtract5)
+            ss1stRes          POS(0) 'Getting ' extSrcMatch . caseName nl RPOS(0)                       :s(Xtract5)
+            ss1stRes          POS(0) 'Replacing local copy of ' extSrcSplit . caseName nl RPOS(0)       :s(Xtract7)
+            ss1stRes          POS(0) 'Replacing local copy of ' extSrcMatch . caseName nl RPOS(0)       :s(Xtract7)
+            ss1stRes          POS(0) 'Invalid DOS path '                                                :s(Xtract2)
+            ss1stRes          ' is not an existing filename or project' nl RPOS(0)                      :s(Xtract2)
+Xtract2     OUTPUT            =    auditLog = DUPL('-', 29) ' ' ss1stRes                                :(RETURN)
+Xtract3     ssAction          =    '-------'                                                            :(Xtract8)
+Xtract5     ssAction          =    'Create'                                                             :(Xtract8)
+Xtract7     ssAction          =    'Alter'                                                              :(Xtract8)
+Xtract8     caseName          =    splitname(extSrc)[1]  '/' caseName
+            bldssGetsTbl      =    DIFFER(ssAction, '-------') RPAD(ssAction, 10) caseName
+            auditLog          =    datetime() '   ' RPAD(ssAction, 7) ' "' caseName '"'
+            ss1stRes          POS(0) 'Replacing local copy of '                                         :f(RETURN)
+            caseName            '.'
++                             (  'BAT' | 'bat' | 'DEF' | 'def'
++                             |  'C' | 'c' | 'CPP' | 'cpp'
++                             |  'H' | 'h' | 'TXT' | 'txt'
++                             ) RPOS(0)                                                                 :f(RETURN)
+            ss2ndRes          =    ss(bldSSDb, '@-get', '-gck -gf -grn -gtc -gwr -i-y -vd"' ssGetDate '" "' caseName '"')
+            ss2ndRes          POS(0) 'Replacing local copy of '                                         :f(RETURN)
+            OUTPUT            =    auditLog = datetime() '   ' RPAD('Corrupt', 7) ' "' caseName '"'
+            ss_checkout(bldSSDb, caseName, '-gck -gf -i-y')                                             :f(RETURN)
+            ss_checkin (bldSSDb, caseName, 'Fixed eol/eof ss corruption.', '-gf -i-y')                  :s(RETURN)
+            OUTPUT            =    auditLog = datetime() ' X SS Error: Could not checkin: ' caseName    :(RETURN)
+XtractEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: LogSecHdr --> Called by other functions
+*                           This function will provide a standard section break in the Log files.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('LogSecHdr(hdrMsg)')                                                                 :(LogSecHdrEnd)
+LogSecHdr   OUTPUT            =    auditLog = datetime()
+            OUTPUT            =    auditLog = datetime() '   ' DUPL('*', 56)
+            OUTPUT            =    auditLog = datetime() '   *********** ' hdrMsg
+            OUTPUT            =    auditLog = datetime() '   ' DUPL('*', 56)
+            OUTPUT            =    auditLog = datetime()                                                :(RETURN)
+LogSecHdrEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: SSLsSrcs --> Called by Sources Function
+*                          Calls external program 'ssls.exe' It builds a table containing al of the DSP
+*                          and DSW files that need to be extracted.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('SSLsSrcs(ssProj,ssOpt)ssLsInput,ssSrc')                                             :(SSLsSrcsEnd)
+SSLsSrcs    ssOpt             =    ssOpt ' -f ' bldSSDb ' "' ssProj '"'
+            INPUT(.ssLsInput, 3, '!!' dq(exe['ssls']) ' ' ssOpt)                                        :f(Xerror(60))
+SSLsSrcs1   ssSrc             =    ssLsInput                                                            :f(SSLsSrcs9)
+            bldSrcsTbl        =    ssSrc                                                                :(SSLsSrcs1)
+SSLsSrcs9   ENDFILE(3)                                                                                  :(RETURN)
+SSLsSrcsEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: DspSrcs --> Called by DswSrcs Function
+*                         Builds a table containing source files that need to be extracted. This information
+*                         comes from the "source files" section in the DSP.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('DspSrcs(dspProj,dspPath)dspInfo,dspInput,dspSrc,dspSrcFile,dspSrcInfo,dspSrcProj')
+                                                                                                        :(DspSrcsEnd)
+DspSrcs     INPUT(.dspInput, 3, dspPath)                                                                :f(Xerror(70 ': ' dspPath))
+DspSrcs1    dspInfo           =    dspInput                                                             :f(DspSrcs11)
+            dspInfo           POS(0) '# Begin Source File' RPOS(0)                                      :f(DspSrcs1)
+            dspSrcInfo        =
+DspSrcs3    dspSrcInfo        =    dspSrcInfo dspInfo nl
+            dspInfo           =    dspInput                                                             :f(Xerror(80))
+            dspInfo           POS(0) '# End Source File' RPOS(0)                                        :f(DspSrcs3)
+            dspSrcInfo        =    dspSrcInfo dspInfo nl
+            dspSrcInfo        nl 'SOURCE="' BREAK('"') . dspSrcFile '"' nl                              :s(DspSrcs5)
+            dspSrcInfo        nl 'SOURCE=' BREAK(nl) . dspSrcFile nl                                    :s(DspSrcs5)f(Xerror(90))
+DspSrcs5    dspSrcFile        =    fslash(dspSrcFile)
+            dspSrcProj        =    dspProj
+DspSrcs7    dspSrcFile        POS(0) './' =                                                             :s(DspSrcs7)
+            dspSrcFile        POS(0) '../' =                                                            :f(DspSrcs9)
+            dspSrcProj        =    splitname(dspSrcProj)[1]                                             :(DspSrcs7)
+DspSrcs9    dspSrc            =    dspSrcProj '/' dspSrcFile
+            bldSrcsTbl        =    dspSrc                                                               :(DspSrcs1)
+DspSrcs11   ENDFILE(3)                                                                                  :(RETURN)
+DspSrcsEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: DswSrcs --> Called by Sources Function
+*                         Extracts all DSP files listed in the DSW file.
+*                         Calls the function DspSrc to build a table of project files.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('DswSrcs(dswPath,ssDspGetDate)dspPath,dspProj,i,ssProj,wfPath,wsArr,wsTbl,wsKey,wsProject')
+                                                                                                        :(DswSrcsEnd)
+DswSrcs     wsTbl             =    DswRead(dswPath)                                                     :f(Xerror(100))
+            wsArr             =    CONVERT(wsTbl, 'array')                                              :f(Xerror(101))
+            i                 =    0
+DswSrcs1    i                 =    i + 1
+            wsKey             =    wsArr[i, 1]                                                          :f(RETURN)
+            wsProject         =    wsArr[i, 2]
+            ssProj            =    project_ssproj(wsProject)
+            wfPath            =    fslash(project_wfpath(wsProject))
+            dspPath           =    fslash(project_dsppath(wsProject))
+            dspProj           =    dspPath
+            dspProj           POS(0) './' = bldSSRootProj '/'
+            dspPath           POS(0) './' = bldWorkDir '/'
+            wfPath            POS(0) './' = bldWorkDir '/'
+            mkdir(wfPath, '  -p')
+            Xtract(dspProj, ssDspGetDate)
+            DspSrcs(ssProj, dspPath)                                                                    :(DswSrcs1)
+DswSrcsEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: SSDbSrcs --> Called by Main
+*                          Calls the external program 'ssdb.exe'.
+*                          Creates a table of 'Source Safe' file names based upon the river name
+*                          and a date range that is stored in the build.ini file. (soon to be ssdb.ini)
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('SSDbSrcs()ssdbFile,ssdbInput')                                                      :(SSDbSrcsEnd)
+SSDbSrcs    INPUT(.ssdbInput, 3, '!!' 'ssdb ' river ' -f' )                                             :f(FRETURN)
+SSDbSrcs1   ssdbFile          =    ssdbInput                                                            :f(SSDbSrcs2)
+            bldssdbSrcsTbl    =    ssdbFile                                                             :(SSDbSrcs1)
+SSDbSrcs2   ENDFILE(3)                                                                                  :(RETURN)
+SSDbSrcsEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: Sources --> Called by Main
+*                         Extracts the DSW files. Processes each DSW file for DSP files to extract.
+*                         Calls function DswSrcs to extract the DSP file.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Sources(dswExtrationTime)'
++              'categories,category,dsw0,dsw0file,dsw1,i,list0,list1,ssMslProj,ssMslProjs,'
++              'ssXArr,ssXTbl,ssXCriteria,ssXItem'
++           )                                                                                           :(SourcesEnd)
+Sources     LogSecHdr('Extracting DSP & DSW Files')
+            ssDswGetDate      =    SSDateTime(dswExtrationTime)
+            categories        =    bldCategories
+Sources05   categories        POS(0) SPAN(&LCASE digits) . category (',' | RPOS(0)) =                   :f(Sources40)
+            ssXTbl            =    bldSSXtra[category]
+            ssXArr            =    DIFFER(ssXTbl) CONVERT(ssXTbl, 'array')                              :f(Xerror(102))
+            i                 =    0
+Sources10   i                 =    i + 1
+            ssXItem           =    bldSSRootProj '/' ssXArr[i, 1]                                       :f(Sources05)
+            ssXCriteria       =    ssXArr[i, 2]
+            ssXCriteria       'r'                                                                       :f(Sources20)
+            SSLsSrcs(ssXItem, '-r')                                                                     :(Sources10)
+Sources20   ssXItem           '*'                                                                       :f(Sources30)
+            SSLsSrcs(ssXItem)                                                                           :(Sources10)
+Sources30   bldSrcsTbl        =    ssXItem                                                              :(Sources10)
+Sources40   ssMslProjs        =    bldSSMslProjs
+Sources50   ssMslProjs        POS(0) ARB . ssMslProj nl =                                               :f(Sources70)
+            SSLsSrcs(bldSSRootProj '/' ssMslProj)                                                       :(Sources50)
+Sources70   list0             =    bldClientDsw0List ',' bldNtsrvDsw0List
+            list1             =    bldClientDsw1List ',' bldNtsrvDsw1List
+            list0             POS(0) ',' | ',' RPOS(0) =
+            list1             POS(0) ',' | ',' RPOS(0) =
+Sources90   list0             POS(0) (ARB '.dsw') . dsw0 (',' | RPOS(0)) =                              :f(RETURN)
+            list1             POS(0) (ARB '.dsw') . dsw1 (',' | RPOS(0)) =                              :f(Xerror(103))
+            ss_get('-' bldSSDb, bldSSBuildProj '/' dsw1,, '-grn -gtc -gwr -i-y -vd"' ssDswGetDate '" -gl"' bldWorkDir '"')
+            ss_get('-' bldSSDb, bldSSBuildProj '/' dsw0,, '-grn -gtc -gwr -i-y -vd"' ssDswGetDate '" -gl"' bldWorkDir '"')
+            dsw0file          =     bldWorkDir '/' dsw0
+            DswSrcs(dsw0file, dswExtrationTime)                                                         :(Sources90)
+SourcesEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: Extract --> Called by Main
+*                         Extracts Source files into the build area. It makes directories as needed.
+*                         This function also tests for and corrects the 'eol/eof' file corruption problem.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Extract(ssDate)extSrc,i,srcsArr,ssFileName')                                        :(ExtractEnd)
+Extract     LogSecHdr('Extracting Source Files')
+            srcsTbl       =    TABLE()
+            INPUT(.readSrcsTbl, 22, bldSrcsTBlFile)
+Extract5    readFile          =    readSrcsTbl                                                          :f(Extract10)
+            readFile          POS(0) REM . ssFileName                                                   :f(Xerror(105))
+            srcsTbl[ssFileName] = 1                                                                     :(Extract5)
+Extract10   ENDFILE(22)
+            srcsArr           =    SORT(srcsTbl)
+            i                 =    0
+Extract20   i                 =    i + 1
+            extSrc            =    srcsArr[i, 1]                                                        :f(Extract30)
+            Xtract(extSrc, ssDate)                                                                      :(Extract20)
+Extract30   mkdir(bldWorkDir '/release', '  -p')
+            DIFFER(river, 'sqlx')                                                                       :f(RETURN)
+            system('cp', '-r ' bldWorkDir '/ThirdParty/mls/charmaps ' bldWorkDir '/release')
+            system('cp', '-r ' bldWorkDir '/ThirdParty/mls/locale ' bldWorkDir '/release')              :(RETURN)
+ExtractEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: Xreport --> Called by Main
+*                         Creates a report based upon the files extracted and not extracted.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('XReport()'
++              'commInfo,commInput,i,readFile,readGetsTbl,ssAction,ssFileName,ssGetsAction,'
++              'ssGetsArr,ssGetsOutput,ssGetsPath,ssPath,ssSrcsArr,ssSrcsOutput,ssSrcsPath'
++           )                                                                                           :(XReportEnd)
+XReport     LogSecHdr('Report On Source Files')
+            ssGetsTbl         =    TABLE()
+            ssdbSrcsTbl       =    TABLE()
+            INPUT(.readGetsTbl, 20, bldssGetsTblFile)
+XReport1    readFile          =    readGetsTbl                                                          :f(XReport5)
+            readFile          POS(0) ('Alter' | 'Create') . ssAction SPAN(' ') REM . ssFileName         :f(Xerror(115))
+            ssGetsTbl[ssFileName] = ssAction                                                            :(XReport1)
+XReport5    ENDFILE(20)
+            INPUT(.readssdbSrcsTbl, 21, bldssdbSrcsTBlFile)
+XReport6    readFile          =    readssdbSrcsTbl                                                      :f(XReport8)
+            readFile          POS(0) REM . ssFileName                                                   :f(Xerror(116))
+            ssdbSrcsTbl[ssFileName] = 1                                                                 :(XReport6)
+XReport8    ENDFILE(21)
+            xBuildReport      =    bldLogPreFix '-xReport.txt'                                              ;* create a xReport log file
+            OUTPUT(.xReportLog, 8, xBuildReport)
+            txtSrcsFile       =    river '-build-ss-srcs.txt'
+            txtGetsFile       =    river '-build-ss-gets.txt'
+            OUTPUT(.ssSrcsOutput, 3, txtSrcsFile)                                                       :f(Xerror(120))
+            ssSrcsArr         =    DIFFER(ssSrcsTbl) SORT(ssSrcsTbl, 1)                                 :f(XReport30)
+            i                 =    0
+XReport10   i                 =    i + 1
+            ssSrcsPath        =    ssSrcsArr[i, 1]                                                      :f(XReport30)
+            ssSrcsOutput      =    ssSrcsPath                                                           :(XReport10)
+XReport30   ENDFILE(3)
+            OUTPUT(.ssGetsOutput, 3, txtGetsFile)                                                       :f(Xerror(121))
+            ssGetsArr         =    DIFFER(ssGetsTbl) SORT(ssGetsTbl, 1)                                 :f(XReport70)
+            i                 =    0
+XReport50   i                 =    i + 1
+            ssGetsPath        =    ssGetsArr[i, 1]                                                      :f(XReport70)
+            ssGetsOutput      =    ssGetsPath                                                           :(XReport50)
+XReport70   ENDFILE(3)
+            notExtractedTbl   =    TABLE()
+            unExpectedTbl     =    TABLE()
+            bothTbl           =    TABLE()
+            INPUT(.commInput, 3, '!!' dq(exe['comm']) ' ' txtSrcsFile ' ' txtGetsFile)                  :f(Xerror(122))
+XReport90   commInfo          =    commInput                                                            :f(XReport110)
+            commInfo          POS(0) tab tab REM . ssp . *assign(.bothTbl[ssp], *1)                     :s(XReport90)
+            commInfo          POS(0) tab     REM . ssp . *assign(.unExpectedTbl[ssp], *1)               :s(XReport90)
+            commInfo          POS(0)         REM . ssp . *assign(.notExtractedTbl[ssp], *1)             :(XReport90)
+XReport110  ENDFILE(3)
+            auditLog          =    xReportLog = ' '
+            auditLog          =    xReportLog = 'Source Safe files that changed and were extracted:'
+            auditLog          =    xReportLog = ' '
+            bothArr           =    DIFFER(bothTbl) SORT(bothTbl, 1)                                     :f(XReport140)
+            i                 =    0
+XReport130  i                 =    i + 1
+            ssp               =    bothArr[i, 1]                                                        :f(XReport150)
+            auditLog          =    xReportLog = '   ' RPAD(ssGetsTbl[ssp], 7) ' ' ssp                   :(XReport130)
+XReport140  auditLog          =    xReportLog = '   None.'
+XReport150  auditLog          =    xReportLog = ' '
+            auditLog          =    xReportLog = 'Source Safe files that did not change but were extracted:'
+            auditLog          =    xReportLog = ' '
+            unExpectedArr     =    DIFFER(unExpectedTbl) SORT(unExpectedTbl, 1)                         :f(XReport180)
+            i                 =    0
+XReport170  i                 =    i + 1
+            ssp               =    unExpectedArr[i, 1]                                                  :f(XReport190)
+            auditLog          =    xReportLog = '   ' RPAD(ssGetsTbl[ssp], 7) ' ' ssp                   :(XReport170)
+XReport180  auditLog          =    xReportLog = '   None.'
+XReport190  auditLog          =    xReportLog = ' '
+            auditLog          =    xReportLog = 'Source Safe files that changed but were not extracted:'
+            auditLog          =    xReportLog = ' '
+            notExtractedArr   =    DIFFER(notExtractedTbl) SORT(notExtractedTbl, 1)                     :f(XReport220)
+            i                 =    0
+XReport210  i                 =    i + 1
+            ssp               =    notExtractedArr[i, 1]                                                :f(XReport230)
+            auditLog          =    xReportLog = '   ' ssp                                               :(XReport210)
+XReport220  auditLog          =    xReportLog = '   None.'
+XReport230  ENDFILE(8)
+            EQ(noLog, FALSE)                                                                            :(RETURN)
+            extractionDir     =    bldRptDir '/' river '/Extraction'
+            system('-cp', '-pv ' xBuildReport ' ' extractionDir)                                        :(RETURN)
+XReportEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: Order --> Called by Main
+*                       Creates a table containing the order in which to build the projects.
+*                       Client before NTsrvr and Release before Debug.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Order(dswList)dsw,dswFile,i,wsArr,wsKey,wsProject,wsTbl,wssTbl,wssArr')             :(OrderEnd)
+Order       Order             =    TABLE()
+            wssTbl            =    TABLE()
+Order1      dswList           POS(0) (ARB '.dsw') . dsw (',' | RPOS(0)) =                               :f(Order4)
+            dswFile           =    bldWorkDir '/' dsw
+            wsTbl             =    DswRead(dswFile)                                                     :f(Xerror(123))
+            wsArr             =    CONVERT(wsTbl, 'array')                                              :f(Xerror(124))
+            i                 =    0
+Order3      i                 =    i + 1
+            wsKey             =    wsArr[i, 1]                                                          :f(Order1)
+            wsProject         =    wsArr[i, 2]
+            wssTbl[wsKey]     =    wsProject                                                            :(Order3)
+Order4      Dependents(wssTbl, bldWorkDir)
+            wssArr            =    CONVERT(wssTbl, 'array')                                             :f(Xerror(125))
+            i                 =    0
+Order5      i                 =    i + 1
+            wsKey             =    wssArr[i, 1]                                                         :f(RETURN)
+            wsProject         =    wssArr[i, 2]
+            DepthFirst(wssTbl, Order, project_name(wsProject))                                          :(Order5)
+OrderEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: SetEnv --> Called by Main
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('SetEnv(envVar,pathsArr)i,path,val')                                                 :(SetEnvEnd)
+SetEnv      i                 =    0
+SetEnv3     i                 =    i + 1
+            path              =    pathsArr[i]                                                          :f(SetEnv5)
+            path              =    EVAL(path)                                                           :f(Xerror(126))
+            DIFFER(path)                                                                                :f(SetEnv3)
+            val               =    DIFFER(val) val ';' path                                             :s(SetEnv3)
+            val               =    path                                                                 :(SetEnv3)
+SetEnv5     putenv(envVar '=' val)                                                                      :s(RETURN)f(Xerror(127))
+SetEnvEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: ExportMake --> Called by Main
+*                            Exports make files with the help of MSDEV.
+*                            It opens the DSW file with MSDEV and exports the makefile for each project.
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('ExportMake()')                                                                      :(ExportMakeEnd)
+ExportMake  LogSecHdr('Export MakeFiles from msdev')
+            system('find ' bldWorkDir ' -name "*.mak" -exec chmod 777 {} ;')                            :f(Xerror(128))
+            mList0            =    bldClientDsw0List ',' bldNtsrvDsw0List
+            mList0            POS(0) ',' | ',' RPOS(0) =
+ExportMake5 mList0            POS(0) (ARB '.dsw') . dsw0 (',' | RPOS(0)) =                              :f(RETURN)
+            system('msdev ' bldWorkDir '/' dsw0 ' /useenv  /ex  ExportMakefile')                        :(ExportMake5)
+ExportMakeEnd
+*-----------------------------------------------------------------------------------------------------------------
+*   Function: Build --> Called by Main
+*                       Compiles files with nmake
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('Build(orderTbl,libMode,projects)'
++              'bslTgtPath,buildLog,bldOutPutLogName,cfgMode,dspName,dspPath,dspProj,depResponse,esqlPATH,'
++              'filePath,FindTbl,i,impactFileName,impactDir,j,makCfgs,makLine,makName,makProj,nmakeArgs,'
++              'nmakeInfo,nmakeCopyResponse,nmakeOutput,nmakeResponse,pcoInfo,pcoInput,procPATH,orderArr,'
++              'orderKey,orderProject,tblTgtPath,webLogFileBld,wfPath,zipName'
++           )                                                                                           :(BuildEnd)
+Build       LogSecHdr('Compile ' mode ' ' host )
+            DIFFER(orderTbl)                                                                            :f(Xerror(130))
+            EQ(noLog, FALSE)                                                                            :f(Build05)
+            webLogFileBld     =    bldWebLogDir '/' river '-' host '-' mode '.bld'                          ;* Create a flag file for the WEB page to determine build status.
+            OUTPUT(.bip,4,webLogFileBld)
+            bip               =    datetime() '   *********** ' mode '  ' host
+            ENDFILE(4)
+            system('rm', ' -rf "' bldWebLogDir '/' river '-' host '-' mode '.txt' '"')                       ;* Remove old Log file from Web
+Build05     bldOutPutLogName  =    bldLogDir '/' river '-' host '-' mode '.txt'
+            OUTPUT(.buildLog,6,bldOutPutLogName)
+            buildLog          =    datetime() '   ' DUPL('*',11) ' ' mode '  ' host DUPL('*',11)
+            impactFileName    =    bldLogPreFix '-' host '-' mode '-Impact.txt'
+            OUTPUT(.impactLog,12,impactFileName)
+            impactLog         =    '   ' host ' ' mode ' Impact Report'
+            impactLog         =    DUPL('-', 75)
+            DIFFER(projects)                                                                            :f(Build00)
+            OUTPUT            =    auditLog  =  datetime() '   ' DUPL('=', 65)
+            OUTPUT            =    auditLog  =  datetime() '   ' 'ReCompiling the following Projects: ' p
+            OUTPUT            =    auditLog  =  datetime() '   ' DUPL('=', 65)
+Build00     cfgMode           =    IDENT(libMode, 'debug')   'Debug'
+            cfgMode           =    IDENT(libMode, 'release') 'Release'
+            orderArr          =    CONVERT(orderTbl, 'array')                                           :f(Xerror(135))
+            i                 =    0
+Build10     i                 =    i + 1
+            orderKey          =    orderArr[i, 1]                                                       :f(Build290)
+            orderProject      =    orderArr[i, 2]
+            wfPath            =    fslash(project_wfpath(orderProject))
+            dspPath           =    fslash(project_dsppath(orderProject))
+            dspProj           =    dspPath
+            dspProj           POS(0) './' = bldSSRootProj '/'
+            dspPath           POS(0) './' = bldWorkDir '/'
+            wfPath            POS(0) './' = bldWorkDir '/'
+            makProj           =    dspProj
+            makProj           '.dsp' RPOS(0) = '.mak'
+            dspName           =    splitname(dspProj)[2]
+            dspName           '.dsp' RPOS(0) =
+*------------------------------------------------------------------------------------------------------------------
+*   Rebuild section
+*------------------------------------------------------------------------------------------------------------------
+            DIFFER(projects)                                                                            :f(Build25)
+            projects          (',' | POS(0)) dspName (',' | RPOS(0))                                    :f(Build10)
+*------------------------------------------------------------------------------------------------------------------
+Build25     makName           =    dspName '.mak'
+            nmakeName         =    dspName '-' LPAD(time(), 7, 0) '.nmake'
+            oraInclDirNm      =    oraInclPath[dspName]
+            oraLibDirNm       =    oraLibPath[dspName]
+            mssInclDirNm      =    mssInclPath[dspName]
+            mssLibDirNm       =    mssLibPath[dspName]
+            infInclDirNm      =    infInclPath[dspName]
+            infLibDirNm       =    infLibPath[dspName]
+            sybLibDirNm       =    sybLibPath[dspName]
+            sybInclDirNm      =    sybInclPath[dspName]
+            udbLibDirNm       =    udbLibPath[dspName]
+            udbInclDirNm      =    udbInclPath[dspName]
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            auditLog          =    datetime()
+            auditLog          =    datetime() '   cd ' wfPath
+            buildLog          =    ' '
+            buildLog          =    DUPL('-', 75)
+            SetCurrentDir(wfPath)
+*------------------------------------------------------------------------------------------------------------------
+            IDENT(Host, 'ntsrv')                                                                        :f(Build140) ;* NTSRV ONLY
+Build100    IDENT(dspName, 'alo73i32')                                                                  :f(Build115)
+            Changed73i        =    system('find ' wfPath ' -name alosvi.pc -mtime 1')
+            DIFFER(Changed73i)                                                                          :f(Build140)
+            procPATH          =    proC22Dir ';' PATH
+            putenv('PATH=' procPATH)
+            system('proc22.exe', ' "config=doit.cfg" "iname=alosvi.pc"')
+            filePath = wfPath
+            filePath POS(0)  bldWorkDir = '$/' river
+            ss_checkout(bldSSDb, filePath '/alo73i32.c', '-gck -gf -i-y')
+            system('mv', '-f "alosvi.c" "alo73i32.c"')                                                  :f(Xerror(170))
+            ss_checkin(bldSSDb, filePath '/alo73i32.c', mode ' Build Generated Pro*C/C++ File.', '-gf -i-y')
+            putenv('PATH=' PATH)
+Build115    IDENT(dspName, 'alo80i32')                                                                  :f(Build130)
+            Changed80i        =    system('find ' wfPath ' -name alosvi.pc -mtime 1')
+            DIFFER(Changed80i)                                                                          :f(Build140)
+            procPATH          =    proC80Dir ';' PATH
+            putenv('PATH=' procPATH)
+            system('proc80.exe', ' "config=doit.cfg" "iname=alosvi.pc"')
+            filePath = wfPath
+            filePath POS(0)  bldWorkDir = '$/' river
+            ss_checkout(bldSSDb, filePath '/alo80i32.c', '-gck -gf -i-y')
+            system('mv', '-f "alosvi.c" "alo80i32.c"')                                                  :f(Xerror(180))
+            ss_checkin(bldSSDb, filePath '/alo80i32.c', mode ' Build Generated Pro*C/C++ File.', '-gf -i-y')
+            putenv('PATH=' PATH)
+Build130    IDENT(dspName, 'alo81i32')                                                                  :f(Build140)
+            Changed81i        =    system('find ' wfPath ' -name alosvi.pc -mtime 1')
+            DIFFER(Changed81i)                                                                          :f(Build140)
+            procPATH          =    proC81Dir ';' PATH
+            putenv('PATH=' procPATH)
+            system('proc.exe', ' "config=doit.cfg" "iname=alosvi.pc"')
+            filePath = wfPath
+            filePath POS(0)  bldWorkDir = '$/' river
+            ss_checkout(bldSSDb, filePath '/alo81i32.c', '-gck -gf -i-y')
+            system('mv', '-f "alosvi.c" "alo81i32.c"')                                                  :f(Xerror(190))
+            ss_checkin(bldSSDb, filePath '/alo81i32.c', mode ' Build Generated Pro*C/C++ File.', '-gf -i-y')
+            putenv('PATH=' PATH)
+*------------------------------------------------------------------------------------------------------------------
+Build140    IDENT(dspName, 'alisvi32')                                                                  :f(Build150)
+            esqlPATH          =    informixDir '/bin' ';' PATH                                           ;* If this is an informix build
+            putenv('PATH=' esqlPATH)                                                                     ;* Then we need to build with esql
+            system(informixDir '/bin/esql', '-e ./alisvi.ec')
+            putenv('PATH=' PATH)
+*------------------------------------------------------------------------------------------------------------------
+Build150    IDENT(dspName, 'PDBFilteredComboBox')                                                       :f(Build160)
+            tblTgtPath        =    '../../../' mode
+            FindTlb           =    system('find ' tblTgtPath ' -name PDBFilteredComboBox.tlb ')
+            DIFFER(FindTlb)                                                                             :f(Build153)
+            ChangedOdl        =    system('find ' wfPath ' -name PDBFilteredComboBox.odl -mtime 1')
+            DIFFER(ChangedOdl)                                                                          :f(Build160)
+Build153    IDENT(mode, 'release')                                                                      :f(Build154)
+            MIDL_Mode_Switch  =    '"NDEBUG"'
+                                                                                                        :(Build155)
+Build154    MIDL_Mode_Switch  =    '"_DEBUG"'
+Build155    MIDL_Source       =    'PDBFilteredComboBox.odl'
+            MIDL_Switches     =    '-nologo /D ' MIDL_Mode_Switch ' /mktyplib203 /win32'
+            MIDL_Path         =    '../../../' mode '/PDBFilteredComboBox.tlb'
+            midlResponse      =    system('midl.exe ' MIDL_Switches ' /tlb  ' MIDL_Path ' '  MIDL_Source)
+Build157    midlResponse           POS(0) BREAK(nl) . midlInfo nl =                                     :f(Build159)
+            buildLog          =    OUTPUT   =   datetime() '   ' midlInfo                               :(Build157)
+Build159    auditLog          =    OUTPUT   =   datetime()
+            auditLog          =    OUTPUT   =   datetime()
+*------------------------------------------------------------------------------------------------------------------
+Build160    SetEnv('INCLUDE', bldIncPaths)
+            SetEnv('LIB', bldLibPaths)
+            makCfgs           =
+            INPUT(.makInput, 3, makName)                                                                :f(Xerror(210 ': ' makName))
+Build175    makLine           =    makInput                                                             :f(Build200)
+            makLine           '"$(CFG)" == "' BREAK('"') . makCfg '"'                                   :f(Build175)
+            makCfgs           makCfg nl                                                                 :s(Build175)
+            makCfgs           =    makCfgs makCfg nl                                                    :(Build175)
+Build200    ENDFILE(3)
+Build210    makCfgs           POS(0) BREAK(nl) . makCfg nl =                                            :f(Xerror(220))
+            makCfg            cfgMode                                                                   :f(Build210)
+            auditLog          =    OUTPUT = datetime() '   dsp: ' wfPath '/' dspName '.dsp'
+            depResponse       =    system('@-dep', river ' ' dspPath)
+            buildLog          =    'dsp: ' wfPath '/' dspName '.dsp'
+            buildLog          =    ' '
+            buildLog          =    'dep response: '
+            buildLog          =    depResponse
+*------------------------------------------------------------------------------------------------------------------
+            nmakeArgs         =    '-nologo -c -f ' makName ' -x -' ' CFG="' makCfg '"'
+            nmakeResponse     =    system('@-nmake', nmakeArgs)                                         :f(Xerror(230))
+            nmakeResponse     POS(0) *nmakeParse RPOS(0)                                                :f(Build250)
+*------------------------------------------------------------------------------------------------------------------
+            nmakeCopyResponse = nmakeResponse
+            buildLog          =    ' '
+            buildLog          =    'nmake response: '
+Build220    nmakeCopyResponse      POS(0) BREAK(nl) . nmakeCopyInfo nl =                                 :f(Build230)
+            buildLog          =    nmakeCopyInfo                                                         :(Build220)
+*------------------------------------------------------------------------------------------------------------------
+Build230    userRpt()                                                                                   :s(Build10)
+Build250    OUTPUT(.nmakeOutput, 3, nmakeName)                                                          :f(Xerror(231))
+            buildLog          =    'nmake response: '
+Build270    nmakeResponse     POS(0) BREAK(nl) . nmakeInfo nl =                                         :f(Build280)
+            OUTPUT            =    datetime() ' X ' nmakeInfo
+            buildLog          =    nmakeOutput   =  nmakeInfo                                           :(Build270)
+Build280    ENDFILE(3)                                                                                  :(Build10)       ;* Close the nmake output file
+Build290                                                                                                                 ;* End of Build phase
+            nmkErrorEmail     =    bldLogDir '/' river '-nmkErrorMail.txt'
+            OUTPUT(.xEM, 15, nmkErrorEmail)
+            OUTPUT            =    xEM = auditLog = river ': Errors: ' +errorCTotal ' ' +errorRCTotal
++                                                                  ' ' +errorLNKTotal ' ' +errorSTToltal
+            ENDFILE(15)
+            OUTPUT            =    buildLog  =  auditLog  =  DUPL('%', 97)
+            OUTPUT            =    buildLog  =  auditLog  =  'Total Compile Errors: ' +errorCTotal
+            OUTPUT            =    buildLog  =  auditLog  =  'Total RC Errors:      ' +errorRCTotal
+            OUTPUT            =    buildLog  =  auditLog  =  'Total Link Errors:    ' +errorLNKTotal
+            OUTPUT            =    buildLog  =  auditLog  =  'Total NMAKE Stops:    ' +errorSTTotal
+            OUTPUT            =    buildLog  =  auditLog  =  DUPL('%', 97)
+            ENDFILE(6)                                                                                                   ;* Close the current build file.
+            ENDFILE(12)                                                                                                  ;* Close the current impact file.
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            EQ(noLog, FALSE)                                                                            :f(Build295)
+            system('-cp', '-pv ' bldOutPutLogName ' ' webLogDir)                                                         ;* Copy buildLog to WebLogDir
+            impactDir         =    bldRptDir '/' river '/Impact'
+            system('-cp', '-pv ' impactFileName ' ' impactDir)
+Build295    OUTPUT            =    auditLog = datetime() '   ' DUPL('-',75)
+            system('rm', ' -rf "' webLogFileBld '"')                                                                     ;* Remove Web flag file.
+            (IDENT(river, 'sqlx'))                                                                      :s(RETURN)
+            DIFFER(projects)                                                                            :s(RETURN)       ;* REBUILD Step.
+*------------------------------------------------------------------------------------------------------------------
+            IDENT(host, 'client')                                                                       :f(Build300)
+            zipName           = 'cli'                                                                   :(Build320)      ;* Set the Zip file name to cli
+Build300    zipName           = 'ntsrv'                                                                                  ;* ELSE set it to ntsrv
+Build320    SetCurrentDir(bldWorkDir '/' mode)
+            LogSecHdr('ZIP *.pdb & *.bsc Files')
+            LogSecHdr('Current Dir: ' bldWorkDir '/' mode)
+            IDENT(mode, 'debug')                                                                        :f(Build330)     ;* If this is a Debug Build
+            system('rm', '-f ' zipName '_pdb.zip')
+            system('rm', '-f ' zipName '_bsc.zip')
+            system('pkzip', ' -add ' zipName '_pdb *.pdb')
+            system('pkzip', ' -add ' zipName '_bsc *.bsc')                                              :(RETURN)
+Build330    IDENT(mode, 'release')                                                                      :f(RETURN)
+            system('rm', '-f ' zipName '_lib.zip')
+            system('pkzip', ' -add ' zipName '_lib *.lib')                                              :(RETURN)
+BuildEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: BuildBsl --> Called by Main
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('BuildBsl()'
++              'bslTgtPath,i,mslProjs,mslSrc,mslSrcPath,mslSrcsArr,mslSrcsTbl,'
++              'pcoCmd,pcoInfo,pcoInput,pcoPATH,lsFeedBk,NoChange,mslTgtPath,'
++              'FindBsl,ssLsInput,ssOpt,ssProj,ssSrc'
++           )                                                                                           :(BuildBslEnd)
+BuildBsl    LogSecHdr('Compile *.bsl Files ')
+            SetCurrentDir(bldWorkDir '/' mode)
+            pcoPATH           =    bldWorkDir '/ThirdParty/' mode ';' PATH
+            putenv('PATH=' pcoPATH)
+            mslProjs          =    bldSSMslProjs
+            lsFeedBk          =    system('@-ls', '-1 "' bldWorkDir '/' mode  '/patrolco.exe' '"')
+            IDENT(lsFeedBk)                                                                             :s(BslError)
+BuildBsl1   mslProjs          POS(0) BREAK(nl) . mslProj nl =                                           :f(BuildBsl11)
+            mslSrcsTbl        =    TABLE()
+            ssProj            =    bldSSRootProj '/' mslProj
+            ssOpt             =    ssOpt ' -f ' bldSSDb ' "' ssProj '"'
+            INPUT(.ssLsInput, 3, '!!' dq(exe['ssls']) ' ' ssOpt)                                        :f(Xerror(231))
+BuildBsl2   ssSrc             =    ssLsInput                                                            :f(BuildBsl4)
+            mslSrcsTbl[ssSrc] =    1                                                                    :(BuildBsl2)
+BuildBsl4   ENDFILE(3)
+            mslSrcsArr        =    SORT(mslSrcsTbl)
+            i                 =    0
+BuildBsl5   i                 =    i + 1
+            mslSrc            =    mslSrcsArr[i, 1]                                                     :f(BuildBsl1)
+            mslSrc            '.msl' RPOS(0)                                                            :f(BuildBsl5)
+            mslSrcPath        =    mslSrc
+            mslSrcPath        POS(0) bldSSRootProj '/' = bldWorkDir '/'
+            mslTgtPath        =    bslTgtPath        =    splitname(mslSrc)[2]
+            bslTgtPath        '.msl' RPOS(0) = '.bsl'
+            FindBsl           =    system('find '  splitname(mslSrcPath)[1] ' -name ' bslTgtPath )
+            DIFFER(FindBsl)                                                                             :f(BuildBsl6)
+            NoChange          =    system('find ' splitname(mslSrcPath)[1] ' -name ' mslTgtPath ' -newer ' splitname(mslSrcPath)[1] '/' bslTgtPath)
+            DIFFER(NoChange)                                                                            :f(BuildBsl5)
+BuildBsl6   OUTPUT            =    auditLog = datetime() '   Compiling: ' mslTgtPath
+*           pcoCmd            =    env['HOME'] '/bin' '/patrolco "' mslSrcPath '"'
+            pcoCmd            =    bldWorkDir '/' mode '/patrolco "' mslSrcPath '"'
+            INPUT(.pcoInput, 3, '!!' pcoCmd)                                                            :f(Xerror(233))
+BuildBsl7   pcoInfo           =    pcoInput                                                             :f(BuildBsl9)
+            pcoInfo           POS(0) 'ERROR(' ARB '): Open file ' ARB ' failed.' RPOS(0)                :s(BuildBsl7)
+            OUTPUT            =    auditLog = datetime() '   ' pcoInfo                                  :(BuildBsl7)
+BuildBsl9   ENDFILE(3)                                                                                  :(BuildBsl5)
+BuildBsl11  putenv('PATH=' PATH)                                                                        :(RETURN)
+BslError    putenv('PATH=' PATH)
+            OUTPUT            =    auditLog = datetime() '   Error: xxxxxxxxxxxxxxxxxxxx'
+            OUTPUT            =    auditLog = datetime() '   Error: Missing PatrolCO.exe'
+            OUTPUT            =    auditLog = datetime() '   Error: BuildBSL Skipped    '
+            OUTPUT            =    auditLog = datetime() '   Error: xxxxxxxxxxxxxxxxxxxx'               :(RETURN)
+BuildBslEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: ScrubStage --> Called by Main
+*   BEGIN('Scrub-Stage-bld.txt')
+*   The Staging Area directory contains the product deliverables.
+*   All files must be removed from this directory for each build.
+*   END()
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('ScrubStage(stgImage)findCmd,findInfo,findInput,subDir')                             :(ScrubStageEnd)
+ScrubStage  LogSecHdr('Clean Staging Area')
+            EQ(noLog, FALSE)                                                                            :f(ScrubStage1)
+            webLogFileCopy    =    bldWebLogDir '/' river '-' host '-' mode '.copy'
+            OUTPUT(.bip,4,webLogFileCopy)
+            bip               =    datetime() '   *********** ' mode '  ' host
+            ENDFILE(4)
+ScrubStage1 findCmd           =    dq(exe['find']) ' "' stgImage '" -type f -print'
+            auditLog          =    datetime() ' % ' findCmd
+            INPUT(.findInput, 3, '!!' findCmd)                                                          :f(Xerror(235))
+ScrubStage5 findInfo          =    findInput                                                            :f(ScrubStage9)
+            system('rm', '-f "' findInfo '"')                                                           :(ScrubStage5)
+ScrubStage9 ENDFILE(3)                                                                                  :(RETURN)
+ScrubStageEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: MakeStage --> Called by Main
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('MakeStage(stgDrop)saDir,saDirs')                                                    :(MakeStageEnd)
+MakeStage   LogSecHdr('Create Staging Area')
+            saDirs            =    IDENT(host, 'client') bldStgClientDirs
+            saDirs            =    IDENT(host, 'ntsrv') bldStgNtsrvDirs
+MakeStage1  saDirs            POS(0) BREAK(nl) . saDir nl =                                             :f(RETURN)
+            mkdir(stgDrop '/' saDir, '  -p')                                                            :(MakeStage1)
+MakeStageEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: CopyStage --> Called by Main
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('CopyStage(stgImage)'
++              'c,categories,category,copyRules,cpCmd,cpErrArr,cpErrTbl,cpInfo,cpInput,'
++              'cpmArr,cpmExpr,cpmName,cpmTbl,'
++              'cpr,cprCommand,cprCriteria,cprMacro,cprOptions,cprSrc,cprTgt,'
++              'findCmd,findInfo,findInput,'
++              'i,m,pubDir'
++           )                                                                                           :(CopyStageEnd)
+CopyStage   LogSecHdr('Copy Build to Staging Area')
+            cpmTbl            =    DIFFER(bldCopyMacros) bldCopyMacros                                  :f(CopyStage20)
+            cpmArr            =    CONVERT(cpmTbl, 'array')                                             :f(CopyStage20)
+            m                 =    0
+CopyStage10 m                 =    m + 1
+            cpmName           =    cpmArr[m, 1]                                                         :f(CopyStage20)
+            cpmExpr           =    cpmArr[m, 2]
+            IsType(cpmName, 'name')                                                                     :f(Xerror(237))
+            IsType(cpmExpr, 'expression')                                                               :f(Xerror(239))
+            $cpmName          =    EVAL(cpmExpr)                                                        :(CopyStage10)
+CopyStage20 DIFFER(bldCopyRules)                                                                        :f(RETURN)
+            cpErrTbl          =    TABLE()
+            categories        =    bldCategories
+CopyStage21 categories        POS(0) SPAN(&LCASE digits) . category (',' | RPOS(0)) =                   :f(CopyStage40)
+            copyRules         =    bldCopyRules[category]
+            DIFFER(copyRules)                                                                           :f(Xerror(241))
+            c                 =    0
+CopyStage23 c                 =    c + 1
+            cpr               =    copyRules[c]
+            DIFFER(cpr)                                                                                 :f(CopyStage21)
+            cprCriteria       =    cpr_criteria(cpr)
+            cprCriteria       ('c' *IDENT(host, 'client') | 's' *IDENT(host, 'ntsrv'))                  :f(CopyStage23)
+            cprCriteria       ('d' *IDENT(mode, 'debug')  | 'r' *IDENT(mode, 'release'))                :f(CopyStage23)
+            cprCommand        =    cpr_command(cpr)
+            cprOptions        =    cpr_options(cpr)
+            cprSrc            =    IDENT(cpr_src(cpr))
+            cprSrc            =    DIFFER(cpr_src(cpr)) EVAL(cpr_src(cpr))
+            cprTgt            =    cpr_tgt(cpr)
+            cprTgt            POS(0) '${' BREAK('}') . cprMacro '}' = $cprMacro                         :s(CopyStage25)
+            cprTgt            =    stgImage '/' cprTgt
+CopyStage25 DIFFER(cprSrc)                                                                              :f(CopyStage35)
+            cpArgs            =    cprOptions ' ' cprSrc ' ' cprTgt
+            cpResponse        =    system(cprCommand, cpArgs)                                           :f(Xerror(243))
+            IDENT(cpResponse)                                                                           :f(CopyStage30)
+            cpErrTbl[cprSrc]  =    cpErrTbl[cprSrc] + 1                                                 :(CopyStage23)
+CopyStage30 cpResponse        POS(0) BREAK(nl) . cpInfo nl =                                            :f(CopyStage23)
+            cpInfo            POS(0) ARB ' -> ' ARB RPOS(0)                                             :s(CopyStage30)
+            auditLog          =    datetime() '   ' cpInfo                                              :(CopyStage30)
+CopyStage35 system(cprCommand, cprOptions ' ' cprTgt)                                                   :(CopyStage23)
+CopyStage40 cpErrArr          =    DIFFER(cpErrTbl) SORT(cpErrTbl, 1)                                   :f(CopyStage50)
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            auditLog          =    OUTPUT   =   datetime() '   Copy Errors'
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            i                 =    0
+CopyStage45 i                 =    i + 1
+            cpInfo            =    cpErrArr[i, 1]                                                       :f(CopyStage50)
+            OUTPUT            =    auditLog =   datetime() '   ' 'error: cp: ' cpInfo                   :(CopyStage45)
+CopyStage50 findCmd           =    dq(exe['find']) ' ' stgImage ' -name "vssver.scc" -print'
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            OUTPUT            =    auditLog =   datetime() ' % ' findCmd
+            auditLog          =    OUTPUT   =   datetime() '   ' DUPL('-',75)
+            INPUT(.findInput, 3, '!!' findCmd)                                                          :f(Xerror(245))
+CopyStage55 findInfo          =    findInput                                                            :f(CopyStage60)
+            system('rm', '-f "' findInfo '"')                                                           :(CopyStage55)
+CopyStage60 system('rm', ' -rf "' webLogFileCopy '"')
+            ENDFILE(3)                                                                                  :(RETURN)
+CopyStageEnd
+*------------------------------------------------------------------------------------------------------------------
+*   Function: RqstImage --> Called by Main
+*------------------------------------------------------------------------------------------------------------------
+            DEFINE('RqstImage(niqiProd,niqiStagePath,niqiName)'
++              'iqmCmd,imageInc,imageMax,lsDir,lsResponse.subDir'
++           )                                                                                           :(RqstImageEnd)
+RqstImage    LogSecHdr('Request Compress and Image Creation')
+             subDir            =    SUBSTR(imageDateTime, 1, 4)
++                                   SUBSTR(imageDateTime, 6, 2)
++                                   SUBSTR(imageDateTime, 9, 2)
+             mkdir(bldImgPath, '  -p')
+             imgPath           =    bldImgPath '/' bldDate() '.' dotNumMax
+             pubDir            =    pubDrive '/' bldPubDir
+             mkdir(imgPath, '  -p')
+             iqmCmd            =    iqmDir '/jre1.1.5/bin/jre'
+             iqmOpts           =    '-cp "' iqmDir '/QMgr/QMgr.RQC.jar;' iqmDir '/jre1.1.5/lib/rt.jar' '"'
++                                  ' QMgr.RQC' ' -p"' niqiProd '"'
++                                  ' -r"' bldNiQiUserids '"'
++                                  ' -l45 -t"' bslash(imgPath) '"'
++                                  ' -s"' bslash(niqiStagePath) '"'
++                                  ' -u' niqiName ''
+             system(iqmCmd, iqmOpts)                                                                    :f(Xerror(247))
+             (IDENT(river, 'sqlx'))                                                                     :s(RqstImage250)
+             system('-cp', '-pv ' bldWorkDir '/common/build/nt/version' ' ' imgPath)
+             IDENT(host, 'ntsrv')                                                                       :f(RqstImage050)
+             IDENT(river, 'ganges')                                                                     :f(RqstImage045)
+             system('-cp', '-pv ' pubDrive '/pdb_3_3_01(ganges)/pdb/src/hlp/hisnt/hisnt.hlp' ' ' imgPath)
+             system('-cp', '-pv ' pubDrive '/pdb_3_3_01(ganges)/pdb/src/hlp/hisnt/hisnt.cnt' ' ' imgPath)
+                                                                                                        :(RqstImage060)
+RqstImage045 system('-cp', '-pv ' pubDir '/pdb/src/hlp/hisnt/hisnt.hlp' ' ' imgPath)
+             system('-cp', '-pv ' pubDir '/pdb/src/hlp/hisnt/hisnt.cnt' ' ' imgPath)                    :(RqstImage060)
+RqstImage050 system('-cp', '-pv ' pubDir '/pdb/src/hlp/his/his.hlp' ' ' imgPath)
+             system('-cp', '-pv ' pubDir '/pdb/src/hlp/his/his.cnt' ' ' imgPath)
+RqstImage060 IDENT(river, 'ganges')                                                                     :f(RqstImage100)
+RqstImage075 system('-cp', '-pv ' pubDrive '/pdb_3_3_01/pdb/doc/readme/readme_for_cd2/readme.txt' ' ' imgPath)
+             system('-cp', '-pv ' pubDrive '/pdb_3_3_01/hhupd.exe' ' ' imgPath)                         :(RqstImage250)
+RqstImage100 system('-cp', '-pv ' pubDir '/hhupd.exe' ' ' imgPath)
+             system('-cp', '-pv ' pubDir '/pdb/doc/readme/readme.txt' ' ' imgPath)
+RqstImage250 IDENT(mode, 'debug')                                                                       :f(RqstImage270)
+             IDENT(host, 'ntsrv')                                                                       :f(RqstImage260)
+             system('-cp', '-pv ' bldWorkDir '/debug/ntsrv_pdb.zip' ' ' imgPath)
+             system('-cp', '-pv ' bldWorkDir '/debug/ntsrv_bsc.zip' ' ' imgPath)                        :(RETURN)
+RqstImage260 system('-cp', '-pv ' bldWorkDir '/debug/cli_pdb.zip' ' ' imgPath)
+             system('-cp', '-pv ' bldWorkDir '/debug/cli_bsc.zip' ' ' imgPath)                          :(RETURN)
+RqstImage270 IDENT(mode, 'release')                                                                     :f(Xerror(249))
+             IDENT(host, 'ntsrv')                                                                       :f(RqstImage280)
+             system('-cp', '-pv ' bldWorkDir '/release/ntsrv_lib.zip' ' ' imgPath)                      :(RETURN)
+RqstImage280 system('-cp', '-pv ' bldWorkDir '/release/cli_lib.zip' ' ' imgPath)                        :(RETURN)
+RqstImageEnd
+*------------------------------------------------------------------------------------------------------------------
+            m                 =
+            h                 =
+            p                 =
+            dext              =   FALSE
+            eext              =   FALSE
+            noLog             =   FALSE
+            extNow            =   FALSE
+            BslOnly           =   FALSE
+            EXIT(3, 'cmbuild.exe')
+-INCLUDE    'external/directs.inc'
+*------------------------------------------------------------------------------------------------------------------
+*   Main execution starts here. Read in command line arguments.
+*------------------------------------------------------------------------------------------------------------------
+            Utility()
+            hostPat           =    ('client' | 'ntsrv')
+            modePat           =    ('debug' | 'release')
+            projPat           =    pathNode
+            dlmtPat           =    (',' | RPOS(0))
+            argPos            =    HOST(3)
+            river             =    HOST(2, argPos)                                                      :f(usage)
+            cmdline           =    'build ' river
+            bld               =    DIFFER(build[river]) build[river]                                    :f(usage)
+            todo              =
+            argInc            =    0
+arg0        argPos            =    argPos + argInc + 1
+            argInc            =    0
+            cmdline           =    cmdline ' ' HOST(2, argPos)
+            swtch             =    HOST(2, argPos)                                                      :f(arg3)
+            swtch             POS(0) '-' =                                                              :f(usage)
+            swtch             POS(0) RPOS(0)                                                            :s(usage)
+arg1        swtch             POS(0) RPOS(0)                                                            :s(arg0)
+            swtch                    'x' . *assign(.todo,    *(todo 'DoExtract/')) =                    :s(arg1)
+            swtch                    'b' . *assign(.todo,    *(todo 'DoBuild/'))   =                    :s(arg1)
+            swtch                    'c' . *assign(.todo,    *(todo 'DoCopy/'))    =                    :s(arg1)
+            swtch                    'i' . *assign(.todo,    *(todo 'DoImage/'))   =                    :s(arg1)
+            swtch             POS(0) 'd' . *assign(.dext,    *TRUE)   =                                 :s(arg1)
+            swtch             POS(0) 'e' . *assign(.eext,    *TRUE)   =                                 :s(arg1)
+            swtch             POS(0) 'j' . *assign(.BslOnly, *TRUE)   =                                 :s(arg1)
+            swtch             POS(0) 'l' . *assign(.noLog,   *TRUE)   =                                 :s(arg1)
+            swtch             POS(0) 'n' . *assign(.extNow,  *TRUE)   =                                 :s(arg1)
+            swtch             POS(0) 'p' . myopt =                                                      :s(arg2)
+            swtch             POS(0) 'm' . opt   =                                                      :s(arg2)
+            swtch             POS(0) 'h' . opt   =                                                      :s(arg2)f(usage)
+arg2        argInc            =    argInc + 1
+            cmdline           =    cmdline ' ' HOST(2, argPos + argInc)
+            arg               =    HOST(2, argPos + argInc)                                             :f(usage)
+            arg               POS(0) '-'                                                                :s(usage)
+            arg               POS(0) *IDENT(opt, 'h') ARBNO(hostPat dlmtPat) . $opt RPOS(0)             :s(arg1)
+            arg               POS(0) *IDENT(opt, 'm') ARBNO(modePat dlmtPat) . $opt RPOS(0)             :s(arg1)
+            arg               POS(0) *IDENT(myopt, 'p') ARBNO(projPat dlmtPat) . $myopt RPOS(0)         :s(arg1)f(usage)
+*------------------------------------------------------------------------------------------------------------------
+*   Default Command line args.
+*------------------------------------------------------------------------------------------------------------------
+arg3        todo              =    IDENT(todo) 'DoExtract/DoBuild/DoCopy/DoImage/'
+            h                 =    IDENT(h) 'client,ntsrv'
+            m                 =    IDENT(m) 'release,debug'
+*------------------------------------------------------------------------------------------------------------------
+*   Check the data type of each variable read in.
+*------------------------------------------------------------------------------------------------------------------
+            IsType(bldSSDb           =    bld_ss_db(bld),               'string')                       :f(Xerror(250))
+            IsType(bldSSRootProj     =    bld_ss_root_proj(bld),        'string')                       :f(Xerror(251))
+            IsType(bldSSBuildProj    =    bld_ss_build_proj(bld),       'string')                       :f(Xerror(252))
+            IsType(bldSSMslProjs     =    bld_ss_msl_projs(bld),        'string')                       :f(Xerror(253))
+            IsType(bldSSXtra         =    bld_ss_xtra_var(bld),         'name')                         :f(Xerror(254))
+            IsType(bldSSXtra         =    $bldSSXtra,                   'table')                        :f(Xerror(255))
+            IsType(bldWebLogDir      =    bld_web_log_dir_var(bld),     'name')                         :f(Xerror(256))
+            IsType(bldWebLogDir      =    $bldWebLogDir,                'string')                       :f(Xerror(257))
+            IsType(bldWorkDir        =    bld_wrk_dir_var(bld),         'name')                         :f(Xerror(258))
+            IsType(bldWorkDir        =    $bldWorkDir,                  'string')                       :f(Xerror(259))
+            IsType(bldStageMach      =    bld_stg_mach_var(bld),        'name')                         :f(Xerror(260))
+            IsType(bldStageMach      =    $bldStageMach,                'string')                       :f(Xerror(261))
+            IsType(bldImgDir         =    bld_img_dir_var(bld),         'name')                         :f(Xerror(262))
+            IsType(bldImgDir         =    $bldImgDir,                   'string')                       :f(Xerror(263))
+            IsType(bldIncPaths       =    bld_inc_paths_var(bld),       'name')                         :f(Xerror(264))
+            IsType(bldIncPaths       =    $bldIncPaths,                 'array')                        :f(Xerror(265))
+            IsType(bldLibPaths       =    bld_lib_paths_var(bld),       'name')                         :f(Xerror(266))
+            IsType(bldLibPaths       =    $bldLibPaths,                 'array')                        :f(Xerror(267))
+            IsType(bldStgClientDirs  =    bld_stg_client_dirs_var(bld), 'name')                         :f(Xerror(268))
+            IsType(bldStgClientDirs  =    $bldStgClientDirs,            'string')                       :f(Xerror(269))
+            IsType(bldStgNtsrvDirs   =    bld_stg_ntsrv_dirs_var(bld),  'name')                         :f(Xerror(270))
+            IsType(bldStgNtsrvDirs   =    $bldStgNtsrvDirs,             'string')                       :f(Xerror(271))
+            IsType(bldCopyMacros     =    bld_copy_macros_var(bld),     'name')                         :f(Xerror(272))
+            IsType(bldCopyMacros     =    $bldCopyMacros,               'null,table')                   :f(Xerror(273))
+            IsType(bldCopyRules      =    bld_copy_rules_var(bld),      'name')                         :f(Xerror(274))
+            IsType(bldCopyRules      =    $bldCopyRules,                'null,table')                   :f(Xerror(275))
+            IsType(bldStgMntExpr     =    bld_stg_mnt_expr(bld),        'expression')                   :f(Xerror(276))
+            IsType(bldStgDrpExpr     =    bld_stg_drp_expr(bld),        'expression')                   :f(Xerror(277))
+            IsType(bldStgImgExpr     =    bld_stg_img_expr(bld),        'expression')                   :f(Xerror(278))
+            IsType(bldImgDirExpr     =    bld_img_dir_expr(bld),        'expression')                   :f(Xerror(279))
+            IsType(bldPubDir         =    bld_pub_dir(bld),             'string')                       :f(Xerror(280))
+            IsType(bldClientDsw1List =    bld_client_dsw1_list(bld),    'string')                       :f(Xerror(281))
+            IsType(bldClientDsw0List =    bld_client_dsw0_list(bld),    'string')                       :f(Xerror(282))
+            IsType(bldNtsrvDsw1List  =    bld_ntsrv_dsw1_list(bld),     'null,string')                  :f(Xerror(283))
+            IsType(bldNtsrvDsw0List  =    bld_ntsrv_dsw0_list(bld),     'null,string')                  :f(Xerror(284))
+            IsType(bldNiQiClientProd =    bld_niqi_client_product(bld), 'string')                       :f(Xerror(285))
+            IsType(bldNiQiNtsrvProd  =    bld_niqi_ntsrv_product(bld),  'string')                       :f(Xerror(286))
+            IsType(bldNiQiNameExpr   =    bld_niqi_name_expr(bld),      'null,expression')              :f(Xerror(287))
+            IsType(bldNiQiUserids    =    bld_niqi_userids_var(bld),    'null,name')                    :f(Xerror(288))
+            IsType(bldNiQiUserids    =    (DIFFER(bldNiQiUserids) $bldNiQiUserids, ''), 'null,string')  :f(Xerror(289))
+            IsType(bldLogDir         =    bld_log_dir_var(bld),         'name')                         :f(Xerror(290))
+            IsType(bldLogDir         =    $bldLogDir,                   'string')                       :f(Xerror(291))
+            IsType(bldRptDir         =    bld_rpt_dir_var(bld),         'name')                         :f(Xerror(292))
+            IsType(bldRptDir         =    $bldRptDir,                   'string')                       :f(Xerror(293))
+            IsType(bldID             =    bld_id(bld),                  'string')                       :f(Xerror(294))
+            IsType(bldCategories     =    bld_categories(bld),          'string')                       :f(Xerror(295))
+
+            cwd               =    GetCurrentDir()                                                      :f(Xerror(300))
+            workDir           =    bldWorkDir
+            DBMSPaths()
+            MSVCEnv()
+            mkdir(bldWorkDir, '  -p')
+            curDateTime       =    datetime()
+            getExtractDateTime()
+*------------------------------------------------------------------------------------------------------------------
+*   Create Audit Log File
+*------------------------------------------------------------------------------------------------------------------
+            dotNumMax         =    0
+            lsFeedBack        =    system('@-ls', '-1 "' bldLogDir '"')
+CALF1       lsFeedBack        POS(0) BREAK(nl) . lsList nl =                                             :f(CALF5)
+            lsList            POS(0) river '-' blddate() '-' SPAN(digits) '-'
++                             SPAN(digits) . dayBldNo '-audit.txt' RPOS(0)                               :f(CALF1)
+            dotNumMax         =    GT(dayBldNo, dotNumMax) dayBldNo                                      :(CALF1)
+CALF5       dotNumMax         =    dotNumMax + 1
+            logDateTime       =    blddatetime()
+            bldFilePreFix     =    river '-' logDateTime
+            bldLogPreFix      =    bldLogDir '/' river '-' logDateTime '-' dotNumMax
+            bldLogFileName    =    bldLogPreFix '-audit.txt'
+            OUTPUT(.auditLog, 5, bldLogFileName)
+            auditLog          =    OUTPUT  =  datetime()
+            auditLog          =    OUTPUT  =  datetime() '   Log File: ' bldLogFileName
+            auditLog          =    OUTPUT  =  datetime() '   Cmd Line: ' cmdline
+            auditLog          =    OUTPUT  =  datetime()
+*------------------------------------------------------------------------------------------------------------------
+*   -e Create New MakeFiles
+*------------------------------------------------------------------------------------------------------------------
+            EQ(eext, TRUE)                                                                              :f(DoMake05)
+            ExportMake()
+DoMake05
+*------------------------------------------------------------------------------------------------------------------
+DoExtract   todo              POS(0) 'DoExtract/' =                                                     :f(DoLoop)
+            EQ(noLog, FALSE)                                                                            :f(DoExtract05)
+            webLogXtractFile  =    bldWebLogDir '/' river '-src-extraction.tmp'
+            OUTPUT(.xip, 4, webLogXtractFile)
+            xip               =    datetime() '   *********** ' mode '  ' host
+            ENDFILE(4)
+*------------------------------------------------------------------------------------------------------------------
+*   -d extraction
+*------------------------------------------------------------------------------------------------------------------
+DoExtract05 EQ(dext, TRUE)                                                                              :f(DoExtract10)
+            system('rm', ' -rf "' bldWorkDir '"/*')
+            extractDateTime2  =    LLT(curTime, eTime) julian2date(date2julian(curDate) - (eDayNo + 1), curYear)
+            extractDateTime2  =    extractDateTime2 ' ' eTime
+            bldssGetsTblFile  =    bldFilePreFix '-ssGetsTbl.tmp'
+            OUTPUT(.bldssGetsTbl, 20, bldssGetsTBlFile)
+            bldssdbSrcsTblFile  =    bldFilePreFix '-ssdbSrcsTbl.tmp'
+            OUTPUT(.bldssdbSrcsTbl, 21, bldssdbSrcsTBlFile)
+            SSDbSrcs()
+            ENDFILE(21)
+            bldSrcsTblFile    =    bldFilePreFix '-srcsTbl.tmp'
+            OUTPUT(.bldSrcsTbl, 22, bldSrcsTBlFile)
+            Sources(extractDateTime2)
+            ENDFILE(22)
+            Extract(extractDateTime2)
+            ENDFILE(20)
+DoExtract10
+*------------------------------------------------------------------------------------------------------------------
+            ss_workfold(bldSSDb, bldSSRootProj, bldWorkDir)
+            EQ(extNow, FALSE)                                                                              :f(DoExtract11)
+            system('ssdb', river ' -u "' extractDateTime '"')                                           ;* Update river history file
+DoExtract11
+*------------------------------------------------------------------------------------------------------------------
+            vBuildReport      =    bldLogPreFix '-vReport.txt'
+            OUTPUT(.vReportLog, 7, vBuildReport)
+            bldReport         =    system('-ssdb', river ' -v')                                         ;* Create Vantive report
+DoReport    bldReport         POS(0) BREAK(nl) . vReportLog nl =                                        :s(DoReport)
+            ENDFILE(7)
+            EQ(noLog, FALSE)                                                                            :f(DoReport05)
+            vantiveDir        =    bldRptDir '/' river '/Vantive'
+            system('-cp', '-pv ' vBuildReport ' ' vantiveDir)
+*------------------------------------------------------------------------------------------------------------------
+DoReport05
+            bldssGetsTblFile  =    bldFilePreFix '-ssGetsTbl.txt'
+            OUTPUT(.bldssGetsTbl, 20, bldssGetsTBlFile)
+            bldssdbSrcsTblFile  =    bldFilePreFix '-ssdbSrcsTbl.txt'
+            OUTPUT(.bldssdbSrcsTbl, 21, bldssdbSrcsTBlFile)
+            SSDbSrcs()
+            ENDFILE(21)
+            bldSrcsTblFile    =    bldFilePreFix '-srcsTbl.txt'
+            OUTPUT(.bldSrcsTbl, 22, bldSrcsTBlFile)
+            Sources(extractDateTime)
+            ENDFILE(22)
+            Extract(extractDateTime)
+            ENDFILE(20)
+            XReport()
+            ExportMake()
+            system('rm', ' -rf "' webLogXtractFile '"')
+DoLoop      modes             =    m
+DoLoop1     modes             POS(0) modePat . mode dlmtPat =                                           :f(fini)
+            hosts             =    h
+DoLoop2     hosts             POS(0) hostPat . host dlmtPat =                                           :f(DoLoop1)
+            bldStgMach        =    DIFFER(bldStageMach) bldStageMach                                    :f(Xerror(360))
+            bldStgMnt         =    bldStgMach '/' EVAL(bldStgMntExpr)                                   :f(Xerror(361))
+            bldStgDrp         =    bldStgMach '/' EVAL(bldStgDrpExpr)                                   :f(Xerror(362))
+            bldStgImg         =    bldStgMach '/' EVAL(bldStgImgExpr)                                   :f(Xerror(363))
+            bldImgPath        =    bldImgDir '/' EVAL(bldImgDirExpr)                                    :f(Xerror(364))
+            bldNiQiProd       =    IDENT(host, 'client') bldNiQiClientProd
+            bldNiQiProd       =    IDENT(host, 'ntsrv')  bldNiQiNtsrvProd
+            bldNiQiName       =    EVAL(bldNiQiNameExpr)                                                :f(Xerror(365))
+            do                =    todo
+DoLoop3     do                POS(0) ('DoBuild' | 'DoCopy' | 'DoImage') . doit '/' =                    :s($doit)f(DoLoop2)
+*------------------------------------------------------------------------------------------------------------------
+DoBuild     dswList           =    IDENT(host, 'client') bldClientDsw0List
+            dswList           =    IDENT(host, 'ntsrv')  bldNtsrvDsw0List
+            orderTbl          =    Order(dswList)
+            EQ(BslOnly, FALSE)                                                                            :f(DoNoThing)
+            Build(orderTbl, mode, p)
+*------------------------------------------------------------------------------------------------------------------
+*   Output any errors and send mail and pages
+*------------------------------------------------------------------------------------------------------------------
+            (DIFFER(errorCTotal) DIFFER(errorRCTotal) DIFFER(errorLNKTotal))                            :f(DoNothing)
+            emailSub          =    river ' ' host ' ' mode ' Build Error'
+            system('blat', nmkErrorEmail ' -t ' emailTo   ' -s ' '"' emailSub '"' ' -f '  emailFrom)
+            system('blat', nmkErrorEmail ' -t ' pagerPin  ' -s ' '"' emailSub '"' ' -f '  emailFrom)
+DoNoThing   errorCTotal       =
+            errorRCTotal      =
+            errorLNKTotal     =
+            errorSTTotal      =
+*------------------------------------------------------------------------------------------------------------------
+            (IDENT(river, 'sqlx'))                                                                      :s(DoLoop3) ;* Do not build Bsl
+            DIFFER(p)                                                                                   :s(DoLoop3)
+            (IDENT(mode, 'release') BuildBsl())
+                                                                                                        :(DoLoop3)
+*------------------------------------------------------------------------------------------------------------------
+DoCopy      ScrubStage(bldStgImg)
+            MakeStage(bldStgDrp)
+            CopyStage(bldStgImg)                                                                        :(DoLoop3)
+DoImage     RqstImage(bldNiQiProd, bldStgMnt, bldNiQiName)                                              :(DoLoop3)
+*------------------------------------------------------------------------------------------------------------------
+*------------------------------------------------------------------------------------------------------------------
+fini        LogSecHdr('Build Complete')
+            SetCurrentDir(cwd)
+            ENDFILE(5)                                                                             ;* Close auditLog
+            EQ(noLog, FALSE)                                                                            :f(END)
+            system('-cp', '-pv ' bldLogFileName ' ' webLogDir '/' river)                           ;* Copy auditLog to WebLogDir
+                                                                                                        :(END)
+
+usage       OUTPUT            =    ' '
+            OUTPUT            =    'usage: build <river> [-d] [-l] [-n] [-xbci] [-h client,ntsrv] [-m debug,release] [-e] [-p projects]'
+            OUTPUT            =    ' '
+            OUTPUT            =    '   -x  Extract files into build area.'
+            OUTPUT            =    '   -b  compile the host mode combination specified by -h and -m and -p.'
+            OUTPUT            =    '   -c  copy files into the staging area.'
+            OUTPUT            =    '   -i  Call the Install team installation build tool. Create an image.'
+            OUTPUT            =    ' '
+            OUTPUT            =    '   -h  client or ntsrv, if not specified: both.'
+            OUTPUT            =    '   -m  release or debug, if not specified: both.'
+            OUTPUT            =    ' '
+            OUTPUT            =    '   -p  Use with -b to rebuild a single or multiple named projects. Give comma sepated list of dsp.'
+            OUTPUT            =    '   -e  This will create new makefiles using msdev. Used with "-b" and "-p".'
+            OUTPUT            =    '   -d  This deletes the build area and performs an extraction.'
+            OUTPUT            =    '   -l  No Log: will not copy log files to public logs directories: Silent Build.'
+            OUTPUT            =    '   -n  Extract source code now, do not use ini file.'
+            OUTPUT            =    '   -j  Build only the msl files. Use with "-b" and "-m release".'
+            OUTPUT            =    ' '
+            OUTPUT            =    '   ' ContinuusFileinfo
+            OUTPUT            =    ' '
+
+*-INCLUDE 'debug.sno'
+END
+*------------------------------------------------------------------------------------------------------------------
+*------------------------------------------------------------------------------------------------------------------
+*------------------------------------------------------------------------------------------------------------------

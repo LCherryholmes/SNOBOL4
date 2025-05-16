@@ -1,0 +1,37 @@
+START
+-INCLUDE 'sqlncli.inc'
+*---------- ----------- --- ---------------------------------------------------
+            iColumns              =  16
+            tsColumns             =  ARRAY('1:' iColumns)
+            tsColumns[c = 1]      =  column("Entity",       "varchar(32)",  *xE)
+            tsColumns[c = c + 1]  =  column("Id",           "bigint",       *id(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Published",    "datetime",     *published(tsxEntry))
+            tsColumns[c = c + 1]  =  column("TextLink",     "varchar(max)", *textLink(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Title",        "varchar(max)", *title(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Content",      "varchar(max)", *content(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Updated",      "datetime",     *updated(tsxEntry))
+            tsColumns[c = c + 1]  =  column("ImageLink",    "varchar(max)", *imageLink(tsxEntry))
+            tsColumns[c = c + 1]  =  column("GeoPoints",    "varchar(max)", *geoPoints(tsxEntry))
+            tsColumns[c = c + 1]  =  column("PlaceId",      "varchar(max)", *placeId(tsxEntry))
+            tsColumns[c = c + 1]  =  column("PlaceName",    "varchar(max)", *placeName(tsxEntry))
+            tsColumns[c = c + 1]  =  column("PlaceType",    "varchar(max)", *placeType(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Source",       "varchar(max)", *source(tsxEntry))
+            tsColumns[c = c + 1]  =  column("Lang",         "varchar(16)",  *lang(tsxEntry))
+            tsColumns[c = c + 1]  =  column("AuthorName",   "varchar(max)", *authorName(tsxEntry))
+            tsColumns[c = c + 1]  =  column("AuthorURI",    "varchar(max)", *authorURI(tsxEntry))
+*---------- ----------- --- ---------------------------------------------------
+            CoInitialize()                                                      :F(error)
+            SQL_Connect('.\SQL2008', 'Lon')                                     :S(TSucc)F(TFail)
+TSucc       OUTPUT      =   'Success.'
+            hstmt       =   SQL_AllocStmt()                                     :F(TFail)
+            bcp_init('TwitterSearch')                                           :F(BFail)
+
+            bcp_batch()                                                         :F(BFail)
+            bcp_done()                                                          :F(BFail)
+            SQL_FreeStmt(hstmt)                                                 :F(TFail)
+TEnd        SQL_Disconnect()                                                    :S(END)F(TFail)
+TFail       OUTPUT      =   'SQL Failure.'
+            OUTPUT      =   SQL_GetLastError()                                  :(END)
+BFail       OUTPUT      =   'BCP Failure.'                                      :(END)
+-INCLUDE 'debug.sno'
+END

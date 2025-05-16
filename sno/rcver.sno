@@ -1,0 +1,52 @@
+*-------------------------------------------------------------------------------------------------------------------
+START       &ALPHABET       POS(9) LEN(1) . ht
+            &ALPHABET       POS(92) LEN(1) . bSlash
+            vNum            =   SPAN('0123456789')
+            $' '            =   SPAN(' ' ht)
+            comma           =   ',' ($' ' | '')
+            nulChar         =   (bSlash '0' | '') . nulCh
+            vPat            =   vNum '.' vNum '.' vNum '.' vNum
+            rPat            =   vNum comma vNum comma vNum comma vNum
+            rootVPat        =   vNum . rv1 '.' vNum . rv2 '.' vNum . rv3 '.' vNum . rv4
+            prodVPat        =   vNum . pv1 '.' vNum . pv2 '.' vNum . pv3 '.' vNum . pv4
+            FileVerPat      =   $' ' . ind 'FILEVERSION' $' ' . sp rPat
+            ProductVerPat   =   $' ' . ind 'PRODUCTVERSION' $' ' . sp rPat
+            ValueFilePat    =   $' ' . sp 'VALUE "FileVersion", "' (rPat | vPat) nulChar '"'
+            ValueProdPat    =   $' ' . sp 'VALUE "ProductVersion", "' (rPat | vPat) nulChar '"'
+            FileVerExpr     =   *(ind 'FILEVERSION' sp rv1 ',' rv2 ',' rv3 ',' rv4)
+            ProductVerExpr  =   *(ind 'PRODUCTVERSION' sp rv1 ',' rv2 ',' rv3 ',' rv4)
+            ValueFileExpr   =   *(sp 'VALUE "FileVersion", "' rv1 '.' rv2 '.' rv3 '.' rv4 nulCh '"')
+            ValueProdExpr   =   *(sp 'VALUE "ProductVersion", "' pv1 '.' pv2 '.' pv3 '.' LPAD(pv4, 5, 0) nulCh '"')
+            EXIT(3, 'rcver.exe')
+            argPos          =   HOST(3) - 1
+            rootVersion     =   HOST(2, argPos + 1)                                 :F(usage)
+            prodVersion     =   HOST(2, argPos + 2)                                 :F(usage)
+            inFilePath      =   HOST(2, argPos + 3)                                 :F(usage)
+            rootVersion     POS(0) rootVPat RPOS(0)                                 :F(usage)
+            prodVersion     POS(0) prodVPat RPOS(0)                                 :F(usage)
+            outFilePath     =   'Tmp.rc'
+            INPUT(.rcInput, 3, inFilePath '[-l2048]')                               :F(err1)
+            OUTPUT(.rcOutput, 4, outFilePath '[-l2048]')                            :F(err2)
+rc1         rcLine          =   rcInput                                             :F(rc5)
+            rcLine          POS(0) 'VS_VERSION_INFO VERSIONINFO'                    :S(rc2)
+            rcOutput        =   rcLine                                              :(rc1)
+rc2         rcOutput        =   rcLine
+            rcLine          =   rcInput                                             :F(err3)
+            rcLine          POS(0) FileVerPat    = EVAL(FileVerExpr)                :S(rc2)
+            rcLine          POS(0) ProductVerPat = EVAL(ProductVerExpr)             :S(rc2)
+            rcLine          POS(0) ValueFilePat  = EVAL(ValueFileExpr)              :S(rc2)
+            rcLine          POS(0) ValueProdPat  = EVAL(ValueProdExpr)              :S(rc2)
+            rcLine          POS(0) 'END'                                            :F(rc2)
+            rcOutput        =   rcLine                                              :(rc1)
+rc5         ENDFILE(4)
+            ENDFILE(3)
+            INPUT(.rcInput, 3, outFilePath '[-l2048]')                              :F(err2)
+            OUTPUT(.rcOutput, 4, inFilePath '[-l2048]')                             :F(err1)
+rc6         rcOutput        =   rcInput                                             :S(rc6)
+            ENDFILE(4)
+            ENDFILE(3)                                                              :(END)
+usage       OUTPUT          =   'Usage: rcver <Version5> <Version4> <FilePath>'     :(END)
+err1        OUTPUT          =   'Unable to open file ' inFilePath                   :(END)
+err2        OUTPUT          =   'Unable to open file ' outFilePath                  :(END)
+err3        OUTPUT          =   'Unexpected end-of-file'                            :(END)
+END

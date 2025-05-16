@@ -1,0 +1,48 @@
+*-------------------------------------------------------------------------------------------------------------------------
+            nl             =   char(10)
+            ssExe          =   '//baddog/maxm/win32/ss'
+            pth            =   'Showing development paths for ' ('$/' arb) . ssPth '...'
+            thisPrj        =   '>' span(' ') ('$/' rem) . ssPrj
+            otherPrj       =   span(' ') ('$/' rem) . ssPrj
+*---------- --------------------------------------------------------------------- -----------------
+            define('SSExists(ssPrj)nm,ssCmd,ssInfo,ssPhysInput')
+            ssNms          =    table()                                           :(SSExistsEnd)
+SSExists    ident(ssNms[ssPrj])                                                   :f(return)
+            ssCmd          =    ssExe ' physical "' ssPrj '"'
+            input(.ssPhysInput, 5, '!!' ssCmd)                                    :f(cmderr)
+            ssInfo         =
+SSExists1   ssInfo         =    ssInfo ssPhysInput nl                             :s(SSExists1)
+            endfile(5)
+            ssInfo         pos(0) len(32) len(8) . nm nl rpos(0)                  :f(freturn)
+            nm             pos(0) span(&ucase) rpos(0)                            :f(freturn)
+            ssNms[ssPrj]   =    nm                                                :(return)
+SSExistsEnd
+*---------- --------------------------------------------------------------------- -----------------
+            ssDb           =   'maxm'
+            ssRootPrj      =   array('1:2')
+            ssRootPrj[1]   =   '$/colorado'
+            ssRootPrj[2]   =   '$/grande'
+            ssRootPrj[3]   =   '$/rio'
+            ssI            =   0
+main0       ssI            =   ssI + 1
+            ssCurPrj       =   ssRootPrj[ssI]                                     :f(fini)
+            ssCmd          =   './ssls -f ' ssDb ' "' ssCurPrj '"'
+            input(.ssLsInput, 3, '!!' ssCmd)                                      :f(cmderr)
+main1       ssFile         =    ssLsInput                                         :f(main9)
+            ssCmd          =    ssExe ' paths "' ssFile '"'
+            input(.ssPathsInput, 4, '!!' ssCmd)                                   :f(cmderr)
+main2       ssInfo         =    ssPathsInput                                      :f(main8)
+            ssInfo         pos(0) pth                                             :s(main3)
+            ssInfo         pos(0) thisPrj                                         :s(main2)
+            ssInfo         pos(0) otherPrj                                        :s(main4)
+            ssInfo         '$/'                                                   :f(main2)
+            output         =    'missed: ' ssInfo                                 :(main2)
+main3       output         =    dupl('=', 40) ' ' ssPth                           :(main2)
+main4       SSExists(ssPrj)                                                       :s(main2)
+            output         =    'problem: ' ssPth ': ' ssPrj ': ' ssInfo          :(main2)
+main8       endfile(4)                                                            :(main1)
+main9       endfile(3)                                                            :(main0)
+*---------- --------------------------------------------------------------------- -----------------
+fini                                                                              :(end)
+cmderr      output         =    '*** command error: ' ssCmd                       :(end)
+end

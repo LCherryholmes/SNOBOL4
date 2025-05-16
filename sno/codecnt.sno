@@ -1,0 +1,89 @@
+*==================================================================================================
+* $Workfile: codecnt.sno $
+* $Date: 12/14/00 8:51a $
+* $Author: Skarney $
+* $Revision: 7 $
+* Purpose:  To open all files in a directory and all subdirectories, count the total number of
+*           lines, the lines of code, the blank lines, and the number of comments.
+* Arguments: Full path to the top level directory to count.
+*==================================================================================================
+           define('xError(n)')                                            :(xErrorEnd)
+xError     xError         =   .end
+           output         =   'Unexpected Error ' n '.'                   :(nreturn)
+xErrorEnd
+*==================================================================================================
+* create a table to hold the data.
+*==================================================================================================
+        data('src(src_total_lines,src_code_lines,src_comment_lines,src_blank_lines)')
+        mksnt     =   'd:/Program Files/MKS/mksnt'
+        argPos    =     host(3)
+        dirName   =     host(2, argPos)                                   :f(Usage)
+        findCmd   =   mksnt '/find ' dirName ' -type f ( -name "*.java" -o -name "*.h" -o -name "*.cpp" ) -print'
+        tbl       =   table()
+        input(.findInput, 3, '!!' findCmd)                                :f(xError(20))
+main1   findFile  =   findInput                                           :f(main5)
+        tbl[findFile] = src()                                             :(main1)
+main5   endfile(3)
+*==================================================================================================
+        tab       =   char(9)
+        blanks    =   span(' ' tab)
+        optSpace  =   (blanks | epsilon)
+        arr       =   sort(tbl, 1)
+        i         =   0
+main10  i         =   i + 1
+        file      =   arr[i, 1]                                           :f(main75)
+        src       =   arr[i, 2]
+        input(.srcInput, 3, file)                                         :f(xError(33))
+main15  srcLine   =   srcInput                                            :f(main65)
+        srcLine   pos(0) rpos(0)                                          :s(main25)
+        srcLine   pos(0) blanks rpos(0)                                   :s(main25);* Blank line
+        srcLine   pos(0) optSpace '//' rem                                :s(main35);* Single  C++ Comment
+        srcLine   pos(0) optSpace '/*' breakx('*') '*/' optSpace rpos(0)  :s(main35);* Single C Comment
+        srcLine   '"' arb '//' arb '"'                                    :s(main55);* C++ Comment inside Source Code
+        srcLine   arb  optSpace '//'                                      :s(main40);* C++ Comment and Source Code
+        srcLine   '/*' breakx('*') '*/'                                   :s(main40);* C Comment and Source Code
+        srcLine   pos(0) optSapce '/*'                                    :f(main55);* Open C comment
+        src_total_lines(src)   = src_total_lines(src) + 1
+endC    srcLine   =   srcInput                                            :f(main65);* Search for end of C comment
+        srcLine   breakx('*') '*/' optSpace rpos(0)                       :s(main35)
+        src_total_lines(src)   = src_total_lines(src) + 1                 :(endC)
+*==================================================================================================
+* increment counters
+*==================================================================================================
+main25  src_blank_lines(src)   = src_blank_lines(src) + 1                 :(main60)
+main35  src_comment_lines(src) = src_comment_lines(src) + 1               :(main60)
+main40  src_code_lines(src)    = src_code_lines(src) + 1
+        src_comment_lines(src) = src_comment_lines(src) + 1               :(main60)
+main55  src_code_lines(src)    = src_code_lines(src) + 1                  :(main60)
+main60  src_total_lines(src)   = src_total_lines(src) + 1                 :(main15)
+main65  endfile(3)                                                        :(main10)
+*==================================================================================================
+* output the findings
+*==================================================================================================
+main75  i         =   0
+main85  i         =   i + 1
+        file      =   arr[i, 1]                                           :f(fini)
+        src       =   arr[i, 2]
+        output    =   lpad(+src_code_lines(src) ' :Src Code  ', 20)
++                     lpad(+src_comment_lines(src) ' :Comments  ', 20)
++                     lpad(+src_blank_lines(src) ' :blanks  ', 20)
++                     lpad(+src_total_lines(src) ' :Total  ', 20)
++                     '  File Name: ' file                                :(main85)
+
+Usage   output    =   ''
+        output    =   ' This program will find all files in a directory tree and count:'
+        output    =   '     Blank Lines'
+        output    =   '     Comment Lines'
+        output    =   '     Code Lines'
+        output    =   '     Total Lines'
+        output    =   ' For the following file type extensions:'
+        output    =   '     .java'
+        output    =   '     .cpp'
+        output    =   '     .h'
+        output    =   ' Usage: codecnt  <Full path to directory>'
+        output    =   ''
+*==================================================================================================
+*-include 'debug.sno'
+*==================================================================================================
+fini                                                                      :(end)
+end

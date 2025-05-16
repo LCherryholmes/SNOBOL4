@@ -1,0 +1,307 @@
+*-------------------------------------------------------------------------------------------------------
+* Blogzilla.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE '../global.inc'
+-INCLUDE '../assign.inc'
+-INCLUDE '../ReadWrite.inc'
+-INCLUDE '../export.inc'
+-INCLUDE '../ini.inc'
+-INCLUDE '../system.inc'
+-INCLUDE '../URL.inc'
+-INCLUDE '../HTML.inc'
+*========== =========== === ======================================================= ====================
+            $'  '       =   SPAN(' ' tab cr lf )
+            $' '        =   FENCE($'  ' | epsilon)
+            cookies     =   'Cookies.txt'
+            userAgent   =   'Mozilla/5.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cmdPtrn     =   'PostBlog' | 'PostComment' | 'GetComments'
+            hexDigits   =   '0123456789ABCDEF'
+            bypassHTTP  =   FALSE
+            bVerbose    =   FALSE
+*========== =========== === ======================================================= ====================
+            DEFINE('IniArray(tBlog,sId,sType,nCnt)iX,sX')                           :(IniArrayEnd)
+IniArray    $nCnt       =   +tBlog[sId sType 's']
+            IniArray    =   GT($nCnt, 0) ARRAY('1:' $nCnt)                          :F(RETURN)
+            iX          =   0
+IniArray7   iX          =   LT(iX, $nCnt) iX + 1                                    :F(RETURN)
+            sX          =   tBlog[sId sType iX]
+            IniArray[iX] = sX                                                       :(IniArray7)
+IniArrayEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('HTTP_Get(sURL,sFileName,iPtrns,aPtrns)'
++               'iPtrn,pPtrn,sPtrn'
++           )                                                                       :(HTTP_GetEnd)
+HTTP_Get    TERMINAL    =   EQ(bVerbose, TRUE) 'GET  ' sURL
+            EQ(bypassHTTP, TRUE)                                                    :F(HTTP_Get3)
+            HTTP_Get    =   Read(sFileName)                                         :(HTTP_Get5)
+HTTP_Get3   EQ(0, cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, ''))                 :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, TRUE))        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, sURL))                   :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            HTTP_Get    =   curl_easy_getdata()                                     :F(error)
+            Write(sFileName, HTTP_Get)                                              :(HTTP_Get5)
+HTTP_Get5   iPtrn       =   0
+HTTP_Get7   iPtrn       =   LT(iPtrn, iPtrns) iPtrn + 1                             :F(RETURN)
+            sPtrn       =   aPtrns[iPtrn]
+            pPtrn       =   DIFFER(sPtrn) EVAL(sPtrn)                               :F(HTTP_Get7)
+            HTTP_Get    pPtrn                                                       :S(HTTP_Get7)F(HTTP_GetErr)
+HTTP_GetErr OUTPUT      =   'Error: GET Pattern on ' iPtrn ' ' sPtrn                :(END)
+HTTP_GetEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('HTTP_Post(sURL,sFileName,iExprs,aExprs,iPtrns,aPtrns)'
++               'sData,iExpr,sExpr,sParam,iPtrn,pPtrn,sPtrn,sValue'
++           )                                                                       :(HTTP_PostEnd)
+HTTP_Post   sData       =
+            iExpr       =   0
+HTTP_Post3  iExpr       =   LT(iExpr, iExprs) iExpr + 1                             :F(HTTP_Post4)
+            DIFFER(sExpr = aExprs[iExpr])                                           :F(HTTP_Post3)
+            sExpr       =   EVAL(sExpr)                                             :F(abort)
+            sExpr       POS(0) BREAK('=') . sParam '=' RTAB(0) . sValue             :F(abort)
+            sExpr       =   URLEncode(sParam) '=' URLEncode(sValue)
+            sData       =   DIFFER(sData) sData '&' sExpr                           :S(HTTP_Post3)
+            sData       =   IDENT(sData) sExpr                                      :S(HTTP_Post3)F(abort)
+HTTP_Post4  TERMINAL    =   EQ(bVerbose, TRUE) 'POST ' sURL ' ' sData
+            EQ(bypassHTTP, TRUE)                                                    :F(HTTP_Post5)
+            HTTP_Post   =   Read(sFileName)                                         :(RETURN)
+HTTP_Post5  EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POST, TRUE))                  :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, sData))           :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, TRUE))        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, sURL))                   :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            HTTP_Post   =   curl_easy_getdata()                                     :F(error)
+            Write(sFileName, HTTP_Post)
+            iPtrn       =   0
+HTTP_Post7  iPtrn       =   LT(iPtrn, iPtrns) iPtrn + 1                             :F(RETURN)
+            sPtrn       =   aPtrns[iPtrn]
+            pPtrn       =   DIFFER(sPtrn) EVAL(sPtrn)                               :F(HTTP_Post7)
+            HTTP_Post   pPtrn                                                       :S(HTTP_Post7)F(HTTP_PostErr)
+HTTP_PostErr OUTPUT     =   'Error: POST Pattern on ' iPtrn ' ' sPtrn               :(END)
+HTTP_PostEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('Login()')                                                       :(LoginEnd)
+Login       preLoginURL =   tBlog['preLoginURL']
+            preLoginURL =   DIFFER(preLoginURL) EVAL(preLoginURL)                   :F(Login10)
+            aPtrns      =   IniArray(tBlog, 'login', 'Ptrn', .iPtrns)
+            HTTP_Get(preLoginURL, sBlogSite '-PreLogin.html', iPtrns, aPtrns)       :F(RETURN)
+Login10     langURL     =   tBlog['langURL']
+            langURL     =   DIFFER(langURL) EVAL(langURL)                           :F(Login20)
+            aExprs      =   IniArray(tBlog, 'lang', 'Expr', .iExprs)
+            HTTP_Post(langURL, sBlogSite '-Language.html', iExprs, aExprs)          :F(RETURN)
+Login20     loginURL    =   tBlog['loginURL']
+            loginURL    =   DIFFER(loginURL) EVAL(loginURL)                         :F(RETURN)
+            loginID     =   IDENT(loginID) EVAL(tBlog['loginID'])
+            password    =   IDENT(password) EVAL(tBlog['password'])
+            aExprs      =   IniArray(tBlog, 'login', 'Expr', .iExprs)
+            HTTP_Post(loginURL, sBlogSite '-LoggedIn.html', iExprs, aExprs)         :(RETURN)
+LoginEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('PostBlog()')                                                    :(PostBlogEnd)
+PostBlog    prepURL     =   tBlog['prepURL']
+            prepURL     =   DIFFER(prepURL) EVAL(prepURL)                           :F(PostBlog10)
+            HTTP_Get(prepURL, sBlogSite '-Prep.html', 0)
+PostBlog10  userURL     =   tBlog['userURL']
+            userURL     =   DIFFER(userURL) EVAL(userURL)                           :F(RETURN)
+            aPtrns      =   IniArray(tBlog, 'user', 'Ptrn', .iPtrns)
+            HTTP_Get(userURL, sBlogSite '-User.html', iPtrns, aPtrns)               :F(RETURN)
+PostBlog40  writeURL    =   tBlog['writeURL']
+            writeURL    =   DIFFER(writeURL) EVAL(writeURL)                         :F(RETURN)
+            aPtrns      =   IniArray(tBlog, 'write', 'Ptrn', .iPtrns)
+            HTTP_Get(writeURL, sBlogSite '-Compose.html', iPtrns, aPtrns)           :F(RETURN)
+PostBlog80  entryURL    =   tBlog['entryURL']
+            entryURL    =   DIFFER(entryURL) EVAL(entryURL)                         :F(RETURN)
+            aExprs      =   IniArray(tBlog, 'entry', 'Expr', .iExprs)
+            aPtrns      =   IniArray(tBlog, 'entered', 'Ptrn', .iPtrns)
+            HTTP_Post(entryURL, sBlogSite '-Entered.html', iExprs, aExprs, iPtrns, aPtrns)
+                                                                                    :(RETURN)
+PostBlogEnd
+*========== =========== === ======================================================= ====================
+            pBloggerLst =   epsilon . sEditLink
++                           '<td class="link"><div class="editLink"><a class="link" href="' BREAK('"') . sEditLink '">Edit</a></div></td>' nl
++                           '<td class="link"><div class="viewLink"><a target="_blank" class="link" href="' BREAK('"') . sViewLink '">View</a></div></td>' nl
++                           '<td class="title" onclick="' BREAK('"') '"><div class="flippy">&nbsp;</div>' nl
++                           '<div class="postContents"><div class="snippetPost">' BREAK(nl) . sListTitle nl
++                           '<span class="post-labels" id="' BREAK('"') '"></span></div>' nl
++                           '<div class="entirePost"></div></div></td>' nl
++                           '<td class="type"></td>' nl
++                           '<td class="type"></td>' nl
++                           '<td class="comments"><a target="_blank" class="link" href="' BREAK('"') . sCmtsLink '"></a></td>' nl
++                           '<td class="date"><span>' BREAK('<') '</span></td>' nl
++                           '<td class="author" nowrap><span>' BREAK('<') '</span></td>' nl
++                           '<td class="link"><div class="deleteLink"><span><a class="link" href="' BREAK('"') '">Delete</a></span></div></td>'
+
+            pTypePadLst =   epsilon . sCmtsLink
++                           $' ' '<div class="item-excerpt col">'
++                           $' '     '<div class="excerpt-title">'
++                           $' '         '<a href="' BREAK('"') . sEditLink '">'
++                           $' '             BREAK(nl) . sListTitle
++                           $' '         '</a>'
++                           $' '     '</div>'
++                           $' '     '<div class="excerpt-meta">'
++                           $' '         '<div>'
++                           $' '             '<a href="' BREAK('"') . sViewLink '" target="_blank">View</a> |'
++                           $' '                 '<span title="' BREAK('"') '">' BREAK('<') '</span>' BREAK(nl)
++                           $' '         '</div>'
++                           $' '     '</div>'
++                           $' ' '</div>'
+
+            pTypePadCSI =   $' ' '<div id="comments-open-login">'
++                           $' '     '<div class="login-list login-list-required">'
++                           $' '         '<strong>Sign in:</strong>'
++                           $' '             '<a href="' BREAK('"') . sTypePadSignIn '" class="typepad">TypePad</a>'
++                           $' '             '<a href="' BREAK('"') . sFacebookSignIn '" class="facebook">Facebook</a>'
++                           $' '             '<a href="' BREAK('"') . sTwitterSignIn '" class="twitter">Twitter</a> and'
++                           $' '             '<a href="' BREAK('"') . sOpenIdSignIn '" class="openid">more...</a></li></ul>'
++                           $' '     '</div>'
++                           $' ' '</div>'
++                           $' ' '<div id="comments-open-logout" style="display: none;">'
++                           $' '     'You are currently signed in as'
++                           $' '     '<span id="commenter-name">' BREAK('<') . sCSILogin '</span>.'
++                           $' '     '<a href="' BREAK('"') '">Sign Out</a>'
++                           $' ' '</div>'
+
+*========== =========== === ======================================================= ====================
+            DEFINE('PostCmt()tPosts')
+            DATA('PostEntry(sCmtsLink,sEditLink,sViewLink)')                        :(PostCmtEnd)
+PostCmt     prepURL     =   tBlog['prepURL']
+            prepURL     =   DIFFER(prepURL) EVAL(prepURL)                           :F(PostCmt10)
+            HTTP_Get(prepURL, sBlogSite '-Prep.html', 0)
+PostCmt10   userURL     =   tBlog['userURL']
+            userURL     =   DIFFER(userURL) EVAL(userURL)                           :F(RETURN)
+            aPtrns      =   IniArray(tBlog, 'user', 'Ptrn', .iPtrns)
+            HTTP_Get(userURL, sBlogSite '-User.html', iPtrns, aPtrns)               :F(RETURN)
+            listURL     =   tBlog['listURL']
+            listURL     =   DIFFER(listURL) EVAL(listURL)                           :F(RETURN)
+            aPtrns      =   IniArray(tBlog, 'list', 'Ptrn', .iPtrns)
+            listHTML    =   HTTP_Get(listURL, sBlogSite '-List.html', iPtrns, aPtrns)
+            listPtrn    =   tBlog['listPtrn']
+            listPtrn    =   DIFFER(listPtrn) EVAL(listPtrn)                         :F(abort)
+            tPosts      =   TABLE()
+            listHTML    listPtrn                                                    :F(abort)
+PostCmt30   listHTML    listPtrn =                                                  :F(PostCmt50)
+            sCmtsLink   =   HTMLDecode(sCmtsLink)
+            sEditLink   =   HTMLDecode(sEditLink)
+            sViewLink   =   HTMLDecode(sViewLink)
+            TERMINAL    =   EQ(bVerbose, TRUE) '"' sListTitle '": "' sCmtsLink '" "' sViewLink '"'
+            postEntry   =   PostEntry(sCmtsLink, sEditLink, sViewLink)
+            tPosts[sListTitle] = postEntry                                          :(PostCmt30)
+PostCmt50   postEntry   =   DIFFER(tPosts[sListTitle]) tPosts[sListTitle]           :F(PostCmtErr)
+            sCmtsLink   =   sCmtsLink(postEntry)
+            sViewLink   =   sViewLink(postEntry)
+            DIFFER(sCmtsLink)                                                       :(PostCmt60)
+            HTTP_Get(sCmtsLink, sBlogSite '-Cmts.html', 0)                          :(RETURN)
+PostCmt60   DIFFER(sViewLink)                                                       :F(abort)
+            viewHTML    =   HTTP_Get(sViewLink, sBlogSite '-View.html')
+            CSIPtrn     =   tBlog['CSIPtrn']
+            CSIPtrn     =   EVAL(CSIPtrn)
+            viewHTML    CSIPtrn                                                     :F(abort)
+            TERMINAL    =   EQ(bVerbose, TRUE) 'sCSILogin=' sCSILogin               :(RETURN)
+            CSISite     =   tBlog['CSISite']
+            CSISite     =   EVAL(CSISite)
+*           OUTPUT      =   'CSISite=' CSISite
+            aPtrns      =   IniArray(tBlog, 'CSI', 'Ptrn', .iPtrns)
+            HTTP_Get(CSISite, sBlogSite '-CSIGet.html', iPtrns, aPtrns)             :F(abort)
+            csiURL      =   tBlog['csiURL']
+            csiURL      =   DIFFER(csiURL) EVAL(csiURL)                             :F(abort)
+            HTTP_Post(csiURL, sBlogSite '-CSIPost.html', iExprs, aExprs)
+            cmtEnterURL =   tBlog['cmtEnterURL']
+            cmtEnterURL =   DIFFER(cmtEnterURL) EVAL(cmtEnterURL)                   :F(abort)
+            HTTP_Get(cmtEnterURL, sBlogSite '-CommentEnter.html')                   :F(abort)
+                                                                                    :(RETURN)
+PostCmtErr  OUTPUT      =   'Lookup failed: ' sListTitle                            :(abort)
+PostCmtEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('GetCmts()')                                                     :(GetCmtsEnd)
+GetCmts
+GetCmtsEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('Logout()')                                                      :(LogoutEnd)
+Logout      logoutURL   =   tBlog['logoutURL']
+            logoutURL   =   DIFFER(logoutURL) EVAL(logoutURL)                       :F(RETURN)
+            HTTP_Get(logoutURL, sBlogSite '-Logout.html', 0)                        :(RETURN)
+LogoutEnd
+*========== =========== === ======================================================= ====================
+            DEFINE('Args()iArg,sArg')                                               :(ArgsEnd)
+Args        iArg        =   HOST(3)
+            sArg        =   HOST(2, iArg)                                           :F(Args50)
+            sBlogCmd    =   sArg
+Args10      IDENT(sArg, 'PostBlog')                                                 :F(Args20)
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sEntryTitle =   sArg
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sBlogFile   =   sArg
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sBlogSites  =   sArg '/'
+Args17      sArg        =   HOST(2, iArg = iArg + 1)                                :F(RETURN)
+            sBlogSites  =   sBlogSites sArg '/'                                     :(Args17)
+Args20      IDENT(sArg, 'PostComment')                                              :F(Args30)
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sEntryTitle =   sArg
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sCmtFile    =   sArg
+            sArg        =   HOST(2, iArg = iArg + 1)                                :F(ArgsErr2)
+            sBlogSites  =   sArg '/'
+Args27      sArg        =   HOST(2, iArg = iArg + 1)                                :F(RETURN)
+            sBlogSites  =   sBlogSites sArg '/'                                     :(Args27)
+Args30      IDENT(sArg, 'GetComments')                                              :F(ArgsErr0)
+                                                                                    :(ArgsErr1)
+Args50      sBlogCmd    =   INPUT                                                   :F(ArgsErr3)
+            IDENT(sBlogCmd, 'PostBlog')                                             :F(ArgsErr0)
+            sEntryTitle =   INPUT                                                   :F(ArgsErr3)
+            sEntryBody  =   INPUT                                                   :F(ArgsErr3)
+            sBlogSites  =   INPUT '/'                                               :F(ArgsErr3)
+            loginID     =   INPUT                                                   :F(ArgsErr3)
+            password    =   INPUT                                                   :S(RETURN)F(ArgsErr3)
+ArgsErr0    OUTPUT      =   'Error: Invalid command, "' sArg '".'                   :(FRETURN)
+ArgsErr1    OUTPUT      =   'Error: Command "' sArg '" not yet supported.'          :(FRETURN)
+ArgsErr2    OUTPUT      =   'Error: Missing arguments.'                             :(FRETURN)
+ArgsErr3    OUTPUT      =   'Error: Missing argument input.'                        :(FRETURN)
+ArgsEnd
+*========== =========== === ======================================================= ====================
+*           EXIT(3, 'Blogzilla.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+            Args()                                                                  :F(END)
+            system("@-rm", cookies)
+            curl        =   curl_easy_init()                                        :F(error)
+*           EQ(0, cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))       :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))         :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))          :F(error)
+            tBlogs      =   IniRead('Blogzilla.ini')                                :F(abort)
+            IDENT(sBlogCmd, 'PostBlog')                                             :S(BZPostBlog)
+            IDENT(sBlogCmd, 'PostComment')                                          :S(BZPostCmt)
+            IDENT(sBlogCmd, 'GetComments')                                          :S(BZGetCmts)F(abort)
+*========== =========== === ======================================================= ====================
+BZPostBlog  IDENT(sEntryBody)                                                       :F(BZPostBlog0)
+            sEntryBody  =   Read(sBlogFile)                                         :F(abort)
+BZPostBlog0 sBlogList   =   sBlogSites
+BZPostBlog1 sBlogList   POS(0) BREAK('/') . sBlogSite '/' =                         :F(BZEnd)
+            tBlog       =   tBlogs[sBlogSite]
+BZPostBlog3 active      =   DIFFER(tBlog) +tBlog['active']                          :F(BZPostBlog1)
+            NE(active, 0)                                                           :F(BZPostBlog1)
+            TERMINAL    =   EQ(bVerbose, TRUE)
+            Login()                                                                 :F(BZPostBlog1)
+            PostBlog()                                                              :F(BZPostBlog1)
+            Logout()
+            OUTPUT      =   'Success'
+            OUTPUT      =   sEnteredURL                                             :(BZPostBlog1)
+*========== =========== === ======================================================= ====================
+BZPostCmt   sComment    =   Read(sCmtFile)                                          :F(abort)
+            sBlogList   =   sBlogSites
+BZPostCmt1  sBlogList   POS(0) BREAK('/') . sBlogSite '/' =                         :F(BZEnd)
+            tBlog       =   tBlogs[sBlogSite]
+BZPostCmt3  active      =   DIFFER(tBlog) +tBlog['active']                          :F(BZPostCmt1)
+            NE(active, 0)                                                           :F(BZPostCmt1)
+            TERMINAL    =   EQ(bVerbose, TRUE)
+            Login()                                                                 :F(BZPostCmt1)
+            PostCmt()                                                               :F(BZPostCmt1)
+            Logout()                                                                :(BZPostCmt1)
+*========== =========== === ======================================================= ====================
+BZGetCmts                                                                           :(END)
+BZEnd       curl_easy_cleanup(curl)                                                 :(END)
+error       curl_easy_error_info(curl, cc)                                          :(END)
+*-INCLUDE 'debug.sno'
+END

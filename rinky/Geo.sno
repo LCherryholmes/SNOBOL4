@@ -1,0 +1,70 @@
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*---------- ----------- --- ---------------------------------------------------
+            eUrl        =   *( "http://query.yahooapis.com/v1/public/yql?format=json&q="
++                              URLEncode('SELECT * FROM geo.places WHERE text = "' name '"')
++                            )
+*---------- ----------- --- ---------------------------------------------------
+            EXIT(3, 'Geo.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            Args('Geo')                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                :F(debuggo)
+*========== =========== === ===================================================
+START       SQL_Connect(xServer, xDatabase, xUser, xPassword,, xFailOver)       :F(SQLFail)
+            hStmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            ReadCities()                                                        :F(error)
+            ReadSchema('Geo')                                                   :F(error)
+            curl        =   curl_easy_init()                                    :F(error)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(error)
+*---------- ----------- --- ---------------------------------------------------
+            $'  '       =   SPAN(' ')
+            $' '        =   FENCE($'  ' | epsilon)
+            iTopic      =   iT = 0
+            iCity       =   224
+L10         iCity       =   LT(iCity, xMaxCities) iCity + 1                     :F(END)
+            city        =   DIFFER(xCT[iCity]) xCT[iCity]                       :F(L10)
+            name        =   name(city)
+            OUTPUT      =   DUPL('-', 60) ' ' name
+            xUrl        =   EVAL(eUrl)                                          :F(error)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(error)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(error)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, xUrl))                  :F(error)
+L11         EQ(cc = curl_easy_perform(curl))                                    :F(error)
+            json        =   curl_easy_getdata()
+            json        ?   POS(0) '<HTML'                                      :F(L12)
+            TERMINAL    =   'HTML response?'
+            sleep(1000)                                                         :(L10) ;* :(L11)
+L12         json        ?   '"place"' $' ' ':' $' ' '{' = '"place" : [ {'       :F(L14)
+            json        ?   '}' $' ' '}' $' ' '}' RPOS(0) = '] } } }'
+L14         iIter       =   iIter + 1
+            Write('Geo-' iIter '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                    :F(error)
+            Write('Geo-' iIter '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :F(error)
+            r           =   Pop()
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Geo'
+            tK['$Geo']  =   '@id$'
+            Schema(r, 'Geo')
+            BATCH       =   'DECLARE @id$ int' nl
+            Save(.BATCH, r, 'Geo', 0)
+            OUTPUT      =   BATCH
+            hBatch      =   SQL_AllocStmt()                                     :F(SQLFail)
+            SQL_W_ExecDirect(hBatch, utf8_to_wstr(BATCH))                       :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+            SQL_FreeStmt(hBatch)                                                :F(SQLFail)
+            sleep(1000)
+                                                                                :(L10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())      :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

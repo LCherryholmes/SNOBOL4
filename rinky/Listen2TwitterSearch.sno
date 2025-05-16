@@ -1,0 +1,439 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2TwitterSearch.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all entities ... ----------------------------------------------
+*---------- WHILE maxed out ... -----------------------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*---------- FOR every chunk/entry ... -----------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'XML.inc'
+*========== =========== === ============================================================================
+            xListener   =   'Listen2TwitterSearch'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'http://LonCherryholmes.BlogSpot.com'
+            tsUrl       =   'http://search.twitter.com/search.atom'
+            tsRpp       =   100  ;* Results per page (10, *15, 20, 25, 30, 50, 100)
+*---------- ----------- --- ----------------------------------------------------------------------------
+            tsExpr      =  *(   'result_type' '=' 'recent'
++                          ('&' 'page'        '=' GT(iPage, 1) iPage, NULL)
++                          ('&' 'since'       '=' DIFFER(tsSinceDate) tsSinceDate, NULL)
++                          ('&' 'since_id'    '=' DIFFER(tsSince) tsSince, NULL)
++                          ('&' 'max_id'      '=' DIFFER(tsUntil) tsUntil, NULL)
++                           '&' 'rpp'         '=' tsRpp
++                           '&' 'q'           '=' URLEncode(xQ)
++                           )
+*                           '&' 'lang'        '=' 'en'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            DATA('EntryType('
++               'id,published,textLink,title,content,updated,imageLink,geoPointX,geoPointY,'
++               'placeId,placeName,placeType,sourceLink,sourceName,lang,authorId,authorName,authorURI)'
++           )
+*---------- --------------------------------------------------------------------------------------------
+            iColumns              =  22
+            tsColumns             =  ARRAY('1:' iColumns)
+            tsColumns[c = 1]      =  column("id$",          "int",           *NULL)
+            tsColumns[c = c + 1]  =  column("stamp$",       "timestamp",     *DUPL(CHAR(0), 8))
+            tsColumns[c = c + 1]  =  column("topic_id$",    "int",           *iE)
+            tsColumns[c = c + 1]  =  column("id",           "bigint",        *id(tsxEntry))
+            tsColumns[c = c + 1]  =  column("published",    "datetime",      *published(tsxEntry))
+            tsColumns[c = c + 1]  =  column("text_link",    "varchar(max)",  *textLink(tsxEntry))
+            tsColumns[c = c + 1]  =  column("title",        "nvarchar(max)", *title(tsxEntry))
+            tsColumns[c = c + 1]  =  column("content",      "nvarchar(max)", *content(tsxEntry))
+            tsColumns[c = c + 1]  =  column("updated",      "datetime",      *updated(tsxEntry))
+            tsColumns[c = c + 1]  =  column("image_link",   "varchar(max)",  *imageLink(tsxEntry))
+            tsColumns[c = c + 1]  =  column("geo_point_x",  "decimal(9,6)",  *geoPointX(tsxEntry))
+            tsColumns[c = c + 1]  =  column("geo_point_y",  "decimal(9,6)",  *geoPointY(tsxEntry))
+            tsColumns[c = c + 1]  =  column("place_id",     "char(16)",      *placeId(tsxEntry))
+            tsColumns[c = c + 1]  =  column("place_name",   "nvarchar(max)", *placeName(tsxEntry))
+            tsColumns[c = c + 1]  =  column("place_type",   "varchar(12)",   *placeType(tsxEntry))
+            tsColumns[c = c + 1]  =  column("source_link",  "varchar(max)",  *sourceLink(tsxEntry))
+            tsColumns[c = c + 1]  =  column("source_name",  "nvarchar(max)", *sourceName(tsxEntry))
+            tsColumns[c = c + 1]  =  column("lang",         "varchar(16)",   *lang(tsxEntry))
+            tsColumns[c = c + 1]  =  column("author_id",    "varchar(max)",  *authorId(tsxEntry))
+            tsColumns[c = c + 1]  =  column("author_name",  "nvarchar(max)", *authorName(tsxEntry))
+            tsColumns[c = c + 1]  =  column("author_url",   "varchar(max)",  *authorURI(tsxEntry))
+            tsColumns[c = c + 1]  =  column("title_japanese", NULL,          *NULL)
+*---------- ----------- --- ---------------------------------------------------
+            DEFINE('SQLDate(dt)year,month,day,hour,minute,second')              :(SQLDateEnd)
+SQLDate     dt          ?   POS(0) tsYear . year
++                           '-'    tsMonth . month
++                           '-'    tsDay . day
++                           'T'    tsHour . hour
++                           ':'    tsMinute . minute
++                           ':'    tsSecond . second
++                           RPOS(0)                                             :F(error)
+            SQLDate     =   year '-' month '-' day
++                           ' ' hour ':' minute ':' second                      :(RETURN)
+SQLDateEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+TS00        sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ----------------------------------------------------------------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'<'        =   $' ' TY(1, '<', '<')
+            $'>'        =   $' ' TY(1, '>', '>')
+            $'/>'       =   $' ' TY(1, '/>', '/>')
+*---------- ----------- --- ----------------------------------------------------------------------------
+            tsInt       =   SPAN('0123456789') . tsxN
+            tsYear      =   tsInt $ tsxN *EQ(SIZE(tsxN), 4)
+            tsMonth     =   tsInt $ tsxN *EQ(SIZE(tsxN), 2)
+            tsDay       =   tsInt $ tsxN *EQ(SIZE(tsxN), 2)
+            tsHour      =   tsInt $ tsxN *EQ(SIZE(tsxN), 2)
+            tsMinute    =   tsInt $ tsxN *EQ(SIZE(tsxN), 2)
+            tsSecond    =   tsInt $ tsxN *EQ(SIZE(tsxN), 2)
+            tsDate      =   tsYear '-' tsMonth '-' tsDay
+            tsTime      =   tsHour ':' tsMinute ':' tsSecond
+            tsDateXtra  =   ('Z' | '+' tsInt *EQ(SIZE(tsxN), 2) ':' tsInt *EQ(SIZE(tsxN), 2))
+            tsDateTime  =   (tsDate 'T' tsTime ) . tsxDateTime tsDateXtra
+            tsGeoPoint  =   ('+' | '-' | epsilon) tsInt '.' tsInt
+            tsGeoPoints =   (tsGeoPoint . tsxGeoX ' ' tsGeoPoint . tsxGeoY)
+            tsXmlVal    =   BREAK('<') . tsxXmlVal
+            tsAttrVal   =   '"' BREAK('"') . tsxAttrVal '"'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            tsTags      =   'a/author/content/entry/error/feed/georss:point/h2/hash/id/link/name/'
++                           'openSearch:itemsPerPage/openSearch:language/p/published/title/'
++                           'twitter:full_name/twitter:geo/twitter:id/twitter:lang/twitter:metadata/'
++                           'twitter:place/twitter:result_type/twitter:source/twitter:type/'
++                           'twitter:warning/updated/uri/'
++                           'body/head/html/meta/'
+TS01        tsTags      ?   POS(0) BREAK('/') . tsxT '/' =                      :F(TS03)
+            $('<'  tsxT    ) = $' ' TY(1, '<'  tsxT    , '<'  tsxT         )
+            $('<'  tsxT '>') = $' ' TY(1, '<'  tsxT '>', '<'  tsxT $' ' '>')
+            $('</' tsxT    ) = $' ' TY(1, '</' tsxT    , '</' tsxT         )
+            $('</' tsxT '>') = $' ' TY(1, '</' tsxT '>', '</' tsxT $' ' '>')    :(TS01)
+*---------- ----------- --- ------------------------------------------------------------------------------------------------------------------------------------
+TS03        tsXml       =   '<?xml version="1.0" encoding="UTF-8"?>'
+
+            tsResults   =   epsilon $ tsxC $ tsxChunks *tsXml *tsFeed
+
+            tsFeed      =   epsilon . *assign(.tsxHasNext, FALSE)
++                           $'<feed' $'  ' 'xmlns:google=' *tsAttrVal
++                                    $'  ' 'xml:lang=' *tsAttrVal
++                                    $'  ' 'xmlns:openSearch=' *tsAttrVal
++                                    $'  ' 'xmlns=' *tsAttrVal
++                                    $'  ' 'xmlns:twitter=' *tsAttrVal
++                                  !($'  ' 'xmlns:georss=' *tsAttrVal) $'>'
++                           $'<id>' *tsXmlVal $'</id>'
++                           $'<link' ARBNO($'  ' ('type="text/html"'            | 'href=' *tsAttrVal | 'rel="alternate"')) $'/>'
++                           $'<link' ARBNO($'  ' ('type="application/atom+xml"' | 'href=' *tsAttrVal | 'rel="self"')) $'/>'
++                           $'<title>' *tsXmlVal $'</title>'
++                           $'<link' ARBNO($'  ' ('type="application/opensearchdescription+xml"' | 'href=' *tsAttrVal | 'rel="search"')) $'/>'
++                           $'<link' ARBNO($'  ' ('type="application/atom+xml"'                  | 'href=' *tsAttrVal | 'rel="refresh"')) $'/>'
++                         !($'<twitter:warning>' *tsXmlVal $'</twitter:warning>')
++                           $'<updated>' *tsDateTime $'</updated>'
++                          !(    $'<openSearch:itemsPerPage>' *tsInt $'</openSearch:itemsPerPage>'
++                              !($'<openSearch:language>' *tsXmlVal $'</openSearch:language>')
++                              !($'<link' ARBNO($'  ' ('type="application/atom+xml"' | 'href=' *tsAttrVal | 'rel="previous"')) $'/>')
++                              !($'<link' ARBNO($'  ' ('type="application/atom+xml"' | 'href=' *tsAttrVal | 'rel="next"')) $'/>' . *assign(.tsxHasNext, TRUE))
++                                *tsChunks
++                           )
++                           $'</feed>'
+
+            tsChunks    =   epsilon . *assign(.tsxC, 0)
++                           epsilon . *assign(.tsxChunks, TABLE())
++                           ARBNO(($'<entry>' BREAKX('<') $'</entry>' FENCE) . tsxChunk . *assign(.tsxChunks[tsxC = tsxC + 1], tsxChunk))
+
+            tsEntry     =   epsilon . *assign(.tsxEntry, EntryType())
++                           $'<entry>'
++                           $'<id>' 'tag:' BREAK(',') ',' BREAK(':') ':' *tsXmlVal $'</id>'         . *assign(.id(tsxEntry), XMLDecode(tsxXmlVal))
++                           $'<published>' *tsDateTime $'</published>'                              . *assign(.published(tsxEntry), SQLDate(tsxDateTime))
++                           $'<link' ARBNO(
++                                $'  ' ('type="text/html"' | 'href=' *tsAttrVal | 'rel="alternate"')
++                           ) $'/>'                                                                 . *assign(.textLink(tsxEntry), tsxAttrVal)
++                           $'<title>' *tsXmlVal $'</title>'                                        . *assign(.title(tsxEntry), XMLDecode(tsxXmlVal))
++                           $'<content' $'  ' 'type="html"' $'>'
++                              BREAKX('<') . tsxXmlVal                                              . *assign(.content(tsxEntry), XMLDecode(tsxXmlVal))
++                           $'</content>'
++                           $'<updated>' *tsDateTime $'</updated>'                                  . *assign(.updated(tsxEntry), SQLDate(tsxDateTime))
++                           $'<link' ARBNO(
++                                $'  ' ('type="image/png"' | 'href=' *tsAttrVal | 'rel="image"')
++                           ) $'/>'                                                                 . *assign(.imageLink(tsxEntry), tsxAttrVal)
++                           $'<twitter:geo>'
++                                !($'<georss:point>' *tsGeoPoints $'</georss:point>'                . *assign(.geoPointX(tsxEntry), tsxGeoX)
++                                                                                                   . *assign(.geoPointY(tsxEntry), tsxGeoY)
++                                 )
++                           $'</twitter:geo>'
++                           $'<twitter:metadata>'
++                                $'<twitter:result_type>' *tsXmlVal $'</twitter:result_type>'
++                           $'</twitter:metadata>'
++                          !(    $'<twitter:place>'
++                                     $'<twitter:id>' *tsXmlVal $'</twitter:id>'                    . *assign(.placeId(tsxEntry), XMLDecode(tsxXmlVal))
++                                     $'<twitter:full_name>' *tsXmlVal $'</twitter:full_name>'      . *assign(.placeName(tsxEntry), XMLDecode(tsxXmlVal))
++                                     $'<twitter:type>' *tsXmlVal $'</twitter:type>'                . *assign(.placeType(tsxEntry), XMLDecode(tsxXmlVal))
++                                $'</twitter:place>'
++                           )
++                           $'<twitter:source>' *tsSourceVal $'</twitter:source>'
++                           $'<twitter:lang>' *tsXmlVal $'</twitter:lang>'                          . *assign(.lang(tsxEntry), XMLDecode(tsxXmlVal))
++                           $'<author>'
++                                $'<name>' *tsAuthorVal $'</name>'
++                                $'<uri>' *tsXmlVal $'</uri>'                                       . *assign(.authorURI(tsxEntry), XMLDecode(tsxXmlVal))
++                           $'</author>'
++                           $'</entry>'
+
+            tsAuthorVal =   BREAK(' ')        . tsx . *assign(.authorId(tsxEntry), tsx)
++                           ' (' BREAKX(')<') . tsx . *assign(.authorName(tsxEntry), tsx)
++                           ')'
+
+            tsSourceVal =   (    $'<a' ARBNO($'  ' ('href=' *tsAttrVal . *assign(.sourceLink(tsxEntry), tsxAttrVal) | 'rel="nofollow"')) $'>'
++                                    BREAK('<') . tsx . *assign(.sourceName(tsxEntry), tsx)
++                                $'</a>'
++                           |   BREAK('<') . tsx . *assign(.sourceName(tsxEntry), XMLDecode(tsxXmlVal))
++                           )
+
+            tsPollLess  =   *tsXml . *assign(.tsError, 'Poll less frequently.')
++                           $'<hash>' $'<error>' 'since_id too recent, poll less frequently' $'</error>' $'</hash>'
+
+            tsNoResults =   *tsXml . *assign(.tsError, 'No results.')
++                           $'<hash>' $'<error>' 'Adjusted since_id greater than max_id, no results will be returned' $'</error>' $'</hash>'
+
+            tsOverlap   =   *tsXml . *assign(.tsError, 'Overlapped.')
++                           $'<hash>' $'<error>' 'Start range greater than or equal end range' $'</error>' $'</hash>'
+
+            tsTooOld    =   *tsXml . *assign(.tsError, 'Too old.')
++                           $'<hash>' $'<error>' 'since date or since_id is too old' $'</error>' $'</hash>'
+
+            tsTimeout   =   *tsXml . *assign(.tsError, 'Query Timeout.')
++                           $'<hash>' $'<error>' 'Query Timeout' $'</error>' $'</hash>'
+
+            tsInvalid   =   *tsXml . *assign(.tsError, 'Invalid query.')
++                           $'<hash>' $'<error>' 'Invalid query' $'</error>' $'</hash>'
+
+            tsHtml      =   '<!DOCTYPE ' ('HTML' | 'html') ' PUBLIC ' *tsAttrVal $'  ' *tsAttrVal $'>'
+
+            tsSorry     =   *tsHtml . *assign(.tsError, 'Sorry.')
++                           $'<html>'
++                                $'<head>'
++                                     $'<meta' $'  ' 'http-equiv="content-type" content="text/html; charset=UTF-8"' $'/>'
++                                     $'<title>' 'We' "'" 're sorry, but something went wrong (500)' $'</title>'
++                                     BREAKX('<')
++                                $'</head>'
++                                $'<body>' BREAKX('<') $'</body>'
++                            $'</html>'
+
+            tsTimedout  =   *tsHtml . *assign(.tsError, 'Timed Out.')
++                           $'<html' $'  ' 'xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"' $'>'
++                                $'<head>'
++                                     $'<meta' $'  ' 'http-equiv="Content-Type" content="text/html; charset=utf-8"' $'/>'
++                                     $'<meta' $'  ' 'http-equiv="Content-Language" content="en-us"' $'/>'
++                                     $'<title>' 'Twitter / Timed Out' $'</title>'
++                                     BREAKX('<')
++                                $'</head>'
++                                $'<body>' BREAKX('<') $'</body>'
++                           $'</html>'
+
+            tsWentWrong =   *tsHtml . *assign(.tsError, 'Twitter Error, something went wrong.')
++                           $'<html' $'  ' 'xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"' $'>'
++                                $'<head>'
++                                     $'<meta' $'  ' 'http-equiv="Content-Type" content="text/html; charset=utf-8"' $'/>'
++                                     $'<meta' $'  ' 'http-equiv="Content-Language" content="en-us"' $'/>'
++                                     $'<title>' 'Twitter / Error' $'</title>'
++                                     BREAKX('<')
++                                $'</head>'
++                                $'<body>' BREAKX('<') $'</body>'
++                           $'</html>'
+
+            tsError503  =   $'<html>' . *assign(.tsError, 'HTTP Server Error 503.')
++                                $'<body>'
++                                $'<h2>' 'HTTP Server Error 503' $'</h2>' $'<p>' $' ' '<img src=' "'" BREAK("'") "'" $'/>' $'</p>'
++                                $'</body>'
++                           $'</html>'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            tsEntry     =   epsilon $ t8Max
++                           TZ(1, 'tsEntry', tsEntry)
+            tsDateTime  =   TY(1, 'tsDateTime', tsDateTime)
+            tsXmlVal    =   TY(1, 'tsXmlVal', tsXmlVal)
+            tsAttrVal   =   TY(1, 'tsAttrVal', tsAttrVal)
+*========== =========== === ===================================================
+            SetupWait()                                                         :F(TSEnd)
+            SetupCancel()                                                       :F(TSEnd)
+TS05        SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+*           SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(tsColumns, xListener, 'Title')                             :F(SQLFail)
+            curl        =   curl_easy_init()                                    :F(TSErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(TSErr)
+            periodSecs  =   10
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   1 * 60  ;* minutes(s) in seconds
+            backSecs    =   3 * 24 * 60 * 60  ;* day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+*           backTime    =   DTDecode('2011-10-14 00:00:00')
+            tsCntT      =   TABLE()
+            tsModT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+TS10        iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(TSEnd)
+            tsTotT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- FOR every topic ... -----------------------------------------------
+            iE          =   xIT[0]['Topic']
+TS20        iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(TS90)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(TS20)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            tsCntT[iE]  =   GT(tsCntT[iE], 1) tsCntT[iE] - 1                    :S(TS20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(TS25)
+            xT['Since'] =
+            xT['Until'] =
+            xT['Max']   =
+TS25        tsSince     =   xT['Since']
+            tsUntil     =   xT['Until']
+            tsSinceDate =
+            tsSinceDate =   IDENT(tsSince) SUBSTR(DTEncode(backTime), 1, 10)
+*---------- WHILE maxed out ... -----------------------------------------------
+            iCount      =   1500
+            iTweets     =   -1500
+TS30        iTweets     =   LE(iCount, 1500) iTweets + iCount                   :F(TSErr2)
+            iCount      =   EQ(iCount, 1500) 0                                  :F(TS80)
+            EQ(IsCancelled(), FALSE)                                            :F(TS90)
+            tsMinBatch  =
+            tsMaxBatch  =
+*---------- FOR every page ... ------------------------------------------------
+            tsxHasNext  =   TRUE
+            iPage       =   0
+TS40        iPage       =   EQ(tsxHasNext, TRUE) LT(iPage, 15) iPage + 1        :F(TS70)
+            EQ(IsCancelled(), FALSE)                                            :F(TS90)
+*           Get result ...
+            tsxExpr     =   EVAL(tsExpr)
+            url         =   tsUrl '?' tsxExpr
+TS43        iTry        =   0
+TS44        iTry        =   LT(iTry, 10) iTry + 1                               :F(TSErr)
+            EQ(IsCancelled(), FALSE)                                            :F(TS90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) Datetime() ' GET ...?' tsxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(TSErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(TSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(TSErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(TS44)
+            xml         =   curl_easy_getdata()
+            OUTPUT      =   GE(xVerbose, 5) Datetime() ' GOT ...?' tsxExpr
+            LineMap(xml, .t8Map)
+*           Process result ...
+TS45        Write(xListener '.xml', xml)
+            Write(xListener '-' (iWritten = iWritten + 1) '.xml', xml)
+            xml         ?   POS(0) FENCE *tsResults $' ' RPOS(0)                :S(TS50)
+            xml         ?   POS(0) FENCE *tsSorry $' ' RPOS(0)                  :S(TS47)
+            xml         ?   POS(0) FENCE *tsTimedout $' ' RPOS(0)               :S(TS47)
+            xml         ?   POS(0) FENCE *tsWentWrong $' ' RPOS(0)              :S(TS47)
+            xml         ?   POS(0) FENCE *tsError503  $' ' RPOS(0)              :S(TS47)
+            xml         ?   POS(0) FENCE *tsTimeout $' ' RPOS(0)                :S(TS47)
+            xml         ?   POS(0) FENCE *tsInvalid $' ' RPOS(0)                :S(TS48)
+            xml         ?   POS(0) FENCE *tsTooOld $' ' RPOS(0)                 :S(TS48)
+            xml         ?   POS(0) FENCE *tsPollLess $' ' RPOS(0)               :S(TS48)
+            xml         ?   POS(0) FENCE *tsOverlap $' ' RPOS(0)                :S(TS48)
+            xml         ?   POS(0) FENCE *tsNoResults $' ' RPOS(0)              :S(TS48)
+            tsError     =   'Response pattern failure.'
+            OUTPUT      =   'URL=' tsUrl '?' tsxExpr
+            OUTPUT      =   'xml=' xml
+TS47        OUTPUT      =   tsError
+            Wait(oneMin)                                                        :(TS43)
+TS48        OUTPUT      =   tsError
+            Wait(oneMin)                                                        :(TS70)
+*---------- FOR every chunk/entry ... -----------------------------------------
+TS50        PumpOpen(.tsOutput, xListener)
+            tsMinId     =
+            tsMaxId     =
+            tsiC        =   0
+TS53        tsiC        =   LT(tsiC, tsxC) tsiC + 1                             :F(TS60)
+            tsxChunk    =   tsxChunks[tsiC]                                     :F(error)
+            LineMap(tsxChunk, .t8Map)
+            tsxChunk    ?   POS(0) FENCE *tsEntry $' ' RPOS(0)                  :F(TSErr1)
+            iCount      =   iCount + 1
+            tsMinId     =   MinId(id(tsxEntry), tsMinId)
+            tsMaxId     =   MaxId(id(tsxEntry), tsMaxId)
+            tsId        =   LPAD(id(tsxEntry), 19, '0')
+*           OUTPUT      =   DIFFER(tsUntil) LEQ(tsId, LPAD(tsUntil, 19, '0')) 'EQ Until'
+            OUTPUT      =   DIFFER(tsUntil) LGT(tsId, LPAD(tsUntil, 19, '0')) 'Weird: GT Until'
+            OUTPUT      =   DIFFER(tsSince) LLT(tsId, LPAD(tsSince, 19, '0')) 'Weird: LT Since'
+            OUTPUT      =   DIFFER(tsSince) LEQ(tsId, LPAD(tsSince, 19, '0')) 'EQ Since'
+            PumpRow(.tsOutput, tsColumns)                                       :S(TS53)F(SQLFail)
+*---------- END FOR every chunk/entry -----------------------------------------
+TS60        PumpClose(.tsOutput, xListener, tsxC)                               :F(SQLFail)
+            OUTPUT      =   GE(xVerbose, 4) iE
++                           ',' tsMinId ',' tsMaxId ',' iPage ',' tsxC
+            tsTotT[iE]  =   tsTotT[iE] + tsxC
+            tsMinBatch  =   MinId(tsMinId, tsMinBatch)
+            tsMaxBatch  =   MaxId(tsMaxId, tsMaxBatch)
+            xT['Until'] =   DIFFER(tsMinId) subtract_int64(tsMinId, 1)
+            xT['Max']   =   DIFFER(tsMaxId) IDENT(xT['Max']) tsMaxId            :(TS40)
+*---------- END FOR every page ------------------------------------------------
+TS70        OUTPUT      =   GE(xVerbose, 3) iE ',' tsMinBatch ',' tsMaxBatch ',' iCount
+            tsUntil     =   xT['Until']                                         :(TS30)
+*---------- END WHILE maxed out -----------------------------------------------
+TS80        OUTPUT      =   GE(xVerbose, 2) iE ',' iTweets ',"' xE '"'
+            tsModT[iE]  =   EQ(iTweets) LT(tsModT[iE], 5) tsModT[iE] + 1
+            tsModT[iE]  =   GT(iTweets) GT(tsModT[iE], 1) tsModT[iE] - 1
+            tsCntT[iE]  =   tsModT[iE]
+            xT['Since'] =   DIFFER(xT['Max']) xT['Max']                         :F(TS20)
+            xT['Until'] =
+            xT['Max']   =
+            xIT[0]['Topic'] = iE
+            IniWrite(xListener '.ini', xIT)                                     :(TS20)
+*---------- END FOR every topic -----------------------------------------------
+TS90        xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            tsReport    =
+            iTotal      =   0
+            iE          =   0
+TS93        iE          =   LT(iE, xMaxEntity) iE + 1                           :F(TS95)
+            DIFFER(xT = xIT[iE])                                                :F(TS93)
+            iTotal      =   iTotal + tsTotT[iE]
+            tsReport    =   tsReport ',' LPAD(tsTotT[iE], 4)                    :(TS93)
+TS95        OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           ',' LPAD(iPoll, 5)
++                           ',' LPAD(iTotal, 5) tsReport                        :(TS10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(TSEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(TS05)
+*---------- ----------- --- ---------------------------------------------------
+TSErr1      OUTPUT      =   'Failure (' iE ', ' iPage ', ' tsxC ').'
+            OUTPUT      =   tsxChunk
+            Write(xListener '-chunk.xml', tsxChunk)                             :(TSEnd)
+TSErr2      OUTPUT      =   'Weird error.'                                      :(TSEnd)
+TSErr       curl_easy_error_info(curl, cc)                                      :(TSEnd)
+*---------- ----------- --- ---------------------------------------------------
+TSEnd       IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

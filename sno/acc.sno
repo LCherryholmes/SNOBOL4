@@ -1,0 +1,562 @@
+*-------------------------------------------------------------------------------------------------------------------------
+start
+-INCLUDE    'utility.inc'
+-INCLUDE    'ss.inc'
+-INCLUDE    'ini.inc'
+-INCLUDE    'build.inc'
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('PreQualify(river,host,mode,directory)fileName,solution,ini2,actual,'
++                 'prequalify_log_nm,prequalify_log')                                        :(PreQualifyEnd)
+PreQualify  bomStem           =     river '_' host '_' mode
+            EQ(tester, 0) ss_workfold('-maxm', '$/bom/baselines/', env['HOME'] '/baselines')
+            bomIni[bomStem '_prequalify'] = TABLE()
+            bomIni[bomStem '_prequalify']['NumberOfDirectories']  = 1
+            bomIni[bomStem '_prequalify']['Dir0'] = directory
+            bomIni[bomStem '_prequalify']['Dir0_NumberOfFilters'] = 0
+            IniWrite('bom.ini', bomIni)
+            prequalify_bom    =     bomStem '_prequalify.bom'
+            (EQ(tester, 0) ss_get('-maxm', '$/bom/baselines/' prequalify_bom,, '-i-y'))
+            actual            =     bomStem '_actual_prequalify.bom'
+PreQualify7 (EQ(tester, 1) system('-chmod', 'a+rw ' env['HOME'] '/baselines/' actual))
+            (EQ(tester, 0) ss_checkout('-maxm', '$/bom/baselines/' actual, '-i-y'))
+            fileName          =     bomStem '_prequalify.bom'
+            system('-bom',
++           '-c -b "' env['HOME'] '/baselines/' actual '" -d "' bomStem '_prequalify"')      :f(PreQualify4)
+            (EQ(tester, 0) ss_checkin('maxm', '$/bom/baselines/' actual, directory, '-i-y'))
+            prequalify_log_nm =     bomStem '_prequalify_log.txt'
+            solution          =     system('-bom',
++           '-c -1 "' env['HOME'] '/baselines/' fileName '" -2 "' env['HOME'] '/baselines/' actual '"',
++           prequalify_log_nm)
+PreQualify0 solution          ('Drop   ' | 'error' | 'Error')                                :f(RETURN)
+            OUTPUT            =     solution                                                 :(FRETURN)
+PreQualify2 OUTPUT            =     'Could not write to ' prequalify_log_nm                  :(PreQualify0)
+PreQualify3 OUTPUT            =     'Could not close file ' prequalify_log_nm                :(PreQualify0)
+PreQualify4 OUTPUT            =     'Could not create actual baseline.'                      :(FRETURN)
+PreQualify5 ss_uncheckout('maxm', '$/bom/baselines/' actual, '-i-y')                         :s(PreQualify7)
+            OUTPUT            =     'Could not uncheckout $/bom/baselines/' actual           :(FRETURN)
+PreQualifyEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Scrub(dir)uninstFile,result')                                            :(ScrubEnd)
+Scrub       DIFFER(dir)                                                                      :f(RETURN)
+            result            =     system('-ls', '-1 ' dir '/*.isu')
+Scrub0      result            POS(0) (ARB '.isu') . uninstFile nl =                          :f(Scrub1)
+            system('-isuninst', '-a -f"' uninstFile '"')                                     :(Scrub0)
+Scrub1      DIFFER(dir, '/')                                                                 :f(diskerr)
+            system('-rm', '-rf "' dir '"')                                                   :(RETURN)
+ScrubEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Rollback(bomStem,bomExtension,bld)'
++              'baseline,response,version,comment,modes,mode'
++           )                                                                                :(RollbackEnd)
+Rollback    modes             =     'actual,expected'
+Rollback0   version           =
+            modes             POS(0) RPOS(0)                                                 :s(RETURN)
+            modes             (POS(0) ('actual' | 'expected') . mode (',' | RPOS(0))) =
+            baseline          =     bomStem '_' mode bomExtension '.bom'
+            response          =     IDENT(version) system('-./ssdb', 'bom -r ' baseline)
+Rollback1   response          =     DIFFER(version) system('-./ssdb', 'bom -c ' baseline ' -w ' version)
+            response          'not found.'                                                   :s(RollbackErr)
+            IDENT(version)                                                                   :f(Rollback2)
+            response          SPAN('0123456789') . version                                   :(Rollback1)
+Rollback2   response          ((SPAN('0123456789') '.' SPAN('0123456789')) | SPAN('0123456789')) . comment :f(RollbackR)
+Rollback3   version           =     LGE(comment, bld) version - 1                            :s(Rollback1)
+            OUTPUT            =     response                                                 :(Rollback0)
+*           ss('maxm', 'Rollback', '-i-y ' baseline ' -V' version)                           :(Rollback0)
+RollbackErr OUTPUT            =     comment                                                  :(FRETURN)
+RollbackR   OUTPUT            =     'This response does not meet the format specifications:'
+            OUTPUT            =     response                                                 :(FRETURN)
+RollbackEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ExecuteBom(bomStem,bomExtension,bomStamp,dir,bomComment)'
++              'actualBom,bomFltOutput,bomInput,bomLine,bomLogOutput,expectedBom,'
++              'bomSwitches,bomCommand,hotdog_var'
++           )                                                                                :(ExecuteBomEnd)
+ExecuteBom  actualBom         =     bomStem '_actual' bomExtension '.bom'
+            hotdog_var        =     0
+            bomStem           POS(0) 'hotdog' . *assign(.hotdog_var, *1) = 'cm33'            :s(ExecuteBom0)
+            bomSwitches       =     '-u '
+ExecuteBom0 expectedBom       =     bomStem '_expected' bomExtension '.bom'
+            bomSwitches       =     bomSwitches '-c '
+            bomComment        =     EQ(hotdog_var, 1) 'hotdog ' bomComment
+            bomComment        =     EQ(hotdog_var, 0) 'cm33 ' bomComment
+            (EQ(tester, 0) ss_workfold('-maxm', '$/bom/baselines/', env['HOME'] '/baselines'))
+ExecuteBom4 (EQ(tester, 1) system('-chmod', 'a+rw ' env['HOME'] '/baselines/' actualBom))
+            (EQ(tester, 0) ss_checkout('-maxm', '$/bom/baselines/' actualBom, '-i-y'))
+            system('-bom', '-b "' env['HOME'] '/baselines/' actualBom '" -d "' dir '"')
+            EQ(tester, 0)
++           ss_checkin('maxm', '$/bom/baselines/' actualBom, bomComment, '-i-y')
+ExecuteBom1 bomCommand        =     '!!' exe['bom'] ' '
++           bomSwitches '-1 "' env['HOME'] '/baselines/' expectedBom '" -2 "'
++           env['HOME'] '/baselines/' actualBom '"'
+ExecuteBom5 EQ(tester, 1)                                                                    :s(ExecuteBom6)
+            ss_checkout('-maxm', '$/bom/baselines/' expectedBom, '-i-y')                     :f(ExBomErr13)
+ExecuteBom6 OUTPUT            =     datetime() '   ' bomCommand
+            INPUT(.bomInput, 13, bomCommand)                                                 :f(ExBomErr04)
+            (EQ(tester, 1) system('-chmod', 'a+rw ' env['HOME'] '/' bomStamp '_log.txt'))
+            (EQ(tester, 1) system('-chmod', 'a+rw ' env['HOME'] '/' bomStamp '_flt.txt'))
+            OUTPUT(.bomLogOutput, 11, env['HOME'] '/' bomStamp '_log.txt')                   :f(ExBomErr00)
+            OUTPUT(.bomFltOutput, 12, env['HOME'] '/' bomStamp '_flt.txt')                   :f(ExBomErr01)
+            bomLogOutput      =     bomStamp ':'                                             :f(ExBomErr02)
+            bomFltOutput      =     bomStamp ':'                                             :f(ExBomErr03)
+ExecuteBom2 bomLine           =     bomInput                                                 :f(ExecuteBom3)
+            bomLogOutput      =     bomLine                                                  :f(ExBomErr02)
+            bomLine           POS(0) ('Alter '  REM)                                         :s(ExecuteBom2)
+            bomFltOutput      =     bomLine
+ExecuteBom3 ENDFILE(12)                                                                      :f(ExBomErr14)
+            ENDFILE(11)                                                                      :f(ExBomErr15)
+            ENDFILE(13)                                                                      :f(ExBomErr05)
+            (EQ(tester, 0)
++           ss_checkin('maxm', '$/bom/baselines/' expectedBom, bomComment, '-i-y'))
+            (EQ(tester, 1) ss_uncheckout('maxm', '$/bom/baselines/' expectedBom, '-i-y'))
+            (EQ(tester, 0) ss_workfold('-pdbdocs', '$/docs/CM33/BOM_Reports', env['HOME']))
+            EQ(tester, 0)                                                                    :(RETURN)
+            ss_add('pdbdocs', env['HOME'] '/' bomStamp '_log.txt', bomComment)               :f(ExBomErr09)
+            ss_add('pdbdocs', env['HOME'] '/' bomStamp '_flt.txt', bomComment)               :s(RETURN)f(ExBomErr10)
+ExBomErr00  OUTPUT            =     'Could not open file ' bomStamp '_log.txt'
+            ENDFILE(13)                                                                      :(FRETURN)
+ExBomErr01  OUTPUT            =     'Coult not open file ' bomStamp '_flt.txt'
+            ENDFILE(13)
+            ENDFILE(11)                                                                      :(FRETURN)
+ExBomErr02  OUTPUT            =     'Could not write to ' bomStamp '_log.txt'                :(FRETURN)
+ExBomErr03  OUTPUT            =     'Coult not write to ' bomStamp '_flt.txt'                :(FRETURN)
+ExBomErr04  OUTPUT            =     'Coult not open command ' bomCommand                     :(FRETURN)
+ExBomErr05  OUTPUT            =     'Channel 13 to file command ' bomCommand ' failed to close.'   :(FRETURN)
+ExBomErr06  OUTPUT            =     'Checkin for file ' actualBom ' failed.'                 :(FRETURN)
+ExBomErr07  OUTPUT            =     'Checkin for file ' expectedBom ' failed.'               :(FRETURN)
+ExBomErr08  OUTPUT            =     (EQ(tester, 0) 'PDBDocs workfold command failed.')       :s(FRETURN)f(RETURN)
+ExBomErr09  OUTPUT            =     'Add command for log file failed.'                       :(FRETURN)
+ExBomErr10  OUTPUT            =     'Add command for flt file failed.'                       :(FRETURN)
+ExBomErr11  OUTPUT            =     'maxm workfold command failed.'                          :(FRETURN)
+ExBomErr12  ss_uncheckout('maxm', '$/bom/baselines/' actualBom, '-i-y')                      :s(ExecuteBom4)
+            OUTPUT            =     'Could not checkout $/bom/baselines/' actualBom          :(FRETURN)
+ExBomErr13  ss_uncheckout('maxm', '$/bom/baselines/' expectedBom, '-i-y')                    :s(ExecuteBom5)
+            OUTPUT            =     'Could not checkout $/bom/baselines/' expectedBom        :(FRETURN)
+ExBomErr14  OUTPUT            =     'Channel 12 for file ' env['HOME'] '/' bomStamp '_log.txt failed.'   :(FRETURN)
+ExBomErr15  OUTPUT            =     'Channel 11 for file ' env['HOME'] '/' bomStamp '_flt.txt failed.'   :(FRETURN)
+ExecuteBomEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('MediaVer()bom_output,list,item,filename')        :(MediaVerEnd)
+MediaVer    OUTPUT            =     'Beginning verify of CD vs image:' nl                    :f(MediaVer04)
+            filename          =     'media_verify_cd_log.txt'
+            bomIni['cd_image'] =    TABLE()
+            bomIni['cd_image']['Dir0'] = ini['variables']['cd_image']
+            bomIni['cd_image']['Dir0_NumberOfFilters'] = 0
+            bomIni['cd_image']['NumberOfDirectories'] = 1
+            bomIni['cd_itself'] =   TABLE()
+            bomIni['cd_itself']['Dir0']   =  ini['variables']['cd_drive']
+            bomIni['cd_itself']['Dir0_NumberOfFilters']  =  0
+            bomIni['cd_itself']['NumberOfDirectories']   =  1
+            IniWrite('bom.ini', bomIni)                                                      :f(MediaVer06)
+            bom_output        =
++           system('-bom', '-p -1 "cd_image" -2 "cd_itself"', filename)                      :f(MediaVer07)
+            bom_output        ( 'Create ' | 'Drop   ' | 'Alter  ' )                          :s(MediaVer14)
+            OUTPUT            =     nl nl 'Begining component testing:'                      :f(MediaVer09)
+            list              =     ini['variables']['image_list']
+MediaVer18  list              ( ( ( ',SunOS'
++                             | ',AIX4'
++                             | ',hp1020_11'
++                             | ',DYNIX'
++                             | ',OSF1' ) RPOS(0) ) |
++                             ( 'SunOS,'
++                             | 'AIX4,'
++                             | 'hp1020_11,'
++                             | 'DYNIX,'
++                             | 'OSF1,'
++                             | 'unix' ) )  =                                                :s(MediaVer18)
+MediaVer00  list                POS(0) RPOS(0)                                               :s(RETURN)
+            list                POS(0) ARB . item ( ',' | RPOS(0) ) =                        :f(MediaVer10)
+            OUTPUT            =     nl nl 'Examining ' item ':' nl                           :f(MediaVer12)
+            bomIni['image_' item] = TABLE()
+            bomIni['image_' item]['Dir0'] = ini['variables']['image_' item]
+            bomIni['image_' item]['Dir0_NumberOfFilters'] = 0
+            bomIni['image_' item]['NumberOfDirectories'] = 1
+            bomIni['cd_' item] =    TABLE()
+            bomIni['cd_' item]['Dir0'] =
++           LEQ(item, 'server') ini['variables']['cd_drive'] 'server/nt'                     :s(MediaVer01)
+            bomIni['cd_' item]['Dir0'] =  ini['variables']['cd_drive'] item
+MediaVer01  bomIni['cd_' item]['Dir0_NumberOfFilters']   =  0
+            bomIni['cd_' item]['NumberOfDirectories'] =  1
+            IniWrite('bom.ini', bomIni)                                                      :f(MediaVer13)
+            filename          =     'media_verify_' item '_log.txt'
+            bom_output        =
++           system('-bom', '-1 "image_' item '" -2 "cd_' item '"', filename)                 :f(MediaVer13)
+MediaVer02  bom_output        ( 'Drop   {0}/cli_lib.zip' nl
++                             | 'Drop   {0}/ntsrv_lib.zip' nl
++                             | 'Drop   ' ARB '.cfg' nl
++                             | 'Drop   ' ARB '.hsh' nl
++                             | 'Drop   ' ARB 'core' nl
++                             | 'Create ' ARB 'launch.exe' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libnetstub.sl' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libasf.sl' nl
++                             )  =                                                           :s(MediaVer02)
+            bom_output        ( 'Drop   ' | 'Alter  ' | 'Create ')                           :s(MediaVer17)f(MediaVer00)
+MediaVer03  OUTPUT            =     '***File open on port 10 failed in MediaVer.'            :(FRETURN)
+MediaVer04  OUTPUT            =     '***Write to OUTPUT failed in MediaVer.  04'             :(FRETURN)
+MediaVer05  OUTPUT            =     '***Write to port 10 failed.  05'                        :(FRETURN)
+MediaVer06  OUTPUT            =     '***IniWrite to bom.ini failed in MediaVer.'             :(FRETURN)
+MediaVer07  OUTPUT            =     '***Unexpected error in MediaVer.  07'                   :(FRETURN)
+MediaVer08  OUTPUT            =     '***Write to port 10 failed in MediaVer.  08'            :(FRETURN)
+MediaVer09  OUTPUT            =     '***Write to OUTPUT failed in MediaVer.  09'             :(FRETURN)
+MediaVer10  OUTPUT            =
++           "***ini['variables']['image_list'] is in the wrong format in MediaVer."          :(FRETURN)
+MediaVer11  OUTPUT            =     '***Write to port 10 failed in MediaVer.  11'            :(FRETURN)
+MediaVer12  OUTPUT            =     '***Write to OUTPUT failed in MediaVer.  12'             :(FRETURN)
+MediaVer13  OUTPUT            =     '***Unexpected error in MediaVer.  13'                   :(FRETURN)
+MediaVer14  OUTPUT            =     '***MediaVerify failed!  14'                             :(FRETURN)
+MediaVer15  OUTPUT            =     '***Write to port 10 failed in MediaVer.  15'            :(FRETURN)
+MediaVer16  OUTPUT            =     '***Write to port 10 failed in MediaVer.  16'            :(FRETURN)
+MediaVer17  OUTPUT            =
++           '***Media Verify failed for ' ini['variables']['cd_drive'] item                  :(FRETURN)
+MediaVerEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ChkImage()items,item,toDir,var0,var1,fromDir,bom_output,filename')       :(ChkImageEnd)
+ChkImage    items             =     ini['variables']['image_list']
+ChkImage06  items             ( ( ( ',SunOS'
++                             | ',AIX4'
++                             | ',hp1020_11'
++                             | ',DYNIX'
++                             | ',OSF1' ) RPOS(0) ) |
++                             ( 'SunOS,'
++                             | 'AIX4,'
++                             | 'hp1020_11,'
++                             | 'DYNIX,'
++                             | 'OSF1,'
++                             | 'unix' ) )  =                                                :s(ChkImage06)
+ChkImage00  items             POS(0) RPOS(0)                                                 :s(RETURN)
+            items             POS(0) ARB . item ( RPOS(0) | ',' ) =                          :f(ChkImage02)
+            var0              =     'image_' item
+            toDir             =     ini['variables'][var0]
+            fromDir           =
++           LEQ(item, 'server') ini['variables']['cd_image'] '/server/nt'                    :s(ChkImage01)
+            fromDir           =     ini['variables']['cd_image'] '/' item
+ChkImage01  var1              =     'cd_' item
+            bomIni[var0]      =     TABLE()
+            bomIni[var0]['Dir0'] =  toDir
+            bomIni[var0]['Dir0_NumberOfFilters'] = 0
+            bomIni[var0]['NumberOfDirectories'] = 1
+            bomIni[var1]      =     TABLE()
+            bomIni[var1]['Dir0'] =  fromDir
+            bomIni[var1]['Dir0_NumberOfFilters'] = 0
+            bomIni[var1]['NumberOfDirectories'] = 1
+            IniWrite('bom.ini', bomIni)                                                      :f(ChkImage03)
+            filename          =     'check_image_' item '_log.txt'
+            bom_output        =
++           system('-bom', '-c -1 "' var0 '" -2 "' var1 '"', filename)                       :f(ChkImage04)
+ChkImage07  bom_output        ( 'Drop   {0}/cli_lib.zip' nl
++                             | 'Drop   {0}/ntsrv_lib.zip' nl
++                             | 'Drop   ' ARB '.cfg' nl
++                             | 'Drop   ' ARB '.hsh' nl
++                             | 'Drop   ' ARB 'core' nl
++                             | 'Create ' ARB 'launch.exe' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libnetstub.sl' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libasf.sl' nl
++                             )  =                                                           :s(ChkImage07)
+            bom_output        ( 'Drop   ' | 'Alter  ' | 'Create ' )                          :f(ChkImage00)s(ChkImage05)
+ChkImage02  OUTPUT            =
++           "***ini['variables']['image_list'] is in the wrong format in ChkImage."          :(FRETURN)
+ChkImage03  OUTPUT            =     '***IniWrite to bom.ini failed in ChkImage.'             :(FRETURN)
+ChkImage04  OUTPUT            =     '***There was an unexpected error in ChkImage.'          :(FRETURN)
+ChkImage05  OUTPUT            =     '***ChkImage failed for ' fromDir '.'
+            OUTPUT            =     bom_output                                               :(FRETURN)
+ChkImageEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('PopImage()items,item,toDir,var,fromDir,bom_output')                      :(PopImageEnd)
+PopImage    items             =     ini['variables']['image_list']
+            Unix              =     ( 'SunOS' | 'DYNIX' | 'OSF1' | 'hp1020_11' | 'AIX4' , 'unix' )
+            Windows           =     ( 'client' | 'server' | 'web' )
+PopImage00  items             POS(0) RPOS(0)                                                 :s(RETURN)
+            items             POS(0) ARB . item ( RPOS(0) | ',' ) =                          :f(PopImage01)
+            item              Windows                                                        :f(PopImage12)
+            toDir             =
++           ini['variables']['CD_skeleton'] '/'
++           ini['variables']['CD_ver'] '/win_drop/' item                                     :s(PopImage08)
+PopImage12  toDir             =
++           ini['variables']['CD_skeleton'] '/' ini['variables']['CD_ver'] '/unix_source/' item
+PopImage08  var               =     'image_' item
+            fromDir           =     ini['variables'][var]
+PopImage07  item              Unix                                                           :s(PopImage10)
+            system('-rm', '-rf "' toDir '"/*')
+            system('-cp', '-R "' fromDir '"/* "' toDir '"')                                  :f(PopImage02)
+PopImage10  bomIni[var]       =     TABLE()
+            bomIni[var]['Dir0'] =   fromDir
+            bomIni[var]['Dir0_NumberOfFilters'] = 0
+            bomIni[var]['NumberOfDirectories']  = 1
+            bomIni['skeleton_' item] = TABLE()
+            bomIni['skeleton_' item]['Dir0'] = toDir
+            bomIni['skeleton_' item]['Dir0_NumberOfFilters'] = 0
+            bomIni['skeleton_' item]['NumberOfDirectories'] = 1
+            IniWrite('bom.ini', bomIni)                                                      :f(PopImage03)
+            filename          =     'populate_image_' item '_log.txt'
+            bom_output        =
++           system('-bom', '-c -1 "' var '" -2 "skeleton_' item '"', filename)               :f(PopImage04)
+PopImage14  bom_output        ( 'Drop   {0}/cli_lib.zip' nl
++                             | 'Drop   {0}/ntsrv_lib.zip' nl
++                             | 'Drop   ' ARB '.cfg' nl
++                             | 'Drop   ' ARB '.hsh' nl
++                             | 'Drop   ' ARB 'core' nl
++                             | 'Create ' ARB 'launch.exe' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libnetstub.sl' nl
++                             | ( 'Drop   ' | 'Create ' ) ARB 'libasf.sl' nl
++                             )  =                                                           :s(PopImage14)
+            bom_output        ( 'Create ' | 'Drop   ' | 'Alter  ' )                          :s(PopImage06)
+            item              Windows                                                        :s(PopImage09)
+PopImage13  system('-find', toDir
++           ' "(" -name "core" -o -name "*.cfg" -o -name "*.hsh"'
++           ' -o -name "libasf.sl" -o -name "libnetstub.sl" ")"'
++           ' -type f -exec rm -f {} ; -print')                                              :(PopImage00)
+PopImage09  system('-rm', '-rf "' toDir '/cli_lib.zip"')
+            system('-rm', '-rf "' toDir '/ntsrv_lib.zip"')                                   :(PopImage00)
+PopImage01  OUTPUT            =
++           "***ini['variables']['image_list'] is in the wrong format in PopImage."          :(FRETURN)
+PopImage02  OUTPUT            =     '***Command cp failed in PopImage.'                      :(FRETURN)
+PopImage03  OUTPUT            =     '***IniWrite to bom.ini failed in PopImage.'             :(FRETURN)
+PopImage04  OUTPUT            =     '***An unexpected error occured in PopImage.'            :(FRETURN)
+PopImage05  OUTPUT            =     '***Copy from ' fromDir ' to ' toDir ' failed.'
+            OUTPUT            =     bom_output                                               :(FRETURN)
+PopImage06  OUTPUT            =     '***The bom compare failed for ' item '.'
+            OUTPUT            =     bom_output
+            item              Unix                                                           :s(PopImage00)
+            OUTPUT            =     'Repeat copy...'                                         :(PopImage07)
+PopImageEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            EXIT(3, 'acc.exe')
+            Utility()
+ini         isThere           =     system('-ls', '-1 acc.ini')
+            IDENT(isThere)                                                                   :f(ini0)
+            ss_get('-maxm', '$/bom/acc.ini',, '-i-y')
+            system('-chmod', 'a+rw acc.ini')
+ini0        ini               =     IniRead('acc.ini')                                       :f(IniReadErr)
+            bomIni            =     IniRead('bom.ini')                                       :f(BomReadErr)
+            tester            =     ini['variables']['tester']
+            OUTPUT            =     EQ(tester, 1) datetime() '   ***tester switch is set to 1***'
+            EQ(ini['variables']['populate_image'], 1)                                        :f(ini1)
+            OUTPUT            =     datetime() '   ***Populate Image is on***'
+            PopImage()                                                                       :s(fini)f(BomError2)
+ini1        EQ(ini['variables']['check_image'], 1)                                           :f(ini2)
+            OUTPUT            =     datetime() '   ***Check Image is on***'
+            ChkImage()                                                                       :s(fini)f(BomError3)
+ini2        EQ(ini['variables']['media_verify'], 1)                                          :f(ini3)
+            OUTPUT            =     datetime() '   ***Media verify is on***'
+            MediaVer()                                                                       :s(fini)f(BomError4)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+ini3        ic                =     -1
+            iniNTDirPat       =     EVAL(ini['variables']['ini_nt_dir_pat'])
+            today             =     day()
+            component         =     0
+            ic_limit          =     ini['Flowing_Rivers']['number']
+main00      ic                =     ic + 1
+            LT(ic, ic_limit)                                                                 :f(fini)
+            c                 =     ini['Flowing_Rivers']['river' ic]
+            ntDirPat          =     EVAL(ini[c]['nt_dir_pat'])
+            ntHosts           =     ini[c]['nt_hosts']
+            ntProgramFolders  =     ini[c]['nt_program_folders']
+            bomSwitches       =     ini[c]['bom_switches']
+*
+*           Windows client and server bom compare process
+*
+main05      ntHosts           POS(0) RPOS(0)                                                 :s(main50)
+            ntHosts           POS(0) ARB . h (',' | RPOS(0)) =                               :f(main07)
+            OUTPUT            =     EQ(ini[c]['install_verify'], 1) 'Install verify is on.'
+            EQ(ini[c]['install_verify'], 1)                                                  :f(main07)
+            remoteInstDir     =     LEQ('client', h) ini[c]['win_install_verify_dir'] '/' h
+            remoteInstDir     =     LEQ('ntsrv', h) ini[c]['win_install_verify_dir'] '/server'
+            m                 =     'release'
+            instDir           =     rootDir '/' c '/' h '/' m
+            bomSwitches       =     '-p ' bomSwitches
+            host              =     h
+            mode              =     m
+            fromDir           =     $bld_img_dir_var(build[c]) '/' EVAL(bld_img_dir_expr(build[c]))
+            toDir             =     rootDir '/' c '/dev/' h '/' m
+            listing           =     system('-ls', fromDir)
+            listing           (POS(0) ARB ntDirPat nl RPOS(0))
+            fromBldDir        =     fromDir '/' ntBldDir
+            ntSelections      =     ini[c]['nt_' h '_selections']
+            ntSelectionsBak   =     ntSelections
+            bomStem           =     c '_' h '_' m                                            :(main25)
+main08      OUTPUT(.verify_output, 3, 'verify_' c '_' h '.log')
+            verify_output     =     system('-bom', bomSwitches '-1 ' instDir ' -2 ' remoteInstDir)
+            ENDFILE(3)
+            Scrub(instDir)
+            Scrub(toBldDir)                                                                  :(main05)
+main07      EQ(ini[c]['install_verify'], 1)                                                  :s(main50)
+            ntProgramFolders  POS(0) ARB . ntProgramFolder (',' | RPOS(0)) =
+            ntModes           =     ini[c]['nt_modes']
+main10      ntModes           POS(0) RPOS(0)                                                 :s(main05)
+            ntModes           POS(0) ARB . m (',' | RPOS(0)) =
+            bomStem           =     c '_' h '_' m
+            sa_section        =     bomStem '_sa'
+            sa_log            =     sa_section '_log.txt'
+            sa_base           =     sa_section '.bom'
+            (EQ(tester, 1) system('-chmod', 'a+rw ' env['HOME'] '/baselines/' sa_base))      :s(main12)
+            EQ(tester, 0)                                                                    :f(main12)
+            ss_workfold('-maxm', '$/bom/baselines/', env['HOME'] '/baselines')               :f(BomError5)
+main11      ss_checkout('-maxm', '$/bom/baselines/' sa_base, '-i-y')                         :s(main12)
+            ss_uncheckout('maxm', '$/bom/baselines/' sa_base, '-i-y')                        :(main11)
+main12      (EQ(tester, 0) system('-bom',
++           '-r -1 "' env['HOME'] '/baselines/' sa_base '" -2 "' sa_section '"', ss_log))
+            (EQ(tester, 0) ss_checkin('maxm', '$/bom/baselines/' sa_base,, '-i-y'))
+            counter           =     0
+            ntSelections      =     ini[c]['nt_' h '_selections']
+            ntSelectionsBak   =     ntSelections
+            instDir           =     rootDir '/' c '/' h '/' m
+            host              =     h
+            mode              =     m
+            fromDir           =     $bld_img_dir_var(build[c]) '/' EVAL(bld_img_dir_expr(build[c]))
+            toDir             =     rootDir '/' c '/dev/' h '/' m
+            lst               =     system('-ls', '-1 "' fromDir '"')
+            DIFFER(ini['dates_' c][h '_' m])                                                 :f(iniicw)
+            ini['dates_' c][h '_' m]    iniNTDirPat                                          :f(iniicw)
+main15      lst               POS(0) ntDirPat nl =                                           :f(main20)
+            DIFFER(ntBldDir)                                                                 :f(main10)
+            fromBldDir        =     fromDir '/' ntBldDir
+            GT(iniNTBldDate, ntBldDate)                                                      :s(main15)
+            LT(iniNTBldDate, ntBldDate)                                                      :s(main25)
+            LT(iniNTBldVersion, ntBldVersion)                                                :s(main25)f(main15)
+main20      lst               POS(0) ARB nl =                                                :s(main15)
+            lst               POS(0) RPOS(0)                                                 :f(xerr)
+            ini['dates_' c][h '_' m] = ntBldDate '.' ntBldVersion
+            IniWrite('acc.ini', ini)                                                         :(main10)
+main25      bomExt            =     IDENT(i) ini[c '_' h '_extension']['item0']
+            bomExt            =     DIFFER(i) ini[c '_' h '_extension']['item' i]
+*           EQ(counter, 0) Rollback(bomStem, bomExt, ntBldDir)
+            prequalify_bom    =     bomStem '_prequalify.bom'
+            ss_get('maxm', '$/bom/' prequalify_bom,, '-i-y')
+            PreQualify(c, h, m, fromBldDir)                                                  :f(pq_error)
+            toBldDir          =     toDir '/' ntBldDir
+            Scrub(toBldDir)
+            system('-mkdir', '-p ' toBldDir)                                                 :f(xerr)
+main26      system('-cp', '-R ' fromBldDir ' ' toBldDir)                                     :f(xerr)
+            bomIni['verify_copy']   =  TABLE()
+            bomIni['verify_copy']['Dir0'] =  toBldDir
+            bomIni['verify_copy']['Dir0_NumberOfFilters']   =  0
+            bomIni['verify_copy']['NumberOfDirectories'] =  1
+            IniWrite('bom.ini', bomIni)
+            verification      =     system('-bom',
++           '-l -1 "' env['HOME'] '/baselines/' bomStem '_actual_prequalify.bom" -2 "verify_copy"')
+            verification      ( 'Create ' | 'Drop   ' | 'Alter  ' )                          :s(cp_error)
+            installFolder     =     bslash(instDir)
+            i                 =     0
+            iniTbl            =     IniRead(toBldDir '/PDB_Install.ini')                     :f(xerr)
+            LEQ(today, ini['variables']['component_day'])                                    :s(main35)
+            ntSelections      =     ntSelectionsBak
+main30      ntSelections      POS(0) RPOS(0)                                                 :s(main45)
+            ntSelections      POS(0) ARB . idTitle (',' | RPOS(0)) =
+            iniTbl['Selections'][ini['installComponents'][idTitle]] = 1                      :(main30)
+main35      select_string     =     ini[c '_' h '_variations']['item' i]                     :f(main49)
+            all_string        =     ini[c '_' h '_variations']['item' 0]
+main40      all_string        POS(0) RPOS(0)                                                 :s(main45)
+            all_string        POS(0) ARB . item (',' | RPOS(0)) =                            :f(xerr)
+            select_string     (',' | POS(0)) item (',' | RPOS(0))                            :s(main41)f(main42)
+main41      iniTbl['Selections'][ini['installComponents'][item]] = 1                         :(main40)
+main42      iniTbl['Selections'][ini['installComponents'][item]] = 0                         :(main40)
+main45      iniTbl['Information']['User Name']    = userName
+            iniTbl['Information']['Company Name'] = companyName
+            iniTbl['Directory']['InstallFolder']  = installFolder
+            iniTbl['StartMenu']                   = TABLE()
+            iniTbl['StartMenu']['Program Folder'] = ntProgramFolder
+            IDENT(h, 'ntsrv')                                                                :f(main47)
+            iniTbl['Jobs']['Job Load']   = 2
+            iniTbl['Jobs']['Port#']      = 1313
+            iniTbl['Jobs']['Job Folder'] = installFolder bs 'jobs'
+            iniTbl['KM']['Patrol Home']  = installFolder bs 'km'
+            iniTbl['DefaultConnectMethod'] = TABLE()
+            iniTbl['DefaultConnectMethod']['DefaultConnectMethod'] = 'DB22'
+main47      IniWrite(toBldDir '/PDB_Install.ini', iniTbl)                                    :f(xerr)
+            Scrub(instDir)
+            system('-mkdir', '-p ' instDir)                                                  :f(xerr)
+            system('-' toBldDir '/setup', '-SMS -s')
+            bomExt            =     ini[c '_' h '_extension']['item' i]
+            bomStamp          =     bomStem '_' ntBldDate '_' ntBldVersion bomExt
+            EQ(ini[c]['install_verify'], 1)                                                  :s(main08)
+            DIFFER(bomIni[bomStem])                                                          :f(main48)
+            bomIni[bomStem]   =     TABLE()
+            bomIni[bomStem]['Dir0'] = instDir
+            bomIni[bomStem]['Dir1_ScopeIncludeFilter0'] = "icase('msvc') break('.') '.' (icase('dbg') | icase('dll') | icase('map') | icase('pdb')) rpos(0)"
+            bomIni[bomStem]['Dir1_ScopeIncludeFilter1'] = "icase('mfc') break('.') '.' (icase('dbg') | icase('dll') | icase('map') | icase('pdb')) rpos(0)"
+            bomIni[bomStem]['Dir1_NumberOfFilters'] = 2
+            bomIni[bomStem]['Dir1'] = '${WINDIR}/system32'
+            LEQ(h, 'client')                                                                 :s(clientl)
+            bomIni[bomStem]['NumberOfDirectories'] = 3
+            bomIni[bomStem]['Dir0_NumberOfFilters'] = 1
+            bomIni[bomStem]['Dir0_ScopeExcludeFilter0'] = "icase('/km')"
+            bomIni[bomStem]['Dir2'] = instDir '/km'                                          :(main48)
+            bomIni[bomStem]['Dir2_NumberOfFilters'] = 0
+clientl     bomIni[bomStem]['NumberOfDirectories'] = 2
+            bomIni[bomStem]['Dir0_NumberOfFilters'] = 0
+main48      IniWrite('bom.ini', bomIni)
+            ExecuteBom(bomStem, bomExt, bomStamp, bomStem, ntBldDate '.' ntBldVersion)       :f(BomError0)
+*           Scrub(instDir)
+            i                 =     LEQ(today, component_day) i + 1                          :s(main35)
+main49
+*           Scrub(toBldDir)
+            counter           =     counter + 1                                              :(main15)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+*
+*           Unix server bom compare process
+*
+main50      DIFFER(ini[c]['unix_dir'])                                                       :f(main00)
+            unixDir           =     EVAL(ini[c]['unix_dir'])
+            lst               =     system('-ls', '-1 "' unixDir '"')
+            unixDirPat        =     EVAL(ini[c]['unix_dir_pat'])
+            unixHosts         =     ini[c]['unix_hosts']
+main55      unixHosts         POS(0) RPOS(0)                                                 :s(main00)
+            unixHosts         POS(0) ARB . unixHost (',' | RPOS(0)) =                        :f(xerr)
+            counter           =     0
+            EQ(ini[c]['install_verify'], 1)                                                  :f(main58)
+            instDir           =     ini[c]['install_verify_dir'] unixHost
+            lst               unixDirPat nl 'mls' nl RPOS(0)
+            baseDir           =     unixDir '/' unixBldDir '/' unixHost
+            OUTPUT(.unix_verify, 5, 'verify_' unixHost '.log')
+            unix_verify       =     system('-bom', '-p -c -1 ' baseDir ' -2 ' instDir)
+            ENDFILE(5)                                                                       :(main55)
+main58      lst_dup           =     lst
+main60      lst_dup           POS(0) unixDirPat nl =                                         :f(main65)
+            DIFFER(ini['dates_' c][unixHost])                                                :f(iniicu)
+            GT(unixBldDir, ini['dates_' c][unixHost])                                        :s(main70)f(main60)
+main65      lst_dup           POS(0) ARB nl =                                                :s(main60)
+            lst_dup           POS(0) RPOS(0)                                                 :f(xerr)
+            unixInstDir       =     DIFFER(unixBldDir) unixDir '/' unixBldDir '/' unixHost
+            unixInstDir       =     IDENT(unixInstDir) unixDir '/' last_unixBldDir '/' unixHost
+            ini['dates_' c][unixHost] = unixBldDir
+            IniWrite('acc.ini', ini)                                                         :(main55)
+main70      bomStem           =     c '_' unixHost
+*           EQ(counter, 0) Rollback(bomStem, '_all', unixBldDir)
+            bomNm             =     bomStem '_release'
+            bomStamp          =     c '_' unixHost '_' unixBldDir
+            last_unixBldDir   =     unixBldDir
+            unixInstDir       =     unixDir '/' unixBldDir '/' unixHost
+            counter           =     counter + 1
+            bomIni[c '_' unixHost] = TABLE()
+            bomIni[c '_' unixHost]['Dir0'] = unixInstDir
+            bomIni[c '_' unixHost]['Dir0_ScopeExcludeFilter0'] = "icase('/pdbkm')"
+            bomIni[c '_' unixHost]['Dir1'] = unixInstDir '/pdbkm'
+            bomIni[c '_' unixHost]['NumberOfDirectories'] = 2
+            bomIni[c '_' unixHost]['Dir0_NumberOfFilters'] = 1
+            IniWrite('bom.ini', bomIni)
+            ExecuteBom(bomNm, '_all', bomStamp, bomStem, unixBldDir)                         :f(BomError1)s(main60)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+*
+*           Errors and such
+*
+pq_error    OUTPUT            =     'build ' fromBldDir ' is not complete'
+            lst               POS(0) RPOS(0)                                                 :f(main15)
+            ini['dates_' c][h '_' m] = iniNTBldDate '.' iniNTBldVersion                      :(main10)
+fini        IniWrite('acc.ini', ini)                                                         :(END)
+cp_error    OUTPUT            =     '*** cp failed to copy correctly.'
+            OUTPUT            =     verification
+            OUTPUT            =     'Repeat copy.'                                           :(main26)
+xerr        OUTPUT            =     '*** unexpected error'                                   :(END)
+error       OUTPUT            =     '*** closing channel 4 failed'                           :(END)
+iniicu      OUTPUT            =     '*** The ini file lacks information for ' c '_' unixHost :(END)
+iniicw      OUTPUT            =     '*** The ini file lacks information for ' bomStem        :(END)
+IniReadErr  OUTPUT            =     '*** The acc.ini file failed to be read.'                :(END)
+BomReadErr  OUTPUT            =     '*** The bom.ini file failed to be read.'
+diskerr     OUTPUT            =     'So you still have your disk.  You are welcome.'         :(END)
+BomError0   OUTPUT            =     'ExecuteBom failed for section ' bomStem ' ' bomStamp    :(main20)
+BomError1   OUTPUT            =     'ExecuteBom failed for section ' bomStem ' ' bomStamp    :(main60)
+BomError2   OUTPUT            =     'Populate Image feature failed.'                         :(END)
+BomError3   OUTPUT            =     'Check Image feature failed.'                            :(END)
+BomError4   OUTPUT            =     'Media Verification feature failed.'                     :(END)
+BomError5   OUTPUT            =     'Workfold command for sa baseline failed.'               :(END)
+*-INCLUDE 'debug.sno'
+END

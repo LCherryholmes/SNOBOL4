@@ -1,0 +1,12 @@
+            EOL                                 =  nl
+            PLUS                                =  '+'
+            MINUS                               =  '-'
+            MULTIPLY                            =  '*'
+            DIVIDE                              =  '/'
+            CONSTANT                            =  %*DIGIT
+            DIGIT                               =  ANY('0123456789')
+            one_line                            =  *sum *EOL | *EOL | $' ' RPOS(0)
+            sum                                 =  *term !%((*PLUS | *MINUS) *term)
+            term                                =  *unary !%((*MULTIPLY | *DIVIDE) *unary)
+            unary                               =  *MINUS *element | *element
+            element                             =  *CONSTANT | $'(' *sum $')'

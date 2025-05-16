@@ -1,0 +1,113 @@
+*-------------------------------------------------------------------------------------------------------------------------
+-INCLUDE    'utility.inc'
+*---------- ----------- ----- ----------------------------------------------------------- -------------------------------
+main        Utility()
+            snoVar      =     (POS(0) | NOTANY(&UCASE &LCASE digits '_')) . lft
++                             (  'abort'
++                             |  'arb'
++                             |  'bal'
++                             |  'end'
++                             |  'fail'
++                             |  'fence'
++                             |  'freturn'
++                             |  'include'
++                             |  'input'
++                             |  'nreturn'
++                             |  'output'
++                             |  'rem'
++                             |  'return'
++                             |  'success'
++                             |  'terminal'
++                             ) . nm
++                             (NOTANY(&UCASE &LCASE digits '_(') | RPOS(0)) . rgt
+
+            snoKeyword  =     '&' . lft
++                             (  'anchor'
++                             |  'alphabet'
++                             |  'fullscan'
++                             |  'lcase'
++                             |  'trace'
++                             |  'trim'
++                             |  'ucase'
++                             ) . nm
++                             epsilon . rgt
+
+            snoFunc     =     NOTANY(&UCASE &LCASE digits '_') . lft
++                             (  'any'
++                             |  'arbno'
++                             |  'array'
++                             |  'break'
++                             |  'breakx'
++                             |  'char'
++                             |  'convert'
++                             |  'data'
++                             |  'date'
++                             |  'datatype'
++                             |  'define'
++                             |  'differ'
++                             |  'dupl'
++                             |  'endfile'
++                             |  'eval'
++                             |  'exit'
++                             |  'eq' | 'leq'
++                             |  'fence'
++                             |  'ge' | 'lge'
++                             |  'gt' | 'lgt'
++                             |  'host'
++                             |  'ident'
++                             |  'input'
++                             |  'integer'
++                             |  'le' | 'lle'
++                             |  'len'
++                             |  'lpad'
++                             |  'lt' | 'llt'
++                             |  'ne' | 'lne'
++                             |  'notany'
++                             |  'output'
++                             |  'pos'
++                             |  'prototype'
++                             |  'remdr'
++                             |  'rpad'
++                             |  'rpos'
++                             |  'rtab'
++                             |  'size'
++                             |  'sort'
++                             |  'span'
++                             |  'substr'
++                             |  'tab'
++                             |  'table'
++                             |  'trace'
++                             |  'trim'
++                             ) . nm
++                             '(' . rgt
+
+            argPos      =     HOST(3)
+            drvNme      =     HOST(2, argPos)                                             :f(usage)
+            lsNames     =     drvNme '/*.sno' ' ' drvNme '/*.inc'
+            lsResp      =     system('@-ls', '-1 ' lsNames)
+main05      lsResp      POS(0) BREAK(nl) . srcFile . tgtFile nl =                         :f(END)
+            srcFile     '-new.' LEN(3) RPOS(0)                                            :s(main05)
+            tgtFile     '.' LEN(3) . ext RPOS(0) = '-new.' ext
+            OUTPUT      =     DUPL('=', 40) ' ' srcFile
+            INPUT(.snoInput, 3, srcFile)                                                  :f(xerr)
+            OUTPUT(.snoOutput, 4, tgtFile)                                                :f(xerr)
+main10      snoInLine   =     snoInput                                                    :f(main40)
+            snoOutLine  =
+            snoInLine   POS(0) ('-' BREAK(' ')) . snoPart REM . snoOutLine =              :s(main30)
+            snoInLine   POS(0) ('*' REM) . snoOutLine =                                   :s(main35)
+main15      snoInLine   POS(0) RPOS(0)                                                    :s(main35)
+            snoInLine   POS(0) ("'" BREAK("'") "'") . snoPart =                           :s(main25)
+            snoInLine   POS(0) ('"' BREAK('"') '"') . snoPart =                           :s(main25)
+            snoInLine   POS(0) (";*" REM) . snoPart =                                     :s(main25)
+            snoInLine   POS(0) BREAK("'" '";') . snoPart (("'" | '"') REM) . snoInLine    :s(main20)
+            snoInLine   POS(0) BREAK("'" '";') . snoPart (';*' REM) . snoInLine           :s(main20)
+            snoInLine   POS(0) REM . snoPart =
+main20      snoPart     snoFunc    = lft upr(nm) rgt                                      :s(main20)
+            snoPart     snoKeyword = lft upr(nm) rgt                                      :s(main20)
+            snoPart     snoVar     = lft upr(nm) rgt                                      :s(main20)
+main25      snoOutLine  =     snoOutLine snoPart                                          :(main15)
+main30      snoOutput   =     upr(snoPart) snoOutLine                                     :(main10)
+main35      snoOutput   =     snoOutLine                                                  :(main10)
+main40      (ENDFILE(3) ENDFILE(4))                                                       :(main05)
+usage       OUTPUT      =     'usage: snocase <directory>'                                :(END)
+END

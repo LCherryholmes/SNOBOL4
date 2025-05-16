@@ -1,0 +1,571 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Radian6.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all entities ... ----------------------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*---------- FOR every chunk/entry ... -----------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'XML.inc'
+*========== =========== === ======================================================= ====================
+            &MAXLNGTH   =   4194304
+            xListener   =   'Listen2Radian6'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'http://company.com'
+            r6AuthUrl   =   'http://sandboxapi.radian6.com/socialcloud/v1/auth/authenticate?_type=xml' ;* sandboxapi
+            r6TopicsUrl =   'http://sandboxapi.radian6.com/socialcloud/v1/topics?_type=xml'
+            r6MediaUrl  =   'http://sandboxapi.radian6.com/socialcloud/v1/lookup/mediaproviders?_type=xml'
+            r6SortsUrl  =   'http://sandboxapi.radian6.com/socialcloud/v1/lookup/sorttypes?_type=xml'
+            r6DataUrl   =   'http://sandboxapi.radian6.com/socialcloud/v1/data/topicdata/range'
+*           r6DataUrl   =   'http://sandboxapi.radian6.com/socialcloud/v1/data/topicdata/recent'
+*           r6DataUrl   =   'http://sandboxapi.radian6.com/socialcloud/v1/data/topicdata/realtime'
+            auth_user   =   'email@company.com'
+            auth_pass   =   'ffffffffffffffffffffffffffffffff'
+            auth_appkey =   '9999999999'
+            mediatypes  =   '1,2,4,5,8,9,10,11,12,13,14,16'
+            pageSize    =   50
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DATA('ArticleType(article_id,headline,author_id,author_name,recipient,content,external_id'
++                            ',avatar,source_id,source_name,host,article_url,media_provider'
++                            ',media_type_id,language_id,spam_rating,publish_date,harvest_date)')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            iColumns              =  22
+            r6Columns             =  ARRAY('1:' iColumns)
+            r6Columns[c = 1]      =  column("id$",              "int",           *NULL)
+            r6Columns[c = c + 1]  =  column("stamp$",           "timestamp",     *DUPL(CHAR(0), 8))
+            r6Columns[c = c + 1]  =  column("topic_id$",        "int",           *iE)
+            r6Columns[c = c + 1]  =  column("article_id",       "bigint",        *article_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("headline",         "nvarchar(max)", *headline(r6xArticle))
+            r6Columns[c = c + 1]  =  column("author_id",        "varchar(max)",  *author_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("author_name",      "nvarchar(max)", *author_name(r6xArticle))
+            r6Columns[c = c + 1]  =  column("recipient",        "nvarchar(max)", *recipient(r6xArticle))
+            r6Columns[c = c + 1]  =  column("content",          "nvarchar(max)", *content(r6xArticle))
+            r6Columns[c = c + 1]  =  column("external_id",      "varchar(96)",   *external_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("avatar",           "varchar(max)",  *avatar(r6xArticle))
+            r6Columns[c = c + 1]  =  column("source_id",        "varchar(max)",  *source_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("source_name",      "nvarchar(max)", *source_name(r6xArticle))
+            r6Columns[c = c + 1]  =  column("host",             "varchar(max)",  *host(r6xArticle))
+            r6Columns[c = c + 1]  =  column("article_url",      "varchar(892)",  *article_url(r6xArticle))
+            r6Columns[c = c + 1]  =  column("media_provider",   "varchar(32)",   *media_provider(r6xArticle))
+            r6Columns[c = c + 1]  =  column("media_type_id",    "int",           *media_type_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("language_id",      "int",           *language_id(r6xArticle))
+            r6Columns[c = c + 1]  =  column("spam_rating",      "int",           *spam_rating(r6xArticle))
+            r6Columns[c = c + 1]  =  column("publish_date",     "datetime",      *publish_date(r6xArticle))
+            r6Columns[c = c + 1]  =  column("harvest_date",     "datetime",      *harvest_date(r6xArticle))
+            r6Columns[c = c + 1]  =  column("content_japanese", NULL,            *NULL)
+*---------- ----------- --- ------------------------------------------------------------------------
+            r6Expr      =  *(   DTDiff(DTDecode(xT['Since']), epochDT) '000'
++                           '/' DTDiff(DTDecode(xT['Until']), epochDT) '000'
++                           '/' topics[xE]
++                           '/' mediatypes
++                           '/' iPage
++                           '/' pageSize
++                           '?' '_type=xml'
++                           '&' 'includeSpam=1'
++                           '&' 'includeFullContent=1'
++                           )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DEFINE('CDATA_Trim(CDATA_Trim)')                                        :(CDATA_TrimEnd)
+CDATA_Trim  CDATA_Trim  POS(0) $'  ' =
+            CDATA_Trim  $'  ' RPOS(0) =                                             :(RETURN)
+CDATA_TrimEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DEFINE('SQLDate(dt)year,month,day,hour,minute,seconds')
+            r6MonthList =   '(Jan,01)(Feb,02)(Mar,03)(Apr,04)(May,05)(Jun,06)'
++                           '(Jul,07)(Aug,08)(Sep,09)(Oct,10)(Nov,11)(Dec,12)'      :(SQLDateEnd)
+SQLDate     dt          ?   POS(0)
++                           r6Year . year
++                           '-' r6Month . month
++                           '-' r6Day . day
++                           ' ' r6Hour . hour
++                           ':' r6Minute . minute
++                           ':' r6Second . seconds
++                           ' ' r6Fraction
++                           RPOS(0)                                                 :F(error)
+*           r6MonthList ?   '(' month ',' r6Int . month ')'                         :F(error)
+*           hour        =   EQ(hour, 12) IDENT(meridian, 'AM') 0                    :S(SQLDate1)
+*           hour        =   EQ(hour, 12) IDENT(meridian, 'PM') 12                   :S(SQLDate1)
+*           hour        =   IDENT(meridian, 'PM') hour + 12
+SQLDate1    SQLDate     =   year '-' month '-' day ' ' hour ':' minute ':' seconds  :(RETURN)
+SQLDateEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'<?'       =   $' ' TY(1, '<?', '<?')
+            $'?>'       =   $' ' TY(1, '?>', '?>')
+            $'<'        =   $' ' TY(1, '<', '<')
+            $'>'        =   $' ' TY(1, '>', '>')
+            $'/>'       =   $' ' TY(1, '/>', '/>')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            r6Digits    =   SPAN('0123456789') . r6xN
+            r6Int       =   (FENCE('+' | '-' | epsilon) SPAN('0123456789')) . r6xN
+            r6Year      =   r6Digits $ r6xN *EQ(SIZE(r6xN), 4)
+            r6Month     =   r6Digits $ r6xN *EQ(SIZE(r6xN), 2)
+            r6Day       =   r6Digits $ r6xN *EQ(SIZE(r6xN), 2)
+            r6Hour      =   r6Digits $ r6xN *EQ(SIZE(r6xN), 2)
+            r6Minute    =   r6Digits $ r6xN *EQ(SIZE(r6xN), 2)
+            r6Second    =   r6Digits $ r6xN *EQ(SIZE(r6xN), 2)
+            r6Fraction  =   '+' r6Digits $ r6xN *EQ(SIZE(r6xN), 4)
+            r6Date      =   r6Year '-' r6Month '-' r6Day
+            r6Time      =   r6Hour ':' r6Minute ':' r6Second ' ' r6Fraction
+            r6DateTime  =   (r6Date ' ' r6Time) . r6xDateTime
+            r6XmlVal    =   BREAK('<') . r6xXmlVal
+            r6AttrVal   =   '"' BREAK('"') . r6xAttrVal '"'
+            r6CDATA     =   epsilon . r6xCDATA ARBNO(*r6CData . *assign(.r6xCDATA, r6xCDATA r6xCData))
+            r6CData     =   '<![CDATA[' BREAKX(']') . r6xCData . *assign(.r6xCData, CDATA_Trim(r6xCData)) ']]>' FENCE
+*---------- ----------- --- ----------------------------------------------------------------------------
+            r6Tags      =   'aihUser/aihUsers/article/article_count/article_url/auth/author/author_full_name/avatar/'
++                           'bCode/clientId/competeEnabled/complexity/content/createdDate/createDate/'
++                           'creatorEmail/creatorId/creatorName/deactivationDate/description/displayName/'
++                           'emailAddress/enabled/estimateVolume/evp/excludeSourceFilterList/'
++                           'external_id/filterIds/filterGroup/filterGroups/filterGroupId/'
++                           'filterGroupTypeId/filterQuery/filterQueries/filterQueryId/'
++                           'filterQueryTypeId/harvest_date/headline/historicalData/host/'
++                           'inboundOnTopicLinksCount/includeAllSourceFilterList/includeSourceFilterList/'
++                           'language_id/languages/lowerTrafficLimit/media_provider/mediaType/'
++                           'media_type_id/name/number_queries/packages/projects/public/publish_date/'
++                           'query/radian6_RiverOfNews_export/recipient/regions/report_date/'
++                           'reportFormatedData/registerDate/sentimentQueries/source/spam_rating/'
++                           'status/timezone/token/topicFilter/topicFilters/topicFilterId/'
++                           'topicFilterTier/topicFilterTierId/topicFilterTypeId/total_article_count/'
++                           'type/upperTrafficLimit/user/user_name/userId/userKey/userRoleId/'
++                           'Packages/PostDynamicsDefinition/PostDynamicsIteration/RoN_sort_order/'
++                           'UserDetails/'
+L01         r6Tags      ?   POS(0) BREAK('/') . r6xT '/' =                      :F(L03)
+            $('<'  r6xT    ) = $' ' TY(1, '<'  r6xT    , '<'  r6xT         )
+            $('<'  r6xT '>') = $' ' TY(1, '<'  r6xT '>', '<'  r6xT $' ' '>')
+            $('</' r6xT    ) = $' ' TY(1, '</' r6xT    , '</' r6xT         )
+            $('</' r6xT '>') = $' ' TY(1, '</' r6xT '>', '</' r6xT $' ' '>')    :(L01)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+L03         r6AuthResp  =   POS(0) FENCE *r6Auth $' ' RPOS(0)
+            r6Auth      =   $'<auth>'
++                               $'<token>' *r6XmlVal . auth_token $'</token>'
++                               $'<UserDetails>'
++                                   $'<user>'
++                                       $'<userId>' *r6Int $'</userId>'
++                                       $'<clientId>' *r6Int $'</clientId>'
++                                       $'<displayName>' *r6CDATA $'</displayName>'
++                                       $'<emailAddress>' *r6XmlVal $'</emailAddress>'
++                                       $'<timezone>' *r6XmlVal $'</timezone>'
++                                       ($'<packages' $'/>' | $'<packages>' *r6XmlVal $'</packages>')
++                                       $'<userRoleId>' *r6Int $'</userRoleId>'
++                                       $'<createdDate>' *r6XmlVal $'</createdDate>'
++                                       $'<enabled>' *r6XmlVal $'</enabled>'
++                                       $'<aihUsers>'
++                                           $'<aihUser>'
++                                               $'<userKey>' *r6XmlVal $'</userKey>'
++                                               $'<registerDate>' *r6Int $'</registerDate>'
++                                               $'<type>' *r6Int $'</type>'
++                                           $'</aihUser>'
++                                       $'</aihUsers>'
++                                   $'</user>'
++                                   $'<avatar' $'/>'
++                                   ($'<Packages' $'/>' | $'<Packages>' *r6XmlVal $'</Packages>')
++                               $'</UserDetails>'
++                             $'</auth>'
+
+            r6TopicsResp =  POS(0) FENCE *r6Topics $' ' RPOS(0)
+            r6Topics    =   epsilon . *assign(.topics, TABLE())
++                           $'<topicFilters>'
++                           ARBNO(
++                               $'<topicFilter>'
++                                   $'<name>' *r6CDATA $'</name>'                                       . *assign(.topicName, r6xCDATA)
++                                   $'<public>' *r6Int $'</public>'
++                                   $'<status>' *r6Int $'</status>'
++                                   $'<estimateVolume>' *r6Int $'</estimateVolume>'
++                                   $'<complexity>' *r6XmlVal $'</complexity>'
++                                   $'<competeEnabled>' *r6Int $'</competeEnabled>'
++                                   $'<topicFilterTypeId>' *r6Int $'</topicFilterTypeId>'
++                                   $'<bCode>' *r6CDATA $'</bCode>'
++                                   $'<creatorId>' *r6Int $'</creatorId>'
++                                   $'<creatorName>' *r6CDATA $'</creatorName>'
++                                   $'<creatorEmail>' *r6XmlVal $'</creatorEmail>'
++                                   $'<createDate>' *r6Int $'</createDate>'
++                                   $'<historicalData>' *r6Int $'</historicalData>'
++                                   $'<topicFilterId>' *r6Int $'</topicFilterId>'                       . *assign(.topicId, r6xN)
++                                   $'<inboundOnTopicLinksCount>' *r6Int $'</inboundOnTopicLinksCount>' . *assign(.topics[topicName], +topicId)
++                                   $'<languages>' *r6XmlVal $'</languages>'
++                                   $'<mediaType>' *r6XmlVal $'</mediaType>'
++                                   $'<projects>' *r6XmlVal $'</projects>'
++                                   $'<regions>' *r6XmlVal $'</regions>'
++                                   $'<deactivationDate>' *r6XmlVal $'</deactivationDate>'
++                                   $'<evp>' *r6XmlVal $'</evp>'
++                                   $'<topicFilterTier>'
++                                       $'<topicFilterTierId>' *r6Int $'</topicFilterTierId>'
++                                       $'<name>' *r6XmlVal $'</name>'
++                                       $'<lowerTrafficLimit>' *r6Int $'</lowerTrafficLimit>'
++                                       $'<upperTrafficLimit>' *r6Int $'</upperTrafficLimit>'
++                                   $'</topicFilterTier>'
++                                   $'<number_queries>' *r6Int $'</number_queries>'
++                                   $'<filterGroups>'
++                                   ARBNO(
++                                       $'<filterGroup>'
++                                           $'<filterGroupId>' *r6Int $'</filterGroupId>'
++                                           $'<name>' *r6CDATA $'</name>'
++                                           $'<filterGroupTypeId>' *r6Int $'</filterGroupTypeId>'
++                                           $'<filterQueries>'
++                                           ARBNO(
++                                               $'<filterQuery>'
++                                                   $'<query>' *r6CDATA $'</query>'
++                                                   $'<filterQueryId>' *r6Int $'</filterQueryId>'
++                                                   $'<filterQueryTypeId>' *r6Int $'</filterQueryTypeId>'
++                                               $'</filterQuery>'
++                                           )
++                                           $'</filterQueries>'
++                                       $'</filterGroup>'
++                                   )
++                                   $'</filterGroups>'
++                                   $'<sentimentQueries>' $'</sentimentQueries>'
++                                   $'<includeSourceFilterList>'
++                                       $'<filterIds>' $'</filterIds>'
++                                   $'</includeSourceFilterList>'
++                                   $'<excludeSourceFilterList>'
++                                       $'<filterIds>' $'</filterIds>'
++                                   $'</excludeSourceFilterList>'
++                                   $'<includeAllSourceFilterList>'
++                                       $'<filterIds>' $'</filterIds>'
++                                   $'</includeAllSourceFilterList>'
++                               $'</topicFilter>'
++                           )
++                           $'</topicFilters>'
+
+            r6DataResp  =   POS(0) FENCE *r6DataXml $' ' RPOS(0)
+
+            r6DataXml   =   $'<?' 'xml version="1.0" encoding="UTF-8"' $'?>'
++                           $'<radian6_RiverOfNews_export>'
++                               $'<report_date>' *r6XmlVal $'</report_date>'
++                               $'<user_name>' *r6XmlVal $'</user_name>'
++                               $'<RoN_sort_order>' *r6XmlVal $'</RoN_sort_order>'
++                               $'<article_count>' *r6Int $'</article_count>'
++                               $'<total_article_count>' *r6Int $'</total_article_count>'
++                               *r6Chunks
++                           $'</radian6_RiverOfNews_export>'
+
+            r6Chunk     =   ($'<article' $'  ' 'ID="' *r6Int '"' $'>' BREAKX('<') $'</article>')
+
+            r6Chunks    =   epsilon . *assign(.r6xC, 0)
++                           epsilon . *assign(.r6xChunks, TABLE())
++                           ARBNO(*r6Chunk . r6xChunk . *assign(.r6xChunks[r6xC = r6xC + 1], r6xChunk))
+
+            r6Article   =   epsilon . *assign(.r6xArticle, ArticleType())
++                           $'<article' $'  ' 'ID=' *r6AttrVal $'>'                         . *assign(.article_id(r6xArticle), r6xAttrVal)
++                               $'<description' $'  ' 'charset="UTF-8"' $'>'
++                                   (  $'<headline' $'/>'
++                                   |  $'<headline>' *r6CDATA $'</headline>'                . *assign(.headline(r6xArticle), XMLDecode(r6xCDATA))
++                                   )
++                                   (  $'<author'
++                                     !(  $'  ' 'fbid=' *r6AttrVal                          . *assign(.author_id(r6xArticle), r6xAttrVal)
++                                         !($'  ' 'externalId=' *r6AttrVal)
++                                      ) $'/>'
++                                   |  $'<author'
++                                     !(  $'  ' 'fbid=' *r6AttrVal                          . *assign(.author_id(r6xArticle), r6xAttrVal)
++                                         !($'  ' 'externalId=' *r6AttrVal)
++                                      ) $'>'
++                                          *r6CDATA                                         . *assign(.author_name(r6xArticle), XMLDecode(r6xCDATA))
++                                      $'</author>'
++                                   )
++                                  !(  $'<author_full_name' $'/>'
++                                   |  $'<author_full_name>' *r6CDATA $'</author_full_name>'
++                                   )
++                                   (  $'<recipient' $'/>'
++                                   |  $'<recipient>' *r6CDATA $'</recipient>'              . *assign(.recipient(r6xArticle), XMLDecode(r6xCDATA))
++                                   )
++                                   (  $'<content' $'/>'
++                                   |  $'<content>'
++                                          ARBNO(*r6CDATA . *assign(.content(r6xArticle), content(r6xArticle) XMLDecode(r6xCDATA)))
++                                      $'</content>'
++                                   )
++                                   (  $'<external_id>'
++                                      (  'null'                                            . *assign(.external_id(r6xArticle), NULL)
++                                      |  *r6XmlVal                                         . *assign(.external_id(r6xArticle), XMLDecode(r6xXmlVal))
++                                      )
++                                      $'</external_id>'
++                                   |  *r6CDATA                                             . *assign(.external_id(r6xArticle), XMLDecode(r6xCDATA))
++                                   )
++                               $'</description>'
++                              !(  $'<avatar' $'/>'
++                               |  $'<avatar>'
++                                  (  *r6CDATA                                              . *assign(.avatar(r6xArticle), XMLDecode(r6xCDATA))
++                                  |  *r6XmlVal                                             . *assign(.avatar(r6xArticle), XMLDecode(r6xXmlVal))
++                                  )
++                                  $'</avatar>'
++                               )
++                               (  $'<source' $'/>'
++                               |  $'<source' $'  ' 'ID=' *r6AttrVal $'>'                   . *assign(.source_id(r6xArticle), r6xAttrVal)
++                                      (  *r6XmlVal                                         . *assign(.source_name(r6xArticle), XMLDecode(r6xXmlVal))
++                                      |  *r6CDATA                                          . *assign(.source_name(r6xArticle), XMLDecode(r6xCDATA))
++                                      )
++                                  $'</source>'
++                               )
++                               $'<host>' *r6CDATA $'</host>'                               . *assign(.host(r6xArticle), XMLDecode(r6xCDATA))
++                               (  $'<article_url' $'/>'
++                               |  $'<article_url>' *r6CDATA $'</article_url>'              . *assign(.article_url(r6xArticle), XMLDecode(r6xCDATA))
++                               )
++                               (  $'<media_provider' $'/>'
++                               |  $'<media_provider>'
++                                     *r6XmlVal                                             . *assign(.media_provider(r6xArticle), XMLDecode(r6xXmlVal))
++                                  $'</media_provider>'
++                               )
++                               $'<media_type_id>' *r6Int $'</media_type_id>'               . *assign(.media_type_id(r6xArticle), +r6xN)
++                               $'<language_id>'
++                                   (('+' | '-' | epsilon) *r6Int) . r6xInt                 . *assign(.language_id(r6xArticle), +r6xInt)
++                               $'</language_id>'
++                               $'<spam_rating>' *r6Int $'</spam_rating>'                   . *assign(.spam_rating(r6xArticle), +r6xN)
++                               $'<publish_date' $'  ' 'epoch="' *r6Int '"' $'>'
++                                   *r6DateTime                                             . *assign(.publish_date(r6xArticle), SQLDate(r6xDateTime))
++                               $'</publish_date>'
++                               $'<harvest_date' $'  ' 'epoch="' *r6Int '"' $'>'
++                                   *r6DateTime                                             . *assign(.harvest_date(r6xArticle), SQLDate(r6xDateTime))
++                               $'</harvest_date>'
++                               $'<PostDynamicsIteration>'
++                                   ARBNO(*r6PDD)
++                                   (  $'<reportFormatedData' $'/>'
++                                   |  $'<reportFormatedData>' *r6CDATA $'</reportFormatedData>'
++                                   )
++                               $'</PostDynamicsIteration>'
++                           $'</article>'
+
+            r6PDD       =   $'<PostDynamicsDefinition>' BREAKX('<') $'</PostDynamicsDefinition>'
+
+            r6HTML      =   '<!DOCTYPE HTML PUBLIC "' BREAK('"') '">'
++                           $' ' '<html>'
++                           $' '     '<head>'
++                           $' '         '<title>'
++                                        (   '500 Internal Server Error'
++                                        |   '503 Service Temporarily Unavailable'
++                                        ) . r6Error
++                           $' '         '</title>'
++                           $' '     '</head>'
++                           $' '     '<body>' BREAKX('<') '</body>'
++                           $' ' '</html>'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            r6DataResp  =   epsilon $ t8Max
++                           TZ(1, 'r6DataResp', r6DataResp)
+            r6DataXml   =   TZ(1, 'r6DataXml', r6DataXml)
+            r6AuthResp  =   epsilon $ t8Max
++                           TZ(1, 'r6AuthResp', r6AuthResp)
+            r6Auth      =   TZ(1, 'r6Auth', r6Auth)
+            r6Article   =   epsilon $ t8Max
++                           TZ(1, 'r6Article', r6Article)
+            r6PDD       =   TZ(1, 'r6PDD', r6PDD)
+            r6DateTime  =   TY(1, 'r6DateTime', r6DateTime)
+            r6Digits    =   TY(1, 'r6Digits', r6Digits)
+            r6Int       =   TY(1, 'r6Int', r6Int)
+            r6XmlVal    =   TY(1, 'r6XmlVal', r6XmlVal)
+            r6AttrVal   =   TY(1, 'r6AttrVal', r6AttrVal)
+            r6CDATA     =   TY(1, 'r6CDATA', r6CDATA)                           ;*   :(L100)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(LEnd)
+            SetupCancel()                                                       :F(LEnd)
+L05         SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+*           SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(r6Columns, xListener, 'Content')                           :F(SQLFail)
+            curl        =   curl_easy_init()                                    :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            slist =
+            slist = curl_slist_append(slist, 'auth_user: ' auth_user)           :F(LErr)
+            slist = curl_slist_append(slist, 'auth_pass: ' auth_pass)           :F(LErr)
+            slist = curl_slist_append(slist, 'auth_appkey: ' auth_appkey)       :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_HTTPHEADER, slist))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, r6AuthUrl))             :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_HTTPHEADER, 0))          :F(LErr)
+            slist = curl_slist_free_all(slist)                                  :F(LErr)
+            xml         =   curl_easy_getdata()
+            Write(xListener '-auth.xml', xml)
+            xml         ?   *r6AuthResp                                         :F(LAuthErr)
+            slist =
+            slist = curl_slist_append(slist, 'auth_appkey: ' auth_appkey)       :F(LErr)
+            slist = curl_slist_append(slist, 'auth_token: ' auth_token)         :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_HTTPHEADER, slist))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, r6TopicsUrl))           :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(LErr)
+            xml         =   curl_easy_getdata()
+            Write(xListener '-topics.xml', xml)
+            xml         ?   *r6TopicsResp                                       :F(LTopicsErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, r6MediaUrl))            :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(LErr)
+            xml         =   curl_easy_getdata()
+            Write(xListener '-mediaTypes.xml', xml)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, r6SortsUrl))            :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(LErr)
+            xml         =   curl_easy_getdata()
+            Write(xListener '-sortTypes.xml', xml)
+            periodSecs  =   IDENT(periodSecs) 30
+            oneMin      =   1 * 60 * 1000
+            lagSecs     =   6 * 60 * 60  ;*   hours(s) in seconds
+            backSecs    =   31 * 24 * 60 * 60  ;*   days(s) in seconds
+            epochDT     =   DTDecode('1970-01-01 00:00:00')
+            prevTime    =   DTDecode(Datetime())
+            r6CntT      =   TABLE()
+            r6ModT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+            r6TotT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- FOR all entities ... ----------------------------------------------
+            iE          =   xIT[0]['Topic']
+L20         iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(L90)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(L20)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            DIFFER(topics[xE])                                                  :F(L20)
+            r6CntT[iE]  =   GT(r6CntT[iE], 1) r6CntT[iE] - 1                    :S(L20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(L25)
+            xT['Until'] =
+            xT['Since'] =
+            xT['Page']  =
+L25         nowDT       =   DTSubtract(DTDecode(Datetime()), lagSecs)
+            thenDT      =   DTSubtract(nowDT, backSecs)
+*           thenDT      =   DTDecode('2011-10-14 00:00:00')
+            xT['Until'] =   IDENT(xT['Until']) DTEncode(nowDT)
+            xT['Since'] =   IDENT(xT['Since']) DTEncode(thenDT)
+            r6xMinBatch =
+            r6xMaxBatch =
+*---------- FOR every page ... ------------------------------------------------
+            r6xHasMore  =   TRUE
+            iPage       =   xT['Page']
+L40         iPage       =   EQ(r6xHasMore, TRUE) iPage + 1                      :F(L80)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+*           Get result ...
+            r6xExpr     =   EVAL(r6Expr)
+            url         =   r6DataUrl '/' r6xExpr
+L43         iTry        =   0
+L44         iTry        =   LT(iTry, 10) iTry + 1                               :F(LErr)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+*           OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) iE ', ' DTEncode(prevTime) ' GET .../' URLDecode(r6xExpr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(L44)
+            xml         =   curl_easy_getdata()
+            LineMap(xml, .t8Map)
+*           Process result ...
+L45         Write(xListener '.xml', xml)
+            LineMap(xml, .t8Map)
+            xml         ?   *r6DataResp                                         :S(L50)
+            OUTPUT      =   IDENT(xml) 'Empty Response for #' iE                :S(L80)
+            xml         ?   *r6HTML                                             :S(L47)
+            r6Error     =   'Response pattern failure.'
+            OUTPUT      =   'r6xExpr=' r6xExpr                                  :(LEnd)
+L47         OUTPUT      =   r6Error
+            Wait(oneMin)                                                        :(L43)
+L48         OUTPUT      =   r6Error
+            Wait(oneMin)                                                        :(L80)
+*---------- FOR every chunk/entry ... -----------------------------------------
+L50         PumpOpen(.r6Output, xListener)
+            r6xMinDate  =   '9999-99-99 99:99:99'
+            r6xMaxDate  =   '0000-00-00 00:00:00'
+            iCount      =   0
+            r6iC        =   0
+L53         r6iC        =   LT(r6iC, r6xC) r6iC + 1                             :F(L60)
+            r6xChunk    =   r6xChunks[r6iC]                                     :F(error)
+            LineMap(r6xChunk, .t8Map)
+            r6xChunk    ?   POS(0) FENCE *r6Article $' ' RPOS(0)                :F(L53F)
+            r6xHDate    =   harvest_date(r6xArticle)
+            r6xPDate    =   publish_date(r6xArticle)
+*           OUTPUT      =   LEQ(r6xPDate, xT['Since']) 'EQUAL Minimum'
+*           OUTPUT      =   LLT(r6xPDate, xT['Since']) 'Weird Error: BEFORE Minimum'
+*           OUTPUT      =   LGT(r6xPDate, xT['Until']) 'Weird Error: AFTER Maximum'
+*           OUTPUT      =   LEQ(r6xPDate, xT['Until']) 'EQUAL Maximum'
+            r6xMinDate  =   MinDate(r6xPDate, r6xMinDate)
+            r6xMaxDate  =   MaxDate(r6xPDate, r6xMaxDate)
+            iCount      =   iCount + 1
+            PumpRow(.r6Output, r6Columns)                                       :S(L53)F(SQLFail)
+L53F        iFail       =   iFail + 1
+            TERMINAL    =   'Failed to match article.'
+            Write(xListener '-' iFail '.xml', r6xChunk)                         :(L53)
+*---------- END FOR every chunk/entry -----------------------------------------
+L60         PumpClose(.r6Output, xListener, iCount)                             :F(SQLFail)
+            r6xMinBatch =   MinDate(r6xMinDate, r6xMinBatch)
+            r6xMaxBatch =   MaxDate(r6xMaxDate, r6xMaxBatch)
+            OUTPUT      =   GE(xVerbose, 4) iE ', ' r6xMinBatch ', ' r6xMaxBatch
++                           ', ' iPage ', ' iCount
+            xT['Page']  =   iPage
+            r6TotT[iE]  =   r6TotT[iE] + iCount
+            r6xHasMore  =   LT(r6xC, pageSize) FALSE                            :(L40)
+*---------- END FOR every page ------------------------------------------------
+L80         OUTPUT      =   GE(xVerbose, 3) iE ', ' xT['Since'] ', ' xT['Until']
++                           ', ' r6TotT[iE] ', "' xE '"'
+            r6ModT[iE]  =   EQ(r6TotT[iE]) LT(r6ModT[iE], 5) r6ModT[iE] + 1
+            r6ModT[iE]  =   GT(r6TotT[iE]) GT(r6ModT[iE], 1) r6ModT[iE] - 1
+            r6CntT[iE]  =   r6ModT[iE]
+            xT['Since'] =   xT['Until']
+            xT['Until'] =
+            xT['Page']  =
+            xIT[0]['Topic'] = iE
+            IniWrite(xListener '.ini', xIT)                                     :(L20)
+*---------- END FOR every entity ----------------------------------------------
+L90         xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            r6Report    =
+            iTotal      =   0
+            iE          =   0
+L93         iE          =   LT(iE, xMaxEntity) iE + 1                           :F(L95)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(L93)
+            iTotal      =   iTotal + r6TotT[iE]
+            r6Report    =   r6Report ',' LPAD(r6TotT[iE], 3)                    :(L93)
+L95         OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           ', ' LPAD(iPoll, 4) ', ' LPAD(iTotal, 4) r6Report   :(L10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(L05)
+*---------- ----------- --- ---------------------------------------------------
+LErr        curl_easy_error_info(curl, cc)                                      :(LEnd)
+LChunkErr   TERMINAL    =   'Failed to match article.'
+            TERMINAL    =   r6xChunk                                            :(LEnd)
+LAuthErr    TERMINAL    =   'Failed to match auth reponse.'                     :(LEnd)
+LTopicsErr  TERMINAL    =   'Failed to match topics reponse.'                   :(LEnd)
+*---------- Testing ... -------------------------------------------------------
+L100        iIter       =   0
+L103        iIter       =   iIter + 1
+            xml         =   Read(xListener '-' iIter '.xml')                    :F(END)
+            LineMap(xml, .t8Map)
+            xml         ?   POS(0) FENCE *r6Article $' ' RPOS(0)                :S(L103S)F(L103F)
+L103S       TERMINAL    =   iIter ' success'                                    :(L103)
+L103F       TERMINAL    =   iIter ' failure'                                    :(END)
+*---------- ----------- --- ---------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

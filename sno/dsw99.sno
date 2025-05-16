@@ -1,0 +1,135 @@
+*-------------------------------------------------------------------------------------------------------------------------
+start       &alphabet      pos(10) len(1) . nl
+            digits         =   '0123456789'
+            maxmSSdb       =   'hsdc'
+            buildDir       =   'D:/HSDC_2_4_01'
+            sshome         =   'D:/HSDC_2_4_01'
+            ssroot         =   '$/HSDC_2_4'
+*---------------------------------------------------------------------------------------------------------------
+-include    'utility.inc'
+-include    'ss.inc'
+*---------------------------------------------------------------------------------------------------------------
+            Utility()
+            testing =
+            renames =
+            bs             =   '\'
+            slash          =   bs | '/'
+            project        =   pos(0) ('Project: "' arb '"=') . lft arb . dspnm (' - ' rem) . rgt
+            global         =   pos(0) 'Global:' rpos(0)
+            package_4      =   pos(0) 'Package=<4>'
+            package_5      =   pos(0) 'Package=<5>'
+            open_curly     =   pos(0) '{{{'
+            close_curly    =   pos(0) '}}}'
+            dswnm          =   array('1:9')
+            x              =   0
+            dswnm[x = x + 1] = 'HSDCServer0.dsw'
+            dswnm[x = x + 1] = 'HSDCServer.dsw'
+            dswnm[x = x + 1] = 'HSDCClient0.dsw'
+            dswnm[x = x + 1] = 'HSDCClient.dsw'
+            dswnm[x = x + 1] = 'MemTool0.dsw'
+            dswnm[x = x + 1] = 'MemTool.dsw'
+*           dswnm[x = x + 1] = 'PDBClient0.dsw'
+*           dswnm[x = x + 1] = 'PDBNtSrv0.dsw'
+*           dswnm[x = x + 1] = 'akm0.dsw'
+*           dswnm[x = x + 1] = 'al20.dsw'
+*           dswnm[x = x + 1] = 'ali0.dsw'
+*           dswnm[x = x + 1] = 'alm0.dsw'
+*           dswnm[x = x + 1] = 'alo0.dsw'
+*           dswnm[x = x + 1] = 'als0.dsw'
+*           dswnm[x = x + 1] = 'common0.dsw'
+            ss_workfold(maxmSSdb, ssroot, sshome)
+dsw0        i              =   LT(i, x) i + 1                                       :f(end)
+            OUTPUT         =   DUPL('=', 40) ' ' dswnm[i]
+            INPUT(.dsw_in, 3, buildDir '/' dswnm[i])                                :f(ioerr)
+            OUTPUT(.dsw_out, 4, buildDir '/' dswnm[i] '-new')                       :f(ioerr)
+dsw1        dsw_line       =   dsw_in                                               :f(dsw5)
+            dsw_line       project                                                  :s(dsw10)
+            dsw_line       global                                                   :s(dsw_loop1)
+            dsw_line       package_4                                                :s(dsw_loop2)
+            dsw_line       package_5                                                :s(dsw_loop4)
+            dsw_out        =   dsw_line                                             :(dsw1)
+
+dsw_loop1   dsw_out        =   dsw_line
+            dsw_line       =   dsw_in                                               :s(dsw_loop1)f(dsw5)
+
+dsw_loop2   dsw_out        =   dsw_line
+            dsw_line       =   dsw_in                                               :f(xeof)
+            dsw_line       open_curly                                               :f(xerr)
+            dsw_out        =   dsw_line
+dsw_loop3   dsw_line       =   dsw_in                                               :f(xeof)
+            dsw_out        =   dsw_line
+            dsw_line       close_curly                                              :s(dsw1)f(dsw_loop3)
+
+dsw_loop4   dsw_out        =   dsw_line
+            dsw_line       =   dsw_in                                               :f(xeof)
+            dsw_line       open_curly                                               :f(xerr)
+            dsw_out        =   dsw_line
+dsw_loop5   dsw_line       =   dsw_in                                               :f(xeof)
+            dsw_line       close_curly                                              :f(dsw_loop5)
+            dsw_out        =   '    begin source code control'
+            dsw_out        =   '    "' newdspproj '", ' newssid
+            dsw_out        =   '    ' bslash(newdspdir)
+            dsw_out        =   '    end source code control'
+            dsw_out        =   dsw_line                                             :(dsw1)
+
+            dsw_line       pos(0) '    "' arb . projnm '",' arb . rgt rpos(0)       :s(dsw13)
+            dsw_line       pos(0) '    ' ('.' bs arb) . dirnm rpos(0)               :s(dsw16)f(dsw2)
+
+dsw10       dspnm          =   fslash(dspnm)
+            dspsplit       =   splitname(dspnm)
+            dspdir         =   dspsplit[1]
+            dspfile        =   dspsplit[2]
+            newdspdir      =   dspdir
+*           output         =   rpad(dspdir, 30) newdspdir                           :(dsw1)
+            newdspnm       =   newdspdir '/' dspfile
+            newdspproj     =   newdspdir
+            newdspproj     pos(0) './' = ssroot '/'
+            newssid        =   ss_physical('-' maxmSSdb, newdspproj)
+            dsw_out        =   lft bslash(newdspnm) rgt                             :(dsw20)
+dsw13       newprojnm      =   projnm
+            dsw_out        =   '    "' newprojnm '", ' newssid                      :(dsw1)
+dsw16       dirnm          =   fslash(dirnm)
+            newdirnm       =   dirnm
+            newdirnm       =   bslash(newdirnm)
+            dsw_out        =   '    ' newdirnm                                      :(dsw1)
+dsw2        dsw_out        =   dsw_line                                             :(dsw1)
+
+dsw20       mkdir(buildDir '/' newdspdir, '-p')
+            ss_checkout(maxmSSdb, newdspproj '/' dspfile, '-gf -i-y')
+            OUTPUT         =   DUPL('-', 40) ' ' dspfile
+            input(.dsp_in, 5, buildDir '/' newdspnm)                                :f(dsw45)
+            output(.dsp_out, 6, buildDir '/' newdspnm '-new')                       :f(ioerr)
+dsw3        dsp_line       =   dsp_in                                               :f(dsw4)
+            dsp_line       pos(0) '# PROP Scc_ProjName ' . lft =                    :s(dsw30)
+            dsp_out        =   dsp_line                                             :(dsw3)
+dsw30       dsp_line       pos(0)
++                          (  '""'
++                          |  '""' arb . projnm ('"' | '')
++                             (',' | '') (' ' arb | '') . ssid '"'
++                          )
++                          rpos(0)                                                  :f(dsw39)
+            dsp_out        =   '# PROP Scc_ProjName ""' newdspproj '", ' newssid '"' :(dsw3)
+dsw39       dsp_out        =   lft dsp_line
+            output         =   '*** Error: unmatched: ' lft dsp_line                :(dsw3)
+dsw4        endfile(6)
+            endfile(5)
+*           system('diff', ' "' newdspnm '" "' newdspnm '-new' '"')                 :(dsw1)
+            input(.dsp_in, 5, buildDir '/' newdspnm '-new')                         :f(ioerr)
+            output(.dsp_out, 6, buildDir '/' newdspnm)                              :f(ioerr)
+dsw40       dsp_out        =   dsp_in                                               :s(dsw40)
+            endfile(6)
+            endfile(5)
+            ss_diff('-' maxmSSdb, newdspproj '/' dspfile, newdspnm, '-du128')       :(dsw1)
+*           ss_checkin(maxmSSdb, newdspproj '/' dspfile, '', '-gf -i-y')
+            system('rm', ' "' newdspnm '-new' '"')                                  :(dsw1)
+dsw45       output         =   '*** Error: unable to open file ' newdspnm           :(dsw1)
+
+dsw5        endfile(4)
+            endfile(3)                                                              :(dsw0)
+
+                                                                                    :(end)
+*---------------------------------------------------------------------------------------------------------------
+ioerr       output         =   '*** i/o error'                                      :(end)
+xerr        output         =   '*** unexpected error'                               :(end)
+*-INCLUDE 'debug.sno'
+end

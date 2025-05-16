@@ -1,0 +1,193 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'OConners.inc'
+*------ ----------- --- ----------------------------------- -----------------------------
+        $'  '       =   SPAN(' ' tab)
+        $' '        =   $'  ' | epsilon
+        $'<HTML>'   =   '<HTML>' | '<html>'
+        $'<HEAD>'   =   '<HEAD>' | '<head>'
+        $'<TITLE>'  =   '<TITLE>' | '<title>'
+        $'<STYLE>'  =   '<STYLE>' | '<style>'
+        $'<SPAN>'   =   '<SPAN>' | '<SPAN class="c' SPAN('0123456789') '">'
++                   |   '<span>' | '<span class="c' SPAN('0123456789') '">'
+        $'<I>'      =   '<I>' | '<I class="c' SPAN('0123456789') '">'
++                   |   '<i>' | '<i class="c' SPAN('0123456789') '">'
+        $'<P>'      =   '<P>' | '<P class="western c' SPAN('0123456789') '">'
++                   |   '<p>' | '<p class="western c' SPAN('0123456789') '">'
+        $'<BR>'     =   '<BR>' | '<br>'
+
+        $'<META'    =   '<META' | '<meta'
+        $'<STYLE'   =   '<STYLE' | '<style'
+        $'<BODY'    =   '<BODY' | '<body'
+
+        $'</HEAD>'  =   '</HEAD>' | '</head>'
+        $'</TITLE>' =   '</TITLE>' | '</title>'
+        $'</STYLE>' =   '</STYLE>' | '</style>'
+        $'</BODY>'  =   '</BODY>' | '</body>'
+        $'</HTML>'  =   '</HTML>' | '</html>'
+        $'</SPAN>'  =   '</SPAN>' | '</span>'
+        $'</I>'     =   '</I>' | '</i>'
+        $'</P>'     =   '</P>' | '</p>'
+*------ ----------- --- ----------------------------------- -----------------------------
+        htmlDocType =   '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">' nl ARBNO(nl)
+        htmlStyle   =   $' ' $'<STYLE' BREAK('>') '>' nl
++                       (   ($' ' '<!--' nl
++                            ARBNO($' ' BREAK(nl) nl)
++                            $' ' '-->' nl)
++                            FENCE
++                       |    ARBNO($' ' BREAK(nl) nl)
++                       )
++                       $' ' $'</STYLE>' FENCE nl
+        htmlMeta    =   $' ' $'<META' BREAK('>') '>' nl
+        htmlTitle   =   $' ' $'<TITLE>'
++                            ('FORM' | 'Form')
++                            ' ' (SPAN(digits) (SPAN(&UCASE &LCASE) | epsilon) ':' SPAN(digits)) . htmlForm
++                            ' ' BREAK('<') . htmlDescription
++                            $'</TITLE>' nl
+        htmlHead    =   $' ' $'<HEAD>' nl ARBNO(*htmlMeta | *htmlTitle | nl)
++                            *htmlStyle
++                            (*htmlStyle | epsilon)
++                       $' ' $'</HEAD>' nl
++                       ARBNO(nl)
+        htmlBody    =   $' ' $'<BODY' BREAK('>') '>' nl ARBNO(BREAK(nl) nl) . htmlContent $' ' $'</BODY>' nl
+        htmlHTML    =   $' ' $'<HTML>' nl *htmlHead *htmlBody $' ' $'</HTML>' nl
+        htmlPattern =   epsilon $ what POS(0) *htmlDocType *htmlHTML RPOS(0)
+*------ ----------- --- --------------------------------------- ---------------------
+        htmlNL      =   nl . *assign(.mt, mt ' ')
+        htmlEntity  =   '{' BREAK('{<}') '}'
+        htmlText    =   ( BREAK('{<}')
++                         ( *htmlEntity BREAK('{<}')
++                           ( *htmlEntity BREAK('{<}')
++                             ( *htmlEntity BREAK('{<}')
++                             | epsilon
++                             )
++                           | epsilon
++                           )
++                         | epsilon
++                         )
++                       ) . m . *assign(.mt, mt m)
+
+        htmlI       =   $'<I>'    *htmlText $'</I>'
+        htmlSpan    =   $'<SPAN>' *htmlText $'</SPAN>' . *assign(.mt, mt ' ')
+        htmlMacro   =   epsilon . mt . keepLeft . keepRight
++                   (   '{' $'</SPAN>' . keepLeft *htmlSpan *htmlSpan $'<SPAN>' *htmlText $'<BR>' *htmlNL *htmlText $'</SPAN>' $'<SPAN>' . keepRight '}'
++                   |   '{' $'</SPAN>' . keepLeft *htmlSpan $'</P>' *htmlNL *htmlText $'<P>' *htmlSpan $'<SPAN>' . keepRight *htmlText '}'
++                   |   '{' $'</SPAN>' . keepLeft $'<SPAN>' *htmlText $'<BR>' *htmlNL *htmlText $'</SPAN>' $'<SPAN>' . keepRight '}'
++                   |   '{' SPAN('_') $'</SPAN>' . keepLeft ' ' $'<SPAN>' 'v.' $'</SPAN>' $'<SPAN>' . keepRight SPAN('_') '}'
++                   |   '{' *htmlText $'</SPAN>' . keepLeft ARBNO(*htmlText *htmlSpan) *htmlText $'<SPAN>' . keepRight *htmlText '}'
++                   |   '{' *htmlText $'</SPAN>' . keepLeft ARBNO(*htmlText *htmlI) *htmlText $'<SPAN>' . keepRight *htmlText '}'
++                   |   '{' *htmlI $'</P>' *htmlNL *htmlText $'<P>' *htmlI $'<SPAN>' . keepRight '}'
++                   |   '{' $'</SPAN>' . keepLeft ARBNO(*htmlText *htmlSpan) *htmlText '}'
++                   |   '{' $'<I>' *htmlText $'<BR>' *htmlNL *htmlText $'</I>' '}'
++                   |   '{' SPAN('0123456789' &UCASE ' ' &LCASE '-:') '}'
++                   |   '{' ARBNO(*htmlText *htmlI) *htmlText '}'
++                   |   '{' SPAN('_') '}'
++                   |   ('{' BREAK('}') '}') . OUTPUT
++                   )   epsilon . *assign(.mt, HTMLClean(mt))
++                       epsilon . *assign(.macroTable[mt], macroTable[mt] + 1)
+*------ ----------- --- --------------------------------------- ---------------------
+L00     findDirPath =   '"' "C:/LegalEarth/O'Conner's Forms - Converted to Cleaned HTML" '"'
+        findWild    =   '"' "*.html" '"'
+        findCmd     =   "C:/mksnt/find " findDirPath " -type f -name " findWild
+        findIgnore  =   "C:/LegalEarth/O'Conner's Forms - Converted to Cleaned HTML/Oconner's Federal Forms Separated- 2013-6-2-HTML"
+
+        fileDirPat  =   (ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/')))
+        fileNamePat =   ARBNO(NOTANY('/'))
+        filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+        fileIgnore  =   'TableOfContents.html'
+        formIgnore  =   '10F:1' | '10F:2' | '10F:01' | '1I:7' | '1I:8' | '1H:11'
++                   |   '3B:1' | '3B:2' | '3F:1' | '3H:2'
++                   |   '4A:1' | '4B:1' | '4B:2'
++                   |   '5N:01' | '5F:2' | '5F:3' | '5H:2' | '5M:3' | '5N:1' | '5N:2'
++                   |   '5N:02' | '5O:01' | '5O:1' | '5P:2'
++                   |   '6A:10' | '6A:3' | '6A:8' | '6A:11' | '6A:16' | '6A:17' | '6A:19' | '6A:20'
++                   |   '7A:14' | '7A:15' | '7B:05' | '7B:11' | '7B:13' | '7B:2'
++                   |   '7B:3' | '7B:4' | '7B:5' | '7C:2' | '7F:1' | '7E:10' | '7E:11'
++                   |   '8F:3' | '9A:3' | '20E:4' | '10B:3' | '10B:4'
++                   |   '25A:2' | '25B:1' | '25D:1' | '26B:1' | '26C:1' | '26E:1' | '26F:1'
++                   |   '3B:01' | '5F:03'
+*------ ----------- --- --------------------------------------- ---------------------
+        OUTPUT(.OUTPUT, 1, '[-f1 -w -l8192]')                   :F(Error)
+        INPUT(.findInput, 3, "!!" findCmd)                      :F(Error1)
+        failures    =   0
+        totalFiles  =   0
+        qTable      =   TABLE()
+        Gen('  Form = TABLE()' nl)
+        Gen("  DATA('FORM(Description,Parameters,Generator)')" nl)
+*------ ----------- --- --------------------------------------- ---------------------
+L10     filePath    =   findInput                               :F(L90)
+        filePath    ?   filePattern                             :F(Yikes1)
+        fileDir     ?   POS(0) findIgnore ('/' | RPOS(0))       :S(L10)
+        fileName    ?   POS(0) fileIgnore RPOS(0)               :S(L10)
+        totalFiles  =   totalFiles + 1
+        Gen('* ' DUPL('-', 32) ' "' fileName '"' nl)
+        html        =   Read(filePath)                          :F(Error2)
+        html        ?   htmlPattern                             :S(L20)
+        failures    =   failures + 1
+        TERMINAL    =   '- ' DIFFER(what) filePath
+        TERMINAL    =   '? ' DIFFER(what) what                  :(L10)
+*------ ----------- --- --------------------------------------- ---------------------
+L20     htmlForm    ?   POS(0) formIgnore RPOS(0)               :S(L10)
+        formId      =   REPLACE(htmlForm, &LCASE ':', &UCASE '_')
+        macroTable  =   TABLE()
+        snoCode     =
+*------ ----------- --- --------------------------------------- ---------------------
+L30     htmlContent ?   POS(0) ARB . htmlPrefix htmlMacro =     :F(L39)
+        htmlPrefix  =   htmlPrefix keepLeft
+        htmlContent =   keepRight htmlContent
+L33     htmlPrefix  ?   POS(0) BREAK(nl) . htmlLine nl =        :F(L37)
+        snoCode     =   snoCode ' ' SQize(htmlLine) ' nl' nl    :(L33)
+L37     snoPrefix   =   SQize(htmlPrefix)
+        snoName     =   MacroName(mt)
+        snoCode     =   snoCode ' ' snoPrefix ' ' snoName       :(L30)
+L39     htmlContent ?   POS(0) BREAK(nl) . htmlLine nl =        :F(L40)
+        snoCode     =   snoCode ' ' SQize(htmlLine) ' nl' nl    :(L39)
+*------ ----------- --- --------------------------------------- ---------------------
+L40     snoParamId  =   "Form['" htmlForm "']"
+        snoDescr    =   'Description(' snoParamId ')'
+        snoParams   =   'Parameters(' snoParamId ')'
+        snoGenId    =   'Generator(' snoParamId ')'
+        Gen('  ' snoParamId ' = FORM()' nl)
+        Gen('  ' snoDescr ' = ' DQize(htmlDescription) nl)
+        Gen('  ' snoParams ' = TABLE()' nl)
+        macroArray  =   SORT(macroTable)                        :F(Yikes4)
+        macroI      =   0
+L45     macroI      =   macroI + 1
+        macroText   =   macroArray[macroI, 1]                   :F(L50)
+        macroUses   =   macroArray[macroI, 2]
+        macroName   =   MacroName(macroText)
+        macroValues =   MacroVals(macroText)
+        macroDtype  =   DATATYPE(macroValues)
+        macroPtype  =   (IDENT(macroDtype, 'ARRAY') PROTOTYPE(macroValues), NULL)
+        macroPtype  ?   POS(0) SPAN(digits) ':' SPAN(digits) . macroCount RPOS(0)
+        DIFFER(macroName)                                       :F(L45)
+        snoValues   =   snoParams '[' SQize(macroText) ']'
+        Gen('  ' snoValues " =")
+        (DIFFER(macroDtype, 'ARRAY') Gen(" '?'" nl))            :S(L45)
+        Gen(" ARRAY('" macroPtype "')" nl)
+        i           =   0
+L47     i           =   LT(i, macroCount) i + 1                 :F(L45)
+        snoValue    =   snoValues '[' i ']'
+        Gen('  ' snoValue ' = ' SQize(macroValues[i]) nl)       :(L47)
+*------ ----------- --- --------------------------------------- ---------------------
+L50     GenSetCont('+')
+        Gen('  ' snoGenId ' = *(' nl)
+L55     snoCode     ?   POS(0) BREAK(nl) . snoLine nl =         :F(L59)
+        Gen(snoLine nl)                                         :(L55)
+L59     Gen(' )' nl)
+        GenSetCont()                                            :(L10)
+*------ ----------- --- --------------------------------------- ---------------------
+L90     ENDFILE(3)
+*       XDump(qTable, 'Q')
+        OUTPUT      =   '* Failures: ' failures
+        OUTPUT      =   '* Total: ' totalFiles                  :(END)
+*------ ----------- --- --------------------------------------- ---------------------
+Error1  OUTPUT      =   "Error: " findCmd                       :(END)
+Error2  OUTPUT      =   "Error: " filePath                      :(END)
+*-INCLUDE 'debug.sno'
+END

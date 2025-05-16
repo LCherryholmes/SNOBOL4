@@ -1,0 +1,2055 @@
+START
+            &TRIM          =    1
+            &DUMP          =    0
+            &MAXLNGTH      =    131072
+            &FULLSCAN      =    1
+            &ALPHABET      POS(9)  LEN(1) . tab
+            &ALPHABET      POS(10) LEN(1) . nl
+            dodebug        =    ''
+            digit          =    '0123456789'
+            uc             =    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            lc             =    'abcdefghijklmnopqrstuvwxyz'
+
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('air_on()')
+            DEFINE('air_off()')
+            DEFINE('air_take()')                                          :(air_end)
+air_on      air_on         =    .dummy
+            air            =    1                                         :(NRETURN)
+air_off     air_off        =    .dummy
+            air            =    0                                         :(NRETURN)
+air_take    air_take       =    .dummy
+            air            =    EQ(air, 1) gen(nl) 0                      :(NRETURN)
+air_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('asgn(var,val)nm,dt,stmt,object,ndx')                  :(asgn_end)
+asgn        asgn           =    .dummy
+            stmt           =    var ' = ' val
+*           OUTPUT         =    nm ' = ' val
+            object         =    CODE(' ' stmt ' :S(asgn_s)F(asgn_f)')     :S<object>F(asgn_err)
+asgn_s      nm             =    var
+            nm             '[' SPAN(uc lc '_' digit) . ndx ']' = '[' $ndx ']'
+            dt             =    DATATYPE(EVAL(val))
+            OUTPUT         =    IDENT(dt, "ARRAY")   nm ' = ARRAY()'      :S(NRETURN)
+            OUTPUT         =    IDENT(dt, "TABLE")   nm ' = TABLE()'      :S(NRETURN)
+            OUTPUT         =    IDENT(dt, "STRING")  nm ' = ' val ' = "' EVAL(val) '"' :S(NRETURN)
+            OUTPUT         =    IDENT(dt, "INTEGER") nm ' = ' val ' = ' EVAL(val)      :S(NRETURN)
+            OUTPUT         =    dt '???'                                  :(NRETURN)
+asgn_f
+asgn_err    OUTPUT         =    'Error in assignment: '                   :(error)
+asgn_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('push_cntr()')
+            DEFINE('inc_cntr()')
+            DEFINE('top_cntr()')
+            DEFINE('pop_cntr()')
+            DATA('link_cntr(next,value)')                                 :(cntr_end)
+push_cntr   push_cntr      =  .dummy
+            cntr           =  link_cntr(cntr, 0)                          :(NRETURN)
+inc_cntr    inc_cntr       =  .dummy
+            value(cntr)    =  value(cntr) + 1                             :(NRETURN)
+pop_cntr    IDENT(cntr)                                                   :S(FRETURN)
+            pop_cntr       =  .dummy
+            cntr           =  next(cntr)                                  :(NRETURN)
+top_cntr    IDENT(cntr)                                                   :S(FRETURN)
+            top_cntr       =  value(cntr)                                 :(RETURN)
+cntr_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('cstring(str)chr')                                     :(cstring_end)
+cstring     cstring        =
+cstring0    IDENT(str)                                                    :S(RETURN)
+            str            POS(0) '"' =                                   :S(cstring1)
+            str            POS(0) '\' =                                   :S(cstring2)
+            str            POS(0) LEN(1) . chr =                          :S(cstring3)F(error)
+cstring1    cstring        =    cstring '\"'                              :(cstring0)
+cstring2    cstring        =    cstring '\\'                              :(cstring0)
+cstring3    cstring        =    cstring chr                               :(cstring0)
+cstring_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('expand(str)chr')                                      :(expand_end)
+expand      str            POS(0) '"' =                                   :F(error)
+            expand         =     '"'
+expand_0    str            POS(0) RPOS(0)                                 :S(error)
+            str            POS(0) '"' RPOS(0) =                           :S(expand_9)
+            str            POS(0) '""' =                                  :S(expand_1)
+            str            POS(0) '\' =                                   :S(expand_2)
+            str            POS(0) *expansion =                            :S(expand_3)
+            str            POS(0) LEN(1) . chr =                          :S(expand_4)F(error)
+expand_1    expand         =    expand '\"'                               :(expand_0)
+expand_2    expand         =    expand '\\'                               :(expand_0)
+expand_3    expand         =    expand '" | ' id ' | "'                   :(expand_0)
+expand_4    expand         =    expand chr                                :(expand_0)
+expand_9    expand         =    expand '"'
+            expand         POS(0) '"" | ' =
+            expand         ' | ""' RPOS(0) =
+expand_10   expand         ' | "" | ' = ' | '                             :S(expand_10)F(RETURN)
+expand_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('debug(lvl,str)')                                      :(debug_end)
+debug       debug          =    .dummy
+            IDENT(dodebug)                                                :S(NRETURN)
+            GT(lvl,dodebug)                                               :S(NRETURN)
+            OUTPUT         =    str                                       :(NRETURN)
+debug_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('enter(var,val)')                                      :(enter_end)
+enter       enter          =    .dummy
+            dict           =    $dictionary
+            IDENT(val,'LOAD')   IDENT(dict[var])                          :S(enter1)F(enter2)
+enter1
+*           OUTPUT         =    '*** ' var
+enter2      dict[var]      =    1                                         :(NRETURN)
+enter_end
+*---------- ------------------------------------------------------------- -----------------
+-INCLUDE 'Gen.inc'
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('out(str)ind')
+            DEFINE('outtab(pos)')                                         :(out_end)
+out         out            =    .dummy
+            indent         GT(level, 0) LEN(level) . ind
+            outbuf         =    DIFFER(outbuf) outbuf str
+            outbuf         =    IDENT(outbuf) ind str
+            outbuf         BREAK(nl) . outline nl REM . outbuf            :F(NRETURN)
+            outstring      =    outstring outline nl
+out_10      outbuf         BREAK(nl) . outline nl REM . outbuf            :F(NRETURN)
+            outstring      =    outstring ind outline nl                  :(out_10)
+outtab      outtab         =    .dummy
+            outbuf         =    outbuf ' ' DUPL(' ', pos - SIZE(outbuf) - 1) :S(NRETURN)
+            outbuf         =    outbuf ' '                                :(NRETURN)
+out_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('gendict()dict,dictarr,i')                             :(gendict_end)
+gendict     gendict        =    .dummy
+            dict           =    $dictionary
+            dictarr        =    SORT(CONVERT(dict, 'ARRAY'))              :F(NRETURN)
+            i              =    1
+gendic1     gen('Var ' dictarr[i, 1] ';' nl)                              :F(gendic2)
+            i              =    i + 1                                     :S(gendic1)
+gendic2     gen(nl)                                                       :(NRETURN)
+gendict_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('gensql(c)i')                                          :(gensql_end)
+gensql      gensql         =    .dummy
+            sql            =    sql nl
+            sql            POS(0) *sql_query_expr $' ' RPOS(0)            :S(gensql_11)
+            OUTPUT         =    c ': SQL Error'
+            OUTPUT         =    '*** ' position(sqlstartofs + sqlofs)
+            OUTPUT         =    '*** Error: ' SUBSTR(sql, sqlofs, 32)
+            outstring      =    sql                                       :(gensql_20)
+gensql_10   OUTPUT         =    c ':'
+gensql_11   outfile        =
+            outfile        =    'struct ' c '_columns'
+            outfile        =    '{'
+            i              =    0
+gensql_12   outfile        =    '   Var ' thx[i] ';'
+            i              =    LT(i, ithx - 1) i + 1                     :S(gensql_12)
+            outfile        =    '};'
+            EQ(ic3po, 0)                                                  :S(gensql_14)
+            i              =    0
+            outfile        =
+            outfile        =    'struct ' c '_hostvars'
+            outfile        =    '{'
+gensql_13   outfile        =    '   Var ' c3po[i] ';'
+            i              =    LT(i, ic3po - 1) i + 1                    :S(gensql_13)
+            outfile        =    '};'
+gensql_14   outstring      =
+            pp(pop())
+gensql_20   outfile        =
+            outfile        =    'static const char ' c '[] = '
+gensql_30   outstring      BREAK(nl) . outsql nl REM . outstring          :F(gensql_40)
+            outfile        =    '   "' cstring(outsql) '\n"'              :(gensql_30)
+gensql_40   outfile        =    ';'                                       :(NRETURN)
+gensql_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('isident(x)')                                          :(isident_end)
+isident     isident        =    .dummy
+            x                   POS(0)
++                               (  'break'
++                               |  'case'
++                               |  'continue'
++                               |  'default'
++                               |  'do'
++                               |  'else'
++                               |  'exec'
++                               |  'for'
++                               |  'goto'
++                               |  'if'
++                               |  'return'
++                               |  'sizeof'
++                               |  'switch'
++                               |  'while'
++                               )
++                               RPOS(0)                                   :S(FRETURN)
+            x                   POS(0)
++                               ANY(uc lc) (SPAN(uc lc '_' digit) | '')
++                               RPOS(0)                                   :S(NRETURN)F(FRETURN)
+isident_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('max(max,x)')                                          :(max_end)
+max         max            =    LT(max, x) x                              :(RETURN)
+max_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('min(min,x)')                                          :(min_end)
+min         min            =    GT(min, x) x                              :(RETURN)
+min_end
+*---------- ------------------------------------------------------------- -----------------
+            DIFFER(.NAME,'NAME')                                          :S(pad_end)
+            DEFINE('lpad(s,n,c)')
+            DEFINE('rpad(s,n,c)')                                         :(pad_end)
+lpad        lpad           =    GE(SIZE(s), n) s                          :S(RETURN)
+            c              =    IDENT(c)  ' '
+            lpad           =    DUPL(c, n - SIZE(s)) s                    :(RETURN)
+rpad        rpad           =    GE(SIZE(s), n) s                          :S(RETURN)
+            c              =    IDENT(c)  ' '
+            rpad           =    s DUPL(c, n - SIZE(s))                    :(RETURN)
+pad_end
+*---------- ------------------------------------------------------------- -----------------
+-INCLUDE 'case.inc'
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('progname(filename)x')                                 :(progname_end)
+progname    filename       '.' 'msl' ''   . x RPOS(0) =                   :S(prognam1)
+            filename       '.' 'm'   '3x' . x RPOS(0) =                   :S(prognam1)
+            filename       '.' 'm'   '41' . x RPOS(0) =                   :S(prognam1)
+            filename       '.' 'm'   '51' . x RPOS(0) =                   :S(prognam1)F(error)
+prognam1    progname       =    filename x                                :(RETURN)
+progname_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('sqlword(x)')
+            sqlid          =    ANY(uc lc) (SPAN(uc lc '_' digit '$#') | '') :(sqlword_end)
+sqlword     sqlword        =    .dummy
+            x              POS(0)
++                          (  icase('and')
++                          |  icase('between')
++                          |  icase('escape')
++                          |  icase('exists')
++                          |  icase('from')
++                          |  icase('in')
++                          |  icase('intersect')
++                          |  icase('is')
++                          |  icase('like')
++                          |  icase('minus')
++                          |  icase('not')
++                          |  icase('null')
++                          |  icase('or')
++                          |  icase('group')
++                          |  icase('order')
++                          |  icase('select')
++                          |  icase('union')
++                          |  icase('where')
++                          )
++                          RPOS(0)                                        :S(FRETURN)
+            x              POS(0) *sqlid RPOS(0)                          :S(NRETURN)F(FRETURN)
+sqlword_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('push(x)')
+            DEFINE('pop(var)')
+            DEFINE('top()')
+            DATA('link(next,value)')                                      :(stack_end)
+push        stack          =    link(stack, x)
+*           OUTPUT         =    'push(' t(x) ')'
+            push           =    .value(stack)                             :(NRETURN)
+pop         IDENT(stack)                                                  :S(FRETURN)
+            DIFFER(var)                                                   :S(pop_1)
+            pop            =    value(stack)
+*           OUTPUT         =    'pop() = ' t(pop)
+            stack          =    next(stack)                               :(RETURN)
+pop_1       pop            =    .dummy
+            var            =    upr(var)
+            $var           =    value(stack)
+*           OUTPUT         =    'pop() = ' t($var)
+            stack          =    next(stack)                               :(NRETURN)
+top         IDENT(stack)                                                  :S(FRETURN)
+            top            =    .value(stack)
+*           OUTPUT         =    'top() = ' t(top)
+                                                                          :(NRETURN)
+stack_end
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('shift(t,v)')
+            DEFINE('reduce(t,n)c,i')
+*           DEFINE('dump(x)c,i,n,t,v')
+            DEFINE('pp(x)c,dlm,i,n,pos_decode,t,v,y,z')
+            DEFINE('zz(x)c,dlm,i,n,t,v')
+            DEFINE('maxc(x)c,i,n,t,y')
+            DATA('tree(t,v,n,c)')
+            pos_item       =    50                                        :(tree_end)
+
+shift       shift          =    .dummy
+*           OUTPUT         =    'shift(' t ', ' v ')'
+            push(tree(t, v, 0))                                           :(NRETURN)
+
+reduce      reduce         =    .dummy
+*           OUTPUT         =    'reduce(' t ', ' n ')'
+            c              =    ARRAY('1:' n)
+            i              =    n
+reduce_1    c[i]           =    pop()
+            i              =    GT(i, 1) i - 1                            :S(reduce_1)
+            push(tree(t, '', n, c))                                       :(NRETURN)
+
+maxc                 t     =    t(x)
+                     n     =    n(x)
+                     c     =    c(x)
+                     i     =    0
+                     maxc  =    0
+                     IDENT(t, 'decode')                                   :S(maxc_decode)
+maxc_1               i     =    LT(i, n) i + 1                            :F(RETURN)
+                     y     =    c[i]
+                     maxc  =    max(maxc, SIZE(v(c(y)[1])))               :(maxc_1)
+maxc_decode          y     =    c[1]
+maxc_decode_1        i     =    LT(i + 2, n(y)) i + 2                     :F(RETURN)
+                     maxc  =    max(maxc, SIZE(v(c(y)[i])))               :(maxc_decode_1)
+
+dump                 t     =    t(x)
+                     v     =    v(x)
+                     n     =    n(x)
+                     c     =    c(x)
+                     IDENT(t, 'identifier')                               :S(dump_identifier)
+                     IDENT(t, 'c_const')                                  :S(dump_c_const)
+                     IDENT(t, 's_const')                                  :S(dump_s_const)
+                     IDENT(t, 'v_const')                                  :S(dump_v_const)
+                     IDENT(t, 'i_const')                                  :S(dump_i_const)
+                     IDENT(t, 'r_const')                                  :S(dump_r_const)
+                     IDENT(t, 'column')                                   :S(dump_column)
+                     IDENT(t, 'table')                                    :S(dump_table)
+                     IDENT(t, ':')                                        :S(dump_colon)
+                     gen('(  ' t nl)
+                     inclevel()
+                     i     =    0
+dump_1               i     =    LT(i, n) i + 1                            :F(dump_2)
+                     dump(c[i])                                           :(dump_1)
+dump_2               declevel()
+                     gen(')' nl)                                          :(RETURN)
+
+dump_identifier      gen(lwr(v) nl)                                       :(RETURN)
+dump_c_const         gen(v nl)                                            :(RETURN)
+dump_s_const         gen(v nl)                                            :(RETURN)
+dump_v_const         gen(v nl)                                            :(RETURN)
+dump_i_const         gen(v nl)                                            :(RETURN)
+dump_r_const         gen(v nl)                                            :(RETURN)
+dump_colon           gen(':' v(c[1]) nl)                                  :(RETURN)
+dump_column          GE(n, 1) gen(lwr(v(c[1])))
+                     GE(n, 2) gen('.' lwr(v(c[2])))
+                     GE(n, 3) gen('.' lwr(v(c[3])))
+                     gen(nl)                                              :(RETURN)
+dump_table           GE(n, 1) gen(lwr(v(c[1])))
+                     GE(n, 2) gen('.' lwr(v(c[2])))
+                     gen(nl)                                              :(RETURN)
+
+pp                   t     =    t(x)
+                     v     =    v(x)
+                     n     =    n(x)
+                     c     =    c(x)
+*                    OUTPUT = 'pp(' t ')' ', sz = ' level '+' SIZE(v) ', v = ' v
+                     IDENT(t, 'select')                                   :S(pp_select)
+                     IDENT(t, 'union')                                    :S(pp_union)
+                     IDENT(t, 'union_all')                                :S(pp_union_all)
+                     IDENT(t, 'minus')                                    :S(pp_minus)
+                     IDENT(t, 'intersect')                                :S(pp_intersect)
+
+                     GE(level + SIZE(v), pos_item)                        :S(pp_0)
+                     out(v)                                               :(pp_return)
+
+pp_0                 IDENT(t, '%')                                        :S(pp_percent)
+                     IDENT(t, '&')                                        :S(pp_ampersand)
+                     IDENT(t, '()')                                       :S(pp_parens)
+                     IDENT(t, '(+)')                                      :S(pp_indexed)
+                     IDENT(t, '*')                                        :S(pp_asterick)
+                     IDENT(t, '+')                                        :S(pp_plus)
+                     IDENT(t, '-')                                        :S(pp_dash)
+                     IDENT(t, '/')                                        :S(pp_slash)
+                     IDENT(t, ':')                                        :S(pp_colon)
+                     IDENT(t, '^')                                        :S(pp_caret)
+                     IDENT(t, '|')                                        :S(pp_bar)
+                     IDENT(t, '||')                                       :S(pp_bar_bar)
+                     IDENT(t, '~')                                        :S(pp_tilde)
+                     IDENT(t, '=')                                        :S(pp_eq)
+                     IDENT(t, '!=')                                       :S(pp_ne)
+                     IDENT(t, '<>')                                       :S(pp_ne)
+                     IDENT(t, '<')                                        :S(pp_lt)
+                     IDENT(t, '<=')                                       :S(pp_le)
+                     IDENT(t, '>')                                        :S(pp_gt)
+                     IDENT(t, '>=')                                       :S(pp_ge)
+                                                                          :($('PP_' upr(t)))
+*------------------- ---------------------------------------------------- ------------------
+pp_minus
+pp_intersect
+pp_union
+pp_union_all
+                     i   =    0
+pp_set_arith         i   =    LT(i, n) i + 1                              :F(pp_return)
+                     NE(i, 1) out(upr(t) nl)
+                     pp(c[i]) out(nl)                                     :(pp_set_arith)
+
+pp_select            i   =    1
+pp_select_0          i   =    DIFFER(c) zz(c[i]) i + 1                    :S(pp_select_0)
+
+                     y   =    c[1]
+                     out(nl rpad('SELECT', 10))
+                     pos_item = 10 + min(((maxc(c[1]) + 4) / 4) * 4, 40)
+                     pos_from = 10 + ((maxc(c[2]) + 4) / 4) * 4
+                     pos_item = LT(pos_item, pos_from) pos_from
+                     inclevel(10)
+                     i   =    1
+pp_select_10         LE(i, n(y))                                          :F(pp_select_11)
+                     EQ(n(c(y)[i]), 1)       pp(c(c(y)[i])[1])
+                     EQ(n(c(y)[i]), 2)       pp(c(c(y)[i])[1])
++                                            outtab(pos_item)
++                                            out(lwr(v(c(c(y)[i])[2])))
+                     GT(n(y), 1) NE(i, n(y)) out(',' nl)
+                     GT(n(y), 1) EQ(i, n(y)) out(nl)
+                     EQ(n(y), 1)             out(nl)
+                     i   =    i + 1                                       :(pp_select_10)
+pp_select_11         declevel(10)
+
+                     y   =    c[2]
+                     out(rpad('FROM', 10))
+                     pos_item = pos_from
+                     inclevel(10)
+                     i   =    1
+pp_select_20         LE(i, n(y))                                          :F(pp_select_21)
+                     EQ(n(c(y)[i]), 1)       pp(c(c(y)[i])[1])
+                     EQ(n(c(y)[i]), 2)       pp(c(c(y)[i])[1])
++                                            outtab(pos_from)
++                                            out(lwr(v(c(c(y)[i])[2])))
+                     GT(n(y), 1) NE(i, n(y)) out(',' nl)
+                     GT(n(y), 1) EQ(i, n(y)) out(nl)
+                     EQ(n(y), 1)             out(nl)
+                     i   =    i + 1                                       :(pp_select_20)
+pp_select_21         declevel(10)
+
+                     y   =    c[3]
+                     IDENT(t(y))                                          :S(pp_select_40)
+                     out(rpad('WHERE', 10))
+                     inclevel(10)
+                     pp(y) out(nl)
+                     declevel(10)
+
+pp_select_40         y   =    c[4]
+                     IDENT(t(y))                                          :S(pp_select_50)
+                     out(rpad('GROUP BY', 10))
+                     pos_order = 10 + ((maxc(c[4]) + 4) / 4) * 4
+                     pos_item = pos_from
+                     inclevel(10)
+                     i   =    1
+pp_select_41         LE(i, n(y))                                          :F(pp_select_42)
+                     EQ(n(c(y)[i]), 1)       pp(c(c(y)[i])[1])
+                     EQ(n(c(y)[i]), 2)       pp(c(c(y)[i])[1])
++                                            outtab(pos_order)
++                                            out(upr(t(c(c(y)[i])[2])))
+                     GT(n(y), 1) NE(i, n(y)) out(',' nl)
+                     GT(n(y), 1) EQ(i, n(y)) out(nl)
+                     EQ(n(y), 1)             out(nl)
+                     i   =    i + 1                                       :(pp_select_41)
+pp_select_42         declevel(10)
+
+pp_select_50         y   =    c[5]
+                     IDENT(t(y))                                          :S(pp_select_60)
+                     out(rpad('ORDER BY', 10))
+                     pos_order = 10 + ((maxc(c[4]) + 4) / 4) * 4
+                     pos_item = pos_from
+                     inclevel(10)
+                     i   =    1
+pp_select_51         LE(i, n(y))                                          :F(pp_select_52)
+                     EQ(n(c(y)[i]), 1)       pp(c(c(y)[i])[1])
+                     EQ(n(c(y)[i]), 2)       pp(c(c(y)[i])[1])
++                                            outtab(pos_order)
++                                            out(upr(t(c(c(y)[i])[2])))
+                     GT(n(y), 1) NE(i, n(y)) out(',' nl)
+                     GT(n(y), 1) EQ(i, n(y)) out(nl)
+                     EQ(n(y), 1)             out(nl)
+                     i   =    i + 1                                       :(pp_select_51)
+pp_select_52         declevel(10)
+
+pp_select_60                                                              :(pp_return)
+
+pp_item              ''                                                   :(pp_return)
+pp_item_list         ''                                                   :(pp_return)
+pp_reference         ''                                                   :(pp_return)
+pp_references        ''                                                   :(pp_return)
+pp_group_list        ''                                                   :(pp_return)
+pp_order_list        ''                                                   :(pp_return)
+pp_order_spec        ''                                                   :(pp_return)
+
+*------------------- ---------------------------------------------------- ------------------
+pp_expr_list         out(nl)
+                     pp(c[1])
+                     i   =    1
+pp_expr_list_1       GT(n, 1) NE(i, n) out(',' nl)
+                     GT(n, 1) EQ(i, n) out(nl)
+                     EQ(n, 1)          out(nl)
+                     i   =    i + 1
+                     pp(c[i])                                             :S(pp_expr_list_1)
+                                                                          :(pp_return)
+*------------------- ---------------------------------------------------- ------------------
+pp_func              out(upr(t) '(' nl)
+                     inclevel(4)
+                     i   =    0
+pp_func_1            i   =    i + 1
+                     pp(c(c[1])[i])                                       :F(pp_func_2)
+                     GT(n(c[1]), 1) NE(i, n(c[1])) out(',' nl)
+                     GT(n(c[1]), 1) EQ(i, n(c[1])) out(nl)
+                     EQ(n(c[1]), 1)                out(nl)                :(pp_func_1)
+pp_func_2            declevel(4)
+                     out(')')                                             :(pp_return)
+*------------------- ---------------------------------------------------- ------------------
+pp_decode            out(upr(t) '(' nl)
+                     pos_decode = (((maxc(x) + 5) / 4) * 4)
+                     inclevel(4)
+                     pp(c(c[1])[1]) out(',' nl)                           :F(pp_decode_3)
+                     i   =    0
+pp_decode_1          i   =    i + 2
+                     LE(i, n(c[1]) - 2)                                   :F(pp_decode_2)
+                     out(rpad(v(c(c[1])[i]) ',', pos_decode))
+                     inclevel(pos_decode)
+                     pp(c(c[1])[i + 1])
+                     declevel(pos_decode)
+                     out(',' nl)                                          :(pp_decode_1)
+pp_decode_2          pp(c(c[1])[i]) out(nl)
+pp_decode_3          declevel(4)
+                     out(')')                                             :(pp_return)
+*------------------- ---------------------------------------------------- ------------------
+pp_operator          dlm =    rpad(upr(t), 4)
+                     inclevel(4)
+                     i   =    0
+pp_operator_1        i   =    LT(i, n) i + 1                              :F(pp_operator_2)
+                     declevel(4)
+                     EQ(i, 1)          out('    ')
+                     NE(i, 1) LE(i, n) out(dlm)
+                     inclevel(4)
+                     pp(c[i])
+                     LT(i, n) out(nl)                                     :(pp_operator_1)
+pp_operator_2        declevel(4)                                          :(pp_return)
+*------------------- ---------------------------------------------------- ------------------
+pp_parens            IDENT(t(c[1]), '+')                                  :S(pp_parens_0)
+                     IDENT(t(c[1]), '-')                                  :S(pp_parens_0)
+                     IDENT(t(c[1]), '||')                                 :S(pp_parens_0)
+                     out('(') out(v(c[1])) out(')')                       :(pp_return)
+pp_parens_0          dlm =    rpad(upr(t(c[1])), 4)
+                     inclevel(4)
+                     i   =    0
+pp_parens_1          i   =    LT(i, n(c[1])) i + 1                        :F(pp_parens_2)
+                     declevel(4)
+                     EQ(i, 1)                out('(   ')
+                     NE(i, 1) LE(i, n(c[1])) out(dlm)
+                     inclevel(4)
+                     pp(c(c[1])[i]) out(nl)                               :(pp_parens_1)
+pp_parens_2          declevel(4)
+                     out(')')                                             :(pp_return)
+*------------------- ---------------------------------------------------- ------------------
+pp_abs                                                                    :(pp_func)
+pp_all               out('ALL ' v(c[1]))                                  :(pp_return)
+pp_ampersand                                                              :(pp_operator)
+pp_and                                                                    :(pp_operator)
+pp_any               out('ANY ' v(c[1]))                                  :(pp_return)
+pp_asterick                                                               :(pp_operator)
+pp_bar                                                                    :(pp_operator)
+pp_bar_bar                                                                :(pp_operator)
+pp_between           out(v(c[1]))
++                    out(' BETWEEN ' v(c[2]))
++                    out(' AND ' v(c[3]))                                 :(pp_return)
+pp_bitand                                                                 :(pp_func)
+pp_caret                                                                  :(pp_operator)
+pp_colon             out(':' v(c[1]))                                     :(pp_return)
+pp_column            out(lwr(v(c[1])))
+                     out(v '.' lwr(v(c[2])))
+                     out(v '.' lwr(v(c[3])))                              :(pp_return)
+pp_eq                out(v(c[1]) ' = '  v(c[2]))                          :(pp_return)
+pp_exists            out('EXISTS ' v(c[1]))                               :(pp_return)
+pp_floor                                                                  :(pp_func)
+pp_rawtohex                                                               :(pp_func)
+pp_ge                out(v(c[1]) ' >= ' v(c[2]))                          :(pp_return)
+pp_gt                out(v(c[1]) ' > '  v(c[2]))                          :(pp_return)
+pp_identifier        out(lwr(v))                                          :(pp_return)
+pp_in                out(v(c[1]) ' IN ' v(c[2]))                          :(pp_return)
+pp_indexed           out(v(c[1]) ' (+)')                                  :(pp_return)
+pp_is_not_null       out(v(c[1]) ' IS NOT NULL')                          :(pp_return)
+pp_is_null           out(v(c[1]) ' IS NULL')                              :(pp_return)
+pp_le                out(v(c[1]) ' <= ' v(c[2]))                          :(pp_return)
+pp_like              out(v(c[1]))
+                     out(' LIKE ' v(c[2]))
+                     EQ(n, 3) out(' ESCAPE ' v(c[3]))                     :(pp_return)
+pp_lpad                                                                   :(pp_func)
+pp_lt                out(v(c[1]) ' < '  v(c[2]))                          :(pp_return)
+pp_to_number                                                              :(pp_func)
+pp_ltrim                                                                  :(pp_func)
+pp_rtrim                                                                  :(pp_func)
+pp_dash              EQ(n, 1) out('-' v(c[1]))                            :S(pp_return)F(pp_operator)
+pp_sum                                                                    :(pp_func)
+pp_max                                                                    :(pp_func)
+pp_min                                                                    :(pp_func)
+pp_avg                                                                    :(pp_func)
+pp_mod                                                                    :(pp_func)
+pp_ne                out(v(c[1]) ' != ' v(c[2]))                          :(pp_return)
+pp_nls_charset_name                                                       :(pp_func)
+pp_not               out('NOT ' v(c[1]))                                  :(pp_return)
+pp_not_between       out(v(c[1]))
++                    out(' NOT BETWEEN ' v(c[2]))
++                    out(' AND ' v(c[3]))                                 :(pp_return)
+pp_not_in            out(v(c[1]) ' NOT IN ' v(c[2]))                      :(pp_return)
+pp_not_like          pp(c[1])
+                     out(' NOT LIKE ') pp(c[2])
+                     EQ(n, 3) out(' ESCAPE ') pp(c[3])                    :(pp_return)
+pp_null              out('NULL')                                          :(pp_return)
+pp_nvl                                                                    :(pp_func)
+pp_or                                                                     :(pp_operator)
+pp_percent                                                                :(pp_operator)
+pp_plus              EQ(n, 1) out('+' v(c[1]))                            :S(pp_return)F(pp_operator)
+pp_rpad                                                                   :(pp_func)
+pp_sign                                                                   :(pp_func)
+pp_slash                                                                  :(pp_operator)
+pp_some              out('SOME ' v(c[1]))                                 :(pp_return)
+pp_subquery          out('(' v(c[1]) ')')                                 :(pp_return)
+pp_instr                                                                  :(pp_func)
+pp_substr                                                                 :(pp_func)
+pp_table             out(lwr(v(c[1])))
+                     out(v '.' lwr(v(c[2])))                              :(pp_return)
+pp_tilde             out('~' v(c[1]))                                     :(pp_return)
+pp_to_char                                                                :(pp_func)
+pp_to_date                                                                :(pp_func)
+pp_round                                                                  :(pp_func)
+pp_count                                                                  :(pp_func)
+pp_trunc                                                                  :(pp_func)
+pp_upper                                                                  :(pp_func)
+pp_lower                                                                  :(pp_func)
+pp_v_const           out(v(x))                                            :(pp_return)
+
+pp_condition         ''                                                   :(pp_return)
+pp_expr_group        ''                                                   :(pp_return)
+pp_expr_group_group  ''                                                   :(pp_return)
+pp_expr_group_list   ''                                                   :(pp_return)
+
+pp_return                                                                 :(RETURN)
+*------------------- ---------------------------------------------------- ------------------
+zz                   t   =    t(x)
+                     v   =    v(x)
+*                    OUTPUT =    'zz(' t ')' ' v = ' v
+                     IDENT(t)                                             :S(RETURN)
+                     IDENT(v)                                             :F(RETURN)
+                     n   =    n(x)
+                     c   =    c(x)
+                     i   =    1
+zz_1                 i   =    DIFFER(c) zz(c[i]) i + 1                    :S(zz_1)
+
+                     IDENT(t, '%')                                        :S(zz_percent)
+                     IDENT(t, '&')                                        :S(zz_ampersand)
+                     IDENT(t, '()')                                       :S(zz_parens)
+                     IDENT(t, '(+)')                                      :S(zz_indexed)
+                     IDENT(t, '*')                                        :S(zz_asterick)
+                     IDENT(t, '+')                                        :S(zz_plus)
+                     IDENT(t, '-')                                        :S(zz_dash)
+                     IDENT(t, '/')                                        :S(zz_slash)
+                     IDENT(t, ':')                                        :S(zz_colon)
+                     IDENT(t, '^')                                        :S(zz_caret)
+                     IDENT(t, '|')                                        :S(zz_bar)
+                     IDENT(t, '||')                                       :S(zz_bar_bar)
+                     IDENT(t, '~')                                        :S(zz_tilde)
+                     IDENT(t, '=')                                        :S(zz_eq)
+                     IDENT(t, '!=')                                       :S(zz_ne)
+                     IDENT(t, '<>')                                       :S(zz_ne)
+                     IDENT(t, '<')                                        :S(zz_lt)
+                     IDENT(t, '<=')                                       :S(zz_le)
+                     IDENT(t, '>')                                        :S(zz_gt)
+                     IDENT(t, '>=')                                       :S(zz_ge)
+                                                                          :($('ZZ_' upr(t)))
+*------------------- ---------------------------------------------------- ------------------
+zz_select            v   =    ''                                          :(zz_return)
+zz_minus             v   =    ''                                          :(zz_return)
+zz_intersect         v   =    ''                                          :(zz_return)
+zz_union             v   =    ''                                          :(zz_return)
+zz_union_all         v   =    ''                                          :(zz_return)
+
+zz_item              v   =    ''                                          :(zz_return)
+zz_item_list         v   =    ''                                          :(zz_return)
+zz_reference         v   =    ''                                          :(zz_return)
+zz_references        v   =    ''                                          :(zz_return)
+
+zz_expr_list         dlm =    ', '                                        :(zz_operator)
+zz_operator          dlm =    IDENT(dlm) ' ' upr(t) ' '
+                     v   =    v(c[1])
+                     i   =    1
+zz_operator_1        i   =    i + 1
+                     v   =    v dlm v(c[i])                               :S(zz_operator_1)F(zz_return)
+
+zz_abs               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_all               v   =    'ALL ' v(c[1])                              :(zz_return)
+zz_ampersand                                                              :(zz_operator)
+zz_and                                                                    :(zz_operator)
+zz_any               v   =    'ANY ' v(c[1])                              :(zz_return)
+zz_asterick                                                               :(zz_operator)
+zz_bar                                                                    :(zz_operator)
+zz_bar_bar                                                                :(zz_operator)
+zz_between           v   =    v(c[1])
++                             ' BETWEEN ' v(c[2])
++                             ' AND ' v(c[3])                             :(zz_return)
+zz_bitand            v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_caret                                                                  :(zz_operator)
+zz_colon             v   =    ':' v(c[1])                                 :(zz_return)
+zz_column            v   =    lwr(v(c[1]))
+                     v   =    v '.' lwr(v(c[2]))
+                     v   =    v '.' lwr(v(c[3]))                          :(zz_return)
+zz_count             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_decode            v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_eq                v   =    v(c[1]) ' = '  v(c[2])                      :(zz_return)
+zz_exists            v   =    'EXISTS ' v(c[1])                           :(zz_return)
+zz_floor             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_rawtohex          v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_ge                v   =    v(c[1]) ' >= ' v(c[2])                      :(zz_return)
+zz_gt                v   =    v(c[1]) ' > '  v(c[2])                      :(zz_return)
+zz_identifier        v   =    lwr(v)                                      :(zz_return)
+zz_in                v   =    v(c[1]) ' IN ' v(c[2])                      :(zz_return)
+zz_indexed           v   =    v(c[1]) ' (+)'                              :(zz_return)
+zz_is_not_null       v   =    v(c[1]) ' IS NOT NULL'                      :(zz_return)
+zz_is_null           v   =    v(c[1]) ' IS NULL'                          :(zz_return)
+zz_le                v   =    v(c[1]) ' <= ' v(c[2])                      :(zz_return)
+zz_like              v   =    v(c[1]) ' LIKE ' v(c[2])
+                     v   =    v ' ESCAPE ' v(c[3])                        :(zz_return)
+                     v   =    v(c[1])
+zz_lpad              v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_lt                v   =    v(c[1]) ' < '  v(c[2])                      :(zz_return)
+zz_to_number         v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_ltrim             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_rtrim             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_dash              v   =    EQ(n, 1) '-' v(c[1])                        :S(zz_return)F(zz_operator)
+zz_sum               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_max               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_min               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_avg               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_mod               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_ne                v   =    v(c[1]) ' != ' v(c[2])                      :(zz_return)
+zz_nls_charset_name  v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_not               v   =    'NOT ' v(c[1])                              :(zz_return)
+zz_not_between       v   =    v(c[1])
++                             ' NOT BETWEEN ' v(c[2])
++                             ' AND ' v(c[3])                             :(zz_return)
+zz_not_in            v   =    v(c[1]) ' NOT IN ' v(c[2])                  :(zz_return)
+zz_not_like          v   =    v(c[1]) ' NOT LIKE ' v(c[2])
+                     v   =    v ' ESCAPE ' v(c[3])                        :(zz_return)
+zz_null              v   =    'NULL'                                      :(zz_return)
+zz_nvl               v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_or                                                                     :(zz_operator)
+zz_parens            v   =    '(' v(c[1]) ')'                             :(zz_return)
+zz_percent                                                                :(zz_operator)
+zz_plus              v   =    EQ(n ,1) '+' v(c[1])                        :S(zz_return)F(zz_operator)
+zz_rpad              v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_sign              v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_slash                                                                  :(zz_operator)
+zz_some              v   =    'SOME ' v(c[1])                             :(zz_return)
+zz_subquery          v   =    '(' v(c[1]) ')'                             :(zz_return)
+zz_instr             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_substr            v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_table             v   =    lwr(v(c[1]))
+                     v   =    v '.' lwr(v(c[2]))                          :(zz_return)
+zz_tilde             v   =    '~' v(c[1])                                 :(zz_return)
+zz_to_char           v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_to_date           v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_round             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_trunc             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_upper             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+zz_lower             v   =    upr(t) '(' v(c[1]) ')'                      :(zz_return)
+
+zz_asc               v   =    ''                                          :(zz_return)
+zz_desc              v   =    ''                                          :(zz_return)
+zz_group_list        v   =    ''                                          :(zz_return)
+zz_order_list        v   =    ''                                          :(zz_return)
+zz_order_spec        v   =    ''                                          :(zz_return)
+zz_condition         v   =    ''                                          :(zz_return)
+zz_expr_group        v   =    ''                                          :(zz_return)
+zz_expr_group_group  v   =    ''                                          :(zz_return)
+zz_expr_group_list   v   =    ''                                          :(zz_return)
+
+zz_return            v(x) = v                                             :(RETURN)
+
+tree_end
+*------------------- ---------------------------------------------------- ------------------
+-INCLUDE 'omega.inc'
+*------------------- ---------------------------------------------------- ------------------
+
+          space          =    SPAN(' ' tab nl)         $ tz $ *debug(4, "space " tz)
++                        |    ('/*' BREAK('*') '*/')   $ tz $ *debug(4, "space " tz)
++                        |    ('--' BREAK(nl) nl)      $ tz $ *debug(4, "space " tz)
++                        |    ('//' BREAK(nl) nl)      $ tz $ *debug(4, "space " tz)
++                                                      . tz . *gen(tz)
+
+          comment        =
++                             ('//' BREAK(nl) nl)      $ tz $ *debug(4, "comment " tz)
++                                                           $ *gen(tz)
+
+          comments       =    *comment (*comments | '')
+
+          $' '           =    ARBNO(*space)
+
+          ident          =    '' $ *debug(4, "%ident")
++                             $' '
++                             (    icase('oms') '.' icase('class')           $ *asgn('id', '"oms_class"')
++                                                                            . *asgn('id', '"oms_class"')
++                             |    icase('oms') '.' icase('error')           $ *asgn('id', '"oms_error"')
++                                                                            . *asgn('id', '"oms_error"')
++                             |    icase('oms') '.' icase('errortext')       $ *asgn('id', '"oms_errortext"')
++                                                                            . *asgn('id', '"oms_errortext"')
++                             |    icase('oms') '.' icase('sqlcode')         $ *asgn('id', '"oms_sqlcode"')
++                                                                            . *asgn('id', '"oms_sqlcode"')
++                             |    icase('oms') '.' icase('method')          $ *asgn('id', '"oms_method"')
++                                                                            . *asgn('id', '"oms_method"')
++                             |         SPAN(uc lc '_' digit)           $ id $ *isident(id) . id
++                             |    '$'  SPAN(uc lc '_' digit)           $ id $ *asgn('id', '"_' id '"')
++                                                                       . id . *asgn('id', '"_' id '"')
++                             |    '@'  SPAN(uc lc '_' digit)          $ id1 . id1
++                                       icase('%bmcConnId%')
++                                       (SPAN(uc lc '_' digit) | '')   $ id2 . id2
++                                                                            $ *asgn('id', '"_' id1 id2 '"')
++                                                                            . *asgn('id', '"_' id1 id2 '"')
++                             |    '@@' SPAN(uc lc '_' digit)           $ id $ *asgn('id', '"__' id '"')
++                                                                       . id . *asgn('id', '"__' id '"')
++                             |    '@'  SPAN(uc lc '_' digit)           $ id $ *asgn('id', '"_' id '"')
++                                                                       . id . *asgn('id', '"_' id '"')
++                             )
++                             $ tz $ *debug(4, "ident " tz)
+
+          expansion      =    '%' *ident '%' auto $ *enter(id, 'LOAD')
+
+          sql_identifier =    '' $ *debug(4, "%sql_identifier")
++                             $' '
++                             (
++                                  ('$' | '@' | '')
++                                  SPAN(uc lc '_' digit '$#') $ id $ *sqlword(id) . id
++                             )
++                             $ tz $ *debug(4, "sql_identifier " tz)
+
+          string         =    '' $ *debug(4, "%string")
++                             $' '
++                             (
++                                  ('"' ARBNO('""' | NOTANY('"' nl)) '"') $ sconst $ *asgn('sconst', 'expand(sconst)')
++                                                                         . sconst . *asgn('sconst', 'expand(sconst)')
++                             )
++                             $ tz $ *debug(4, "string " tz)
+
+          I_CONST        =    $' ' SPAN(digit)                 . iconst $ tz $ *debug(4, "I_CONST " tz)
+          R_CONST        =    $' ' SPAN(digit) '.' SPAN(digit) . rconst $ tz $ *debug(4, "R_CONST " tz)
+          C_CONST        =    $' ' ("'" LEN(1) "'")            . cconst $ tz $ *debug(4, "C_CONST " tz)
+
+          V_CONST        =    $' ' ("'" ARBNO("''" | NOTANY("'" nl)) "'") . vconst
++                             $ tz $ *debug(4, "V_CONST " tz)
+
+          constant       =    '' $ *debug(4, "constant")
++                             (    C_CONST            auto . *gen(cconst)
++                             |    I_CONST            auto . *gen(iconst)
++                             |    R_CONST            auto . *gen(rconst)
++                             |    *string            auto . *gen(sconst)
++                             )
++                             $ tz $ *debug(4, "constant " tz)
+
+          apply          =    $' ' icase('apply')      $ tz $ *debug(4, tz)
+          break          =    $' ' icase('break')      $ tz $ *debug(4, tz)
+          call           =    $' ' icase('call')       $ tz $ *debug(4, tz)
++                        |    $' ' icase('callsub')    $ tz $ *debug(4, tz)
+          case           =    $' ' icase('case')       $ tz $ *debug(4, tz)
+          char           =    $' ' icase('char')       $ tz $ *debug(4, tz)
+          cmd            =    $' ' icase('cmd')        $ tz $ *debug(4, tz)
+          continue       =    $' ' icase('continue')   $ tz $ *debug(4, tz)
+          cstr           =    $' ' icase('cstr')       $ tz $ *debug(4, tz)
+          date           =    $' ' icase('date')       $ tz $ *debug(4, tz)
+          decimal        =    $' ' icase('decimal')    $ tz $ *debug(4, tz)
+          default        =    $' ' icase('default')    $ tz $ *debug(4, tz)
+          dynamic        =    $' ' icase('dynamic')    $ tz $ *debug(4, tz)
+          do             =    $' ' icase('do')         $ tz $ *debug(4, tz)
+          else           =    $' ' icase('else')       $ tz $ *debug(4, tz)
+          exec           =    $' ' icase('exec')       $ tz $ *debug(4, tz)
+          farproc        =    $' ' icase('farproc')    $ tz $ *debug(4, tz)
+          fileinfo       =    $' ' icase('fileinfo')   $ tz $ *debug(4, tz)
+          float          =    $' ' icase('float')      $ tz $ *debug(4, tz)
+          for            =    $' ' icase('for')        $ tz $ *debug(4, tz)
+          goto           =    $' ' icase('goto')       $ tz $ *debug(4, tz)
+          graphic        =    $' ' icase('graphic')    $ tz $ *debug(4, tz)
+          hsid           =    $' ' icase('hwnd')       $ tz $ *debug(4, tz)
+          if             =    $' ' icase('if')         $ tz $ *debug(4, tz)
+          include        =    $' ' icase('include')    $ tz $ *debug(4, tz)
+          integer        =    $' ' icase('integer')    $ tz $ *debug(4, tz)
+          libdef         =    $' ' icase('libdef')     $ tz $ *debug(4, tz)
+          long           =    $' ' icase('long')       $ tz $ *debug(4, tz)
+          longraph       =    $' ' icase('longraph')   $ tz $ *debug(4, tz)
+          lstr           =    $' ' icase('lstr')       $ tz $ *debug(4, tz)
+          proc           =    $' ' icase('mainproc')   $ tz $ *debug(4, tz)
+          nchar          =    $' ' icase('nchar')      $ tz $ *debug(4, tz)
+          ncstr          =    $' ' icase('ncstr')      $ tz $ *debug(4, tz)
+          ndate          =    $' ' icase('ndate')      $ tz $ *debug(4, tz)
+          ndecimal       =    $' ' icase('ndecimal')   $ tz $ *debug(4, tz)
+          nfloat         =    $' ' icase('nfloat')     $ tz $ *debug(4, tz)
+          ngraphic       =    $' ' icase('ngraphic')   $ tz $ *debug(4, tz)
+          ninteger       =    $' ' icase('ninteger')   $ tz $ *debug(4, tz)
+          nlong          =    $' ' icase('nlong')      $ tz $ *debug(4, tz)
+          nlongraph      =    $' ' icase('nlongraph')  $ tz $ *debug(4, tz)
+          nlstr          =    $' ' icase('nlstr')      $ tz $ *debug(4, tz)
+          nsmall         =    $' ' icase('nsmall')     $ tz $ *debug(4, tz)
+          nstamp         =    $' ' icase('nstamp')     $ tz $ *debug(4, tz)
+          ntime          =    $' ' icase('ntime')      $ tz $ *debug(4, tz)
+          nvarchar       =    $' ' icase('nvarchar')   $ tz $ *debug(4, tz)
+          nvargraph      =    $' ' icase('nvargraph')  $ tz $ *debug(4, tz)
+          return         =    $' ' icase('return')     $ tz $ *debug(4, tz)
+          sizeof         =    $' ' icase('sizeof')     $ tz $ *debug(4, tz)
+          small          =    $' ' icase('small')      $ tz $ *debug(4, tz)
+          sql            =    $' ' icase('sql')        $ tz $ *debug(4, tz)
+          sqldef         =    $' ' icase('sqldef')     $ tz $ *debug(4, tz)
+          stamp          =    $' ' icase('stamp')      $ tz $ *debug(4, tz)
+          subproc        =    $' ' icase('subproc')    $ tz $ *debug(4, tz)
+          switch         =    $' ' icase('switch')     $ tz $ *debug(4, tz)
+          time           =    $' ' icase('time')       $ tz $ *debug(4, tz)
+          varchar        =    $' ' icase('varchar')    $ tz $ *debug(4, tz)
+          vargraph       =    $' ' icase('vargraph')   $ tz $ *debug(4, tz)
+          vardef         =    $' ' icase('vartype')    $ tz $ *debug(4, tz)
+          while          =    $' ' icase('while')      $ tz $ *debug(4, tz)
+
+          close          =    $' ' icase('close')      $ tz $ *debug(4, tz)
+          commit         =    $' ' icase('commit')     $ tz $ *debug(4, tz)
+          cursor         =    $' ' icase('cursor')     $ tz $ *debug(4, tz)
+          declare        =    $' ' icase('declare')    $ tz $ *debug(4, tz)
+          describe       =    $' ' icase('describe')   $ tz $ *debug(4, tz)
+          fetch          =    $' ' icase('fetch')      $ tz $ *debug(4, tz)
+          into           =    $' ' icase('into')       $ tz $ *debug(4, tz)
+          loadappend     =    $' ' icase('loadappend') $ tz $ *debug(4, tz)
+          oratransappend =    $' ' icase('oratransappend') $ tz $ *debug(4, tz)
+          load           =    $' ' icase('load')       $ tz $ *debug(4, tz)
+          open           =    $' ' icase('open')       $ tz $ *debug(4, tz)
+
+          $'!'           =    $' ' '!'                 $ tz $ *debug(4, tz)
+          $'!='          =    $' ' '!='                $ tz $ *debug(4, tz)
+          $'<>'          =    $' ' '<>'                $ tz $ *debug(4, tz)
+          $'^'           =    $' ' '^'                 $ tz $ *debug(4, tz)
+          $'%'           =    $' ' '%'                 $ tz $ *debug(4, tz)
+          $'%='          =    $' ' '%='                $ tz $ *debug(4, tz)
+          $'&&'          =    $' ' '&&'                $ tz $ *debug(4, tz)
+          $'&'           =    $' ' '&'                 $ tz $ *debug(4, tz)
+          $'('           =    $' ' '('                 $ tz $ *debug(4, tz)
+          $'(+)'         =    $' ' '(+)'               $ tz $ *debug(4, tz)
+          $')'           =    $' ' ')'                 $ tz $ *debug(4, tz)
+          $'*'           =    $' ' '*'                 $ tz $ *debug(4, tz)
+          $'*='          =    $' ' '*='                $ tz $ *debug(4, tz)
+          $'+'           =    $' ' '+'                 $ tz $ *debug(4, tz)
+          $'++'          =    $' ' '++'                $ tz $ *debug(4, tz)
+          $'+='          =    $' ' '+='                $ tz $ *debug(4, tz)
+          $','           =    $' ' ','                 $ tz $ *debug(4, tz)
+          $'-'           =    $' ' '-'                 $ tz $ *debug(4, tz)
+          $'--'          =    $' ' '--'                $ tz $ *debug(4, tz)
+          $'-='          =    $' ' '-='                $ tz $ *debug(4, tz)
+          $'.'           =    $' ' '.'                 $ tz $ *debug(4, tz)
+          $'/'           =    $' ' '/'                 $ tz $ *debug(4, tz)
+          $'/='          =    $' ' '/='                $ tz $ *debug(4, tz)
+          $':'           =    $' ' ':'                 $ tz $ *debug(4, tz)
+          $';'           =    $' ' ';'                 $ tz $ *debug(4, tz)
+          $'<'           =    $' ' '<'                 $ tz $ *debug(4, tz)
+          $'<='          =    $' ' '<='                $ tz $ *debug(4, tz)
+          $'='           =    $' ' '='                 $ tz $ *debug(4, tz)
+          $'=='          =    $' ' '=='                $ tz $ *debug(4, tz)
+          $'>'           =    $' ' '>'                 $ tz $ *debug(4, tz)
+          $'>='          =    $' ' '>='                $ tz $ *debug(4, tz)
+          $'['           =    $' ' '['                 $ tz $ *debug(4, tz)
+          $']'           =    $' ' ']'                 $ tz $ *debug(4, tz)
+          $'{'           =    $' ' '{'                 $ tz $ *debug(4, tz)
+          $'|'           =    $' ' '|'                 $ tz $ *debug(4, tz)
+          $'||'          =    $' ' '||'                $ tz $ *debug(4, tz)
+          $'}'           =    $' ' '}'                 $ tz $ *debug(4, tz)
+          $'~'           =    $' ' '~'                 $ tz $ *debug(4, tz)
+
+          msl_function   =    $' '
++                        (    icase("abort")             auto . *gen("abort")
++                        |    icase("checkPoint")        auto . *gen("checkPoint")
++                        |    icase("chr")               auto . *gen("chr")
++                        |    icase("clearStack")        auto . *gen("clearStack")
++                        |    icase("configureMacro")    auto . *gen("configureMacro")
++                        |    icase("DDEAdvise")         auto . *gen("DDEAdvise")
++                        |    icase("DDEData")           auto . *gen("DDEData")
++                        |    icase("DDEExecute")        auto . *gen("DDEExecute")
++                        |    icase("DDEInitiate")       auto . *gen("DDEInitiate")
++                        |    icase("DDEPoke")           auto . *gen("DDEPoke")
++                        |    icase("DDERequest")        auto . *gen("DDERequest")
++                        |    icase("DDETerminate")      auto . *gen("DDETerminate")
++                        |    icase("DDEUnadvise")       auto . *gen("DDEUnadvise")
++                        |    icase("display")           auto . *gen("display")
++                        |    icase("editMacro")         auto . *gen("editMacro")
++                        |    icase("exit")              auto . *gen("exit")
++                        |    icase("extract")           auto . *gen("extract")
++                        |    icase("fileClose")         auto . *gen("fileClose")
++                        |    icase("fileCreate")        auto . *gen("fileCreate")
++                        |    icase("fileDelete")        auto . *gen("fileDelete")
++                        |    icase("fileOpen")          auto . *gen("fileOpen")
++                        |    icase("fileRead")          auto . *gen("fileRead")
++                        |    icase("fileRename")        auto . *gen("fileRename")
++                        |    icase("fileSeek")          auto . *gen("fileSeek")
++                        |    icase("fileStat")          auto . *gen("fileStat")
++                        |    icase("fileTemp")          auto . *gen("fileTemp")
++                        |    icase("fileWrite")         auto . *gen("fileWrite")
++                        |    icase("getVal")            auto . *gen("getVal")
++                        |    icase("jobSetup")          auto . *gen("jobSetup")
++                        |    icase("jobStep")           auto . *gen("jobStep")
++                        |    icase("length")            auto . *gen("length")
++                        |    icase("loadMacro")         auto . *gen("loadMacro")
++                        |    icase("lower")             auto . *gen("lower")
++                        |    icase("makeMacro")         auto . *gen("makeMacro")
++                        |    icase("messageBox")        auto . *gen("messageBox")
++                        |    icase("msgBox")            auto . *gen("msgBox")
++                        |    icase("OMSGetDataSources") auto . *gen("OMSGetDataSources")
++                        |    icase("OMSLogoff")         auto . *gen("OMSLogoff")
++                        |    icase("OMSLogon")          auto . *gen("OMSLogon")
++                        |    icase("OMSSetBundle")      auto . *gen("OMSSetBundle")
++                        |    icase("OMSSetMode")        auto . *gen("OMSSetMode")
++                        |    icase("OMSSetSession")     auto . *gen("OMSSetSession")
++                        |    icase("OMSUseDatabase")    auto . *gen("OMSUseDatabase")
++                        |    icase("playMacro")         auto . *gen("playMacro")
++                        |    icase("playSound")         auto . *gen("playSound")
++                        |    icase("pos")               auto . *gen("pos")
++                        |    icase("readLine")          auto . *gen("readLine")
++                        |    icase("recordMacro")       auto . *gen("recordMacro")
++                        |    icase("rplStr")            auto . *gen("rplStr")
++                        |    icase("run")               auto . *gen("run")
++                        |    icase("runProgram")        auto . *gen("runProgram")
++                        |    icase("runScript")         auto . *gen("runScript")
++                        |    icase("saveMacro")         auto . *gen("saveMacro")
++                        |    icase("script")            auto . *gen("script")
++                        |    icase("setBreakExit")      auto . *gen("setBreakExit")
++                        |    icase("setErrorExit")      auto . *gen("setErrorExit")
++                        |    icase("setOMSErrorExit")   auto . *gen("setOMSErrorExit")
++                        |    icase("stack")             auto . *gen("stack")
++                        |    icase("subStr")            auto . *gen("subStr")
++                        |    icase("suspend")           auto . *gen("suspend")
++                        |    icase("sysLog")            auto . *gen("sysLog")
++                        |    icase("tabDialog")         auto . *gen("tabDialog")
++                        |    icase("tAdd")              auto . *gen("tAdd")
++                        |    icase("tClose")            auto . *gen("tClose")
++                        |    icase("tCol")              auto . *gen("tCol")
++                        |    icase("tCollapseTab")      auto . *gen("tCollapseTab")
++                        |    icase("tCollapseVar")      auto . *gen("tCollapseVar")
++                        |    icase("tColName")          auto . *gen("tColName")
++                        |    icase("tCreate")           auto . *gen("tCreate")
++                        |    icase("tDelete")           auto . *gen("tDelete")
++                        |    icase("tDestroy")          auto . *gen("tDestroy")
++                        |    icase("tEmpty")            auto . *gen("tEmpty")
++                        |    icase("tGet")              auto . *gen("tGet")
++                        |    icase("tGetMod")           auto . *gen("tGetMod")
++                        |    icase("tLoad")             auto . *gen("tLoad")
++                        |    icase("tLock")             auto . *gen("tLock")
++                        |    icase("tOpen")             auto . *gen("tOpen")
++                        |    icase("tPoint")            auto . *gen("tPoint")
++                        |    icase("tRedefine")         auto . *gen("tRedefine")
++                        |    icase("tReplace")          auto . *gen("tReplace")
++                        |    icase("tReset")            auto . *gen("tReset")
++                        |    icase("trim")              auto . *gen("trim")
++                        |    icase("trimLeft")          auto . *gen("trimLeft")
++                        |    icase("trimRight")         auto . *gen("trimRight")
++                        |    icase("tRow")              auto . *gen("tRow")
++                        |    icase("tRowMax")           auto . *gen("tRowMax")
++                        |    icase("truncate")          auto . *gen("truncate")
++                        |    icase("tSave")             auto . *gen("tSave")
++                        |    icase("tUnlock")           auto . *gen("tUnlock")
++                        |    icase("unStack")           auto . *gen("unStack")
++                        |    icase("upper")             auto . *gen("upper")
++                        |    icase("varChannel")        auto . *gen("varChannel")
++                        |    icase("varConcat")         auto . *gen("varConcat")
++                        |    icase("varDialog")         auto . *gen("varDialog")
++                        |    icase("varProfile")        auto . *gen("varProfile")
++                        |    icase("varTransfer")       auto . *gen("varTransfer")
++                        |    icase("ascreate")          auto . *gen("ascreate")
++                        |    icase("filework")          auto . *gen("fileWork")
++                        )
+
+*   ----------------------------------------------------------------------------------------------------
+*         MSL grammar
+*   ----------------------------------------------------------------------------------------------------
+
+          defs           =    POS(0)                        auto . *gen(nl)
++                                                           auto $ *gen('#include <alxmsl.h>' nl nl)
++                                                           auto . *asgn("$'#dyn'", '0')
++                                                           auto $ *asgn("$'#dyn'", '0')
++                             @ofs
++                             (*comments | '')
++                             ARBNO(*def)
++                             $' ' RPOS(0)
+
+          def            =    TZ(1, "def",
++                             (  *fun_def
++                             |  *lib_def
++                             |  *inc_def
++                             ))
+
+          fun_def        =    TZ(1, "fun_def",
++                             (  (  proc
++                                |  subproc
++                                |  farproc
++                                )
++                                $'(' *ident . id $')'
++                                                           auto $ *asgn("dictionary", '"' funcid '"')
++                                                           auto $ *asgn(funcid, "TABLE()")
++                                                           auto . *asgn("dictionary", '"' funcid '"')
++                                                           auto . *gen(nl 'int ' funcid '()' nl)
++                                $'{'
++                                                           auto . *gen('{' nl)
++                                                           auto . *inclevel()
++                                                           auto . *gendict()
++                                *opt_stmt_list
++                                                           auto . *gen(nl 'return 0;' nl)
++                                                           auto . *declevel()
++                                                           auto . *gen('}' nl)
++                                $'}'
++                             ))
+
+          lib_def_rtype  =    TZ(1, "lib_def_rtype",
++                             (  ''
++                             |  $':' *integer
++                             |  $':' *cstr
++                             ))
+
+
+          lib_def        =    TZ(1, "lib_def",
++                             (  libdef
++                                *ident
++                                *ident
++                                $'(' *opt_lib_list $')'
++                                *lib_def_rtype
++                                $';'
++                             ))
+
+          inc_def        =    TZ(1, "inc_def",
++                             (  include *string
++                             ))
+
+          opt_lib_list   =    TZ(2, "opt_lib_list",
++                             (    ''
++                             |  *type_spec
++                             |  *type_spec $',' *opt_lib_list
++                             ))
+
+          type_spec      =    TZ(2, "type_spec",
++                             (  date
++                             |  ndate
++                             |  fileinfo
++                             |  time
++                             |  ntime
++                             |  stamp
++                             |  nstamp
++                             |  varchar
++                             |  nvarchar
++                             |  char
++                             |  nchar
++                             |  long
++                             |  nlong
++                             |  cstr
++                             |  ncstr
++                             |  vargraph
++                             |  nvargraph
++                             |  longraph
++                             |  nlongraph
++                             |  lstr
++                             |  nlstr
++                             |  float
++                             |  nfloat
++                             |  decimal
++                             |  ndecimal
++                             |  integer
++                             |  ninteger
++                             |  small
++                             |  nsmall
++                             |  hsid
++                             |  $'&' varchar
++                             |  $'&' nvarchar
++                             |  $'&' char
++                             |  $'&' nchar
++                             |  $'&' long
++                             |  $'&' nlong
++                             |  $'&' cstr
++                             |  $'&' ncstr
++                             |  $'&' integer
++                             |  $'&' ninteger
++                             |  $'&' small
++                             |  $'&' nsmall
++                             ))
+
+          comp_stmt      =    TZ(2, "comp_stmt",
++                             (
++                                $'{'
++                                                           auto . *gen('{' nl)
++                                                           auto . *inclevel()
++                                *opt_stmt_list
++                                                           auto . *declevel()
++                                                           auto . *gen('}' nl)
++                                                           auto . *air_off()
++                                $'}'
++                             ))
+
+          stmt           =    @ofs
++                             (  *comp_stmt
++                             |  *if_stmt
++                             |  *simple_stmt
++                             )
+
+          block_stmt     =    @ofs
++                             (  *comp_stmt
++                             |                             auto . *inclevel()
++                                *if_stmt                   auto . *declevel()
++                             |                             auto . *inclevel()
++                                *simple_stmt               auto . *declevel()
++                             )
+
+          if_block_stmt  =    @ofs
++                             (  *comp_stmt
++                             |                             auto . *inclevel()
++                                *simple_stmt               auto . *declevel()
++                             )
+
+          simple_stmt    =    TZ(2, "simple_stmt",
++                                                           auto . *air_take()
++                             (  *apply_stmt
++                             |  *break_stmt
++                             |  *case_stmt
++                             |  *continue_stmt
++                             |  *default_stmt
++                             |  *do_stmt
++                             |  *exec_stmt
++                             |  *for_stmt
++                             |  *goto_stmt
++                             |  *return_stmt
++                             |  *switch_stmt
++                             |  *vardef_stmt
++                             |  *while_stmt
++                             |  *expr $';'                 auto . *gen(';' nl)
++                             |  *ident $':'                auto . *gen(id ':' nl)
++                             |  $';'                       auto . *gen(';' nl)
++                             ))
+
+          apply_stmt     =    TZ(2, "apply_stmt",
++                             (
++                                apply                      auto . *gen('apply ')
++                                (*ident | *string)
++                                $'('                       auto . *gen('(')
++                                   *expr
++                                $')'                       auto . *gen(')' nl)
++                                   *block_stmt
++                             ))
+
+          break_stmt     =    break    $';'                 auto . *gen('break;' nl)
+
+          case_stmt      =    TZ(2, "case_stmt",
++                             (
++                                case                       auto . *gen('case ')
++                                *constant
++                                $':'                       auto . *gen(':' nl)
++                                   *block_stmt
++                                                           auto . *air_on()
++                             ))
+
+          continue_stmt  =    continue $';'                 auto . *gen('continue;' nl)
+
+          default_stmt   =    default  $':'                 auto . *gen('default: ')
++                             *block_stmt
+
+          do_stmt        =    TZ(2, "do_stmt",
++                             (
++                                do                         auto . *gen('do' nl)
++                                   *block_stmt
++                                while                      auto . *gen('while ')
++                                $'('                       auto . *gen('(')
++                                   *expr
++                                $')'                       auto . *gen(')')
++                                $';'                       auto . *gen(';' nl)
++                                                           auto . *air_on()
++                             ))
+
+          exec_stmt      =    exec sql    *sql_stmt         auto . *gen(nl)
++                        |    exec cmd    *sql_stmt         auto . *gen(nl)
++                        |    exec sqldef *sql_stmt         auto . *gen(nl)
+
+          for_stmt       =    TZ(2, "for_stmt",
++                             (
++                                for                        auto . *gen('for ')
++                                $'('                       auto . *gen('(')
++                                   *opt_expr_list $';'     auto . *gen('; ')
++                                   *opt_expr      $';'     auto . *gen('; ')
++                                   *opt_expr_list
++                                $')'                       auto . *gen(')' nl)
++                                   *block_stmt
++                                                           auto . *air_on()
++                             ))
+
+          goto_stmt      =    goto                          auto . *gen('goto ')
++                             *ident $';'                   auto . *gen(id ';' nl)
+
+          if_stmt        =    TZ(2, "if_stmt",
++                             (                             auto . *air_take()
++                                *if_clause
++                                (*else_if_clause ARBNO(*else_if_clause) | '')
++                                (*else_clause | '')
++                                                           auto . *air_on()
++                             ))
+
+          if_clause      =    TZ(2, "if_clause",
++                             (
++                                if                         auto . *gen('if ')
++                                $'('                       auto . *gen('(')
++                                *expr
++                                $')'                       auto . *gen(')' nl)
++                                *block_stmt
++                             ))
+
+          else_if_clause =    TZ(2, "else_if_clause",
++                             (
++                                else if                    auto . *gen('else if ')
++                                $'('                       auto . *gen('(')
++                                *expr
++                                $')'                       auto . *gen(')' nl)
++                                *block_stmt
++                             ))
+
+          else_clause    =    TZ(2, "else_clause",
++                             (
++                                else                       auto . *gen('else' nl)
++                                *if_block_stmt
++                             ))
+
+          return_stmt    =    return                        auto . *gen('return ')
++                             (  *expr
++                             |  ''                         auto . *gen('0')
++                             )
++                             $';'                          auto . *gen(';' nl)
+
+          switch_stmt    =    TZ(2, "switch_stmt",
++                             (
++                                switch                     auto . *gen('switch ')
++                                $'('                       auto . *gen('(')
++                                   *expr
++                                $')'                       auto . *gen(')' nl)
++                                   *block_stmt
++                                                           auto . *air_on()
++                             ))
+
+          vardef_stmt    =    vardef
++                             *ident *type_spec $';'
+
+          while_stmt     =    TZ(2, "while_stmt",
++                             (
++                                while                      auto . *gen('while ')
++                                $'('                       auto . *gen('(')
++                                   *expr
++                                $')'                       auto . *gen(')' nl)
++                                   *block_stmt
++                                                           auto . *air_on()
++                             ))
+
+          sql_stmt       =    FENCE
++                             (  open                       auto . *gen('exec_sql_open(')
++                                *ident $';'                auto . *gen('"' lwr(id) '");')
++                             |  fetch                      auto . *gen('exec_sql_fetch(')
++                                *ident $';'                auto . *gen('"' lwr(id) '");')
++                             |  close                      auto . *gen('exec_sql_close(')
++                                *ident $';'                auto . *gen('"' lwr(id) '");')
++                             |  declare                    auto . *gen('exec_sql_declare(')
++                                *ident                     auto $ *asgn('cc', 'id')
++                                cursor for                 auto . *gen('"' lwr(id) '", ' lwr(id))
++                                @sqlstartofs
++                                *sql_tokens $ sql
++                                $';'                       auto $ *gensql(lwr(cc))
++                                                           auto . *gen(');')
++                             |  describe                   auto . *gen('exec_sql_describe(')
++                                *ident into                auto . *gen('"' lwr(id) '"')
++                                $':' *expansion $';'       auto . *gen(', ' id ');')
++                             |  load                       auto . *gen('exec_sql_load(')
++                                *ident into                auto . *gen('"' lwr(id) '"')
++                                (  $':' *expansion         auto . *gen(', ' id ');')
++                                |  *string                 auto . *gen(', ' sconst ');')
++                                )
++                                $';'
++                             |  loadappend                 auto . *gen('exec_sql_loadappend(')
++                                *ident into                auto . *gen('"' lwr(id) '"')
++                                $':' *expansion $';'       auto . *gen(', ' id ');')
++                             |  oratransappend             auto . *gen('exec_sql_oratransappend(')
++                                *ident into                auto . *gen('"' lwr(id) '"')
++                                $':' *expansion $';'       auto . *gen(', ' id ');')
++                             |  commit      $';'           auto . *gen('exec_sql_commit();')
++                             |  dynamic                    auto . *gen('exec_sql_dynamic(')
++                                                           auto $ *asgn("$'#dyn'", "$'#dyn' + 1")
++                                                           auto . *asgn("$'#dyn'", "$'#dyn' + 1")
++                                                           auto $ *asgn('cc', '"dynamic_' $'#dyn' '"')
++                                                           auto . *asgn('cc', '"dynamic_' $'#dyn' '"')
++                                *sql_tokens $ sql          auto $ *gensql(cc)
++                                $';'                       auto . *gen(cc)
++                                                           auto . *gen(');')
++                             )
+
+          opt_stmt_list  =    '' | *stmt_list
+          opt_expr_list  =    '' | *expr_list
+          opt_args_list  =    '' | *args_list
+          opt_expr       =    '' | *expr
+
+          stmt_list      =    *stmt ARBNO(*stmt)
+          expr_list      =    *expr ('' | $',' auto . *gen(', ') *expr_list)
+          args_list      =    *expr ('' | $',' auto . *gen(', ') *args_list)
+
+          expr           =    *expr1
+
+          expr1          =    TZ(3, "expr1",
++                             (
++                                *expr2
++                                (  ''
++                                |  $'||' auto . *gen(' || ') *expr1
++                                |  $'&&' auto . *gen(' && ') *expr1
++                                )
++                             ))
+
+          expr2          =    TZ(3, "expr2",
++                             (
++                                *expr3
++                                (  ''
++                                |  $'==' auto . *gen(' == ') *expr2
++                                |  $'!=' auto . *gen(' != ') *expr2
++                                |  $'<'  auto . *gen(' < ')  *expr2
++                                |  $'>'  auto . *gen(' > ')  *expr2
++                                |  $'<=' auto . *gen(' <= ') *expr2
++                                |  $'>=' auto . *gen(' >= ') *expr2
++                                )
++                             ))
+
+          expr3          =    TZ(3, "expr3",
++                             (
++                                *expr4
++                                (  ''
++                                |  $'+'  auto . *gen(' + ') *expr3
++                                |  $'-'  auto . *gen(' - ') *expr3
++                                |  $'*'  auto . *gen(' * ') *expr3
++                                |  $'/'  auto . *gen(' / ') *expr3
++                                |  $'%'  auto . *gen(' % ') *expr3
++                                )
++                             ))
+
+          expr4          =    TZ(3, "expr4",
++                             (
++                                *ident
++                                (  $'='  auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' = ') *expr
++                                |  $'+=' auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' += ') *expr
++                                |  $'-=' auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' -= ') *expr
++                                |  $'*=' auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' *= ') *expr
++                                |  $'/=' auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' /= ') *expr
++                                |  $'%=' auto $ *enter(id, 'STORE')
++                                         auto . *gen(id ' %= ') *expr
++                                )
++                             |  *expr5
++                             ))
+
+          expr5          =    TZ(3, "expr5",
++                             (
++                                *expr6
++                             |  *expr6 $'++' auto . *gen('++')
++                             |  *expr6 $'--' auto . *gen('--')
++                             |  $'*' auto . *gen('*') *expr5
++                             |  $'+' auto . *gen('+') *expr5
++                             |  $'-' auto . *gen('-') *expr5
++                             |  $'!' auto . *gen('!') *expr5
++                             |  call $'(' *expr5 $')'
++                             ))
+
+          expr6          =    TZ(3, "expr6",
++                             (
++                                *constant
++                             |  *msl_function
++                                $'('               auto . *gen('(')
++                                   *opt_args_list
++                                $')'               auto . *gen(')')
++                             |  sizeof             auto . *gen('sizeof(')
++                                *expr              auto . *gen(')')
++                             |  $'&'               auto . *gen('&')
++                                *ident             auto . *gen(id)
++                             |  *ident             auto $ *enter(id, 'LOAD')
++                                                   auto . *gen(id)
++                             |  $'('               auto . *gen('(')
++                                   *expr
++                                $')'               auto . *gen(')')
++                             ))
+
+
+          abs            =    $' ' icase('abs')              $ tz $ *debug(1, tz)
+          as             =    $' ' icase('as')               $ tz $ *debug(1, tz)
+          asc            =    $' ' icase('asc')              $ tz $ *debug(1, tz)
+          all            =    $' ' icase('all')              $ tz $ *debug(1, tz)
+          and            =    $' ' icase('and')              $ tz $ *debug(1, tz)
+          any            =    $' ' icase('any')              $ tz $ *debug(1, tz)
+          between        =    $' ' icase('between')          $ tz $ *debug(1, tz)
+          beginblock     =    $' ' icase('beginblock')       $ tz $ *debug(1, tz)
+          endblock       =    $' ' icase('endblock')         $ tz $ *debug(1, tz)
+          bitand         =    $' ' icase('bitand')           $ tz $ *debug(1, tz)
+          by             =    $' ' icase('by')               $ tz $ *debug(1, tz)
+          count          =    $' ' icase('count')            $ tz $ *debug(1, tz)
+          decode         =    $' ' icase('decode')           $ tz $ *debug(1, tz)
+          desc           =    $' ' icase('desc')             $ tz $ *debug(1, tz)
+          distinct       =    $' ' icase('distinct')         $ tz $ *debug(1, tz)
+          escape         =    $' ' icase('escape')           $ tz $ *debug(1, tz)
+          exists         =    $' ' icase('exists')           $ tz $ *debug(1, tz)
+          floor          =    $' ' icase('floor')            $ tz $ *debug(1, tz)
+          rawtohex       =    $' ' icase('rawtohex')         $ tz $ *debug(1, tz)
+          from           =    $' ' icase('from')             $ tz $ *debug(1, tz)
+          in             =    $' ' icase('in')               $ tz $ *debug(1, tz)
+          is             =    $' ' icase('is')               $ tz $ *debug(1, tz)
+          like           =    $' ' icase('like')             $ tz $ *debug(1, tz)
+          lpad           =    $' ' icase('lpad')             $ tz $ *debug(1, tz)
+          ltrim          =    $' ' icase('ltrim')            $ tz $ *debug(1, tz)
+          to_number      =    $' ' icase('to_number')        $ tz $ *debug(1, tz)
+          rtrim          =    $' ' icase('rtrim')            $ tz $ *debug(1, tz)
+          max            =    $' ' icase('max')              $ tz $ *debug(1, tz)
+          min            =    $' ' icase('min')              $ tz $ *debug(1, tz)
+          avg            =    $' ' icase('avg')              $ tz $ *debug(1, tz)
+          sum            =    $' ' icase('sum')              $ tz $ *debug(1, tz)
+          mod            =    $' ' icase('mod')              $ tz $ *debug(1, tz)
+          nls_charset_name =  $' ' icase('nls_charset_name') $ tz $ *debug(1, tz)
+          not            =    $' ' icase('not')              $ tz $ *debug(1, tz)
+          null           =    $' ' icase('null')             $ tz $ *debug(1, tz)
+          nvl            =    $' ' icase('nvl')              $ tz $ *debug(1, tz)
+          or             =    $' ' icase('or')               $ tz $ *debug(1, tz)
+          order          =    $' ' icase('order')            $ tz $ *debug(1, tz)
+          group          =    $' ' icase('group')            $ tz $ *debug(1, tz)
+          rpad           =    $' ' icase('rpad')             $ tz $ *debug(1, tz)
+          select         =    $' ' icase('select')           $ tz $ *debug(1, tz)
+          sign           =    $' ' icase('sign')             $ tz $ *debug(1, tz)
+          some           =    $' ' icase('some')             $ tz $ *debug(1, tz)
+          instr          =    $' ' icase('instr')            $ tz $ *debug(1, tz)
+          substr         =    $' ' icase('substr')           $ tz $ *debug(1, tz)
+          to_char        =    $' ' icase('to_char')          $ tz $ *debug(1, tz)
+          to_date        =    $' ' icase('to_date')          $ tz $ *debug(1, tz)
+          round          =    $' ' icase('round')            $ tz $ *debug(1, tz)
+          trunc          =    $' ' icase('trunc')            $ tz $ *debug(1, tz)
+          upper          =    $' ' icase('upper')            $ tz $ *debug(1, tz)
+          lower          =    $' ' icase('lower')            $ tz $ *debug(1, tz)
+          where          =    $' ' icase('where')            $ tz $ *debug(1, tz)
+
+          union          =    $' ' icase('union')            $ tz $ *debug(1, tz)
+          minus          =    $' ' icase('minus')            $ tz $ *debug(1, tz)
+          intersect      =    $' ' icase('intersect')        $ tz $ *debug(1, tz)
+
+*   ----------------------------------------------------------------------------------------------------
+*         SQL grammar
+*   ----------------------------------------------------------------------------------------------------
+
+          sql_tokens     =    ARBNO(*sql_token)
+          sql_token      =
++                        (    *sql_identifier
++                        |    *string
++                        |    C_CONST
++                        |    I_CONST
++                        |    R_CONST
++                        |    V_CONST
++                        |    and
++                        |    between
++                        |    escape
++                        |    exists
++                        |    from
++                        |    in
++                        |    intersect
++                        |    is
++                        |    like
++                        |    minus
++                        |    not
++                        |    null
++                        |    or
++                        |    group
++                        |    order
++                        |    select
++                        |    union
++                        |    where
++                        |    $'!='
++                        |    $'<>'
++                        |    $'('
++                        |    $')'
++                        |    $'*'
++                        |    $'+'
++                        |    $','
++                        |    $'-'
++                        |    $'.'
++                        |    $'/'
++                        |    $':'
++                        |    $'<'
++                        |    $'<='
++                        |    $'='
++                        |    $'>'
++                        |    $'>='
++                        |    $'||'
++                        )
++                        $ tz $ *debug(2, "sql_token " tz)
+
+          sql_query_expr =    TZ(1, "sql_query_expr",
++                             (  @sqlofs
++                                *sql_query_term
++                                ARBNO(                              auto . *push_cntr()
++                                   (  union *sql_query_term         auto . *inc_cntr()
++                                      ARBNO(
++                                         union *sql_query_term      auto . *inc_cntr()
++                                      )                             auto . *reduce('union', top_cntr() + 1)
++                                   |  union all *sql_query_term     auto . *inc_cntr()
++                                      ARBNO(
++                                         union all *sql_query_term  auto . *inc_cntr()
++                                      )                             auto . *reduce('union_all', top_cntr() + 1)
++                                   |  intersect *sql_query_term     auto . *inc_cntr()
++                                      ARBNO(
++                                         intersect *sql_query_term  auto . *inc_cntr()
++                                      )                             auto . *reduce('intersect', top_cntr() + 1)
++                                   |  minus *sql_query_term         auto . *inc_cntr()
++                                      ARBNO(
++                                         minus *sql_query_term      auto . *inc_cntr()
++                                      )                             auto . *reduce('minus', top_cntr() + 1)
++                                   )                                auto . *pop_cntr()
++                                )
++                             ))
+
+          sql_query_term =    TZ(1, "sql_query_term",
++                             (
++                                *sql_select
++                             |  '(' *sql_query_expr ')'
++                             ))
+
+          sql_select     =    TZ(1, "sql_select",
++                             (  @sqlofs
++                                select ( distinct | '' )       auto . *asgn('ic3po', '0')
++                                                               auto . *asgn('c3po', "ARRAY('0:8')")
++                                *sql_item_list
++                                from *sql_references
++                                (  where *sql_condition
++                                |  ''                          auto . *shift()
++                                )
++                                (  group by *sql_group_list
++                                |  ''                          auto . *shift()
++                                )
++                                (  order by *sql_order_list
++                                |  ''                          auto . *shift()
++                                )                              auto . *reduce('select', 5)
++                             ))
+
+          sql_item_list  =    TZ(1, "sql_item_list",
++                             (                                 auto . *push_cntr()
++                                (beginblock | '')              auto . *asgn('ithx', '0')
++                                                               auto . *asgn('thx', "ARRAY('0:64')")
++                                *sql_item                      auto . *asgn('ithx', 'ithx + 1')
++                                                               auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   (beginblock | endblock | '')
++                                   *sql_item                   auto . *asgn('ithx', 'ithx + 1')
++                                )
++                                                               auto . *reduce('item_list', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_item       =    FENCE TZ(1, "sql_item",
++                             (
++                                $'*'                           auto . *shift('identifier', '*')
++                                                               auto . *reduce('item', 1)
++                             |  *sql_expr
++                                (  (as | '') *sql_identifier   auto . *asgn('thx[ithx]', '"' id '"')
++                                                               auto . *shift('identifier', id)
++                                                               auto . *reduce('item', 2)
++                                |  (as | '') *string           auto . *asgn('thx[ithx]', sconst)
++                                                               auto . *shift('s_const', sconst)
++                                                               auto . *reduce('item', 2)
++                                |  ''                          auto . *reduce('item', 1)
++                                )
++                             ))
+
+          sql_expr_group_group = TZ(1, "sql_expr_group_group",
++                             (
++                                $'('
++                                *sql_expr_group_list
++                                $')'                           auto . *reduce('expr_group_group', 1)
++                             ))
+
+          sql_expr_group_list  = TZ(1, "sql_expr_group_list",
++                             (                                 auto . *push_cntr()
++                                *sql_expr_group                auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   *sql_expr_group
++                                )                              auto . *reduce('expr_group_list', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_expr_group =    TZ(1, "sql_expr_group",
++                             (
++                                $'('
++                                *sql_expr_list
++                                $')'                           auto . *reduce('expr_group', 1)
++                             ))
+
+          sql_expr_list  =    TZ(1, "sql_expr_list",
++                             (                                 auto . *push_cntr()
++                                *sql_expr                      auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   *sql_expr
++                                )                              auto . *reduce('expr_list', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_expr       =    TZ(1, "sql_expr",
++                             (  @sqlofs
++                                *sql_term
++                                ARBNO(                         auto . *push_cntr()
++                                   (  $'+'  *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'+'  *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('+', top_cntr() + 1)
++                                   |  $'-'  *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'-'  *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('-', top_cntr() + 1)
++                                   |  $'||' *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'||' *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('||', top_cntr() + 1)
++                                   |  $'&'  *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'&'  *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('&', top_cntr() + 1)
++                                   |  $'|'  *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'|'  *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('|', top_cntr() + 1)
++                                   |  $'^'  *sql_term          auto . *inc_cntr()
++                                      ARBNO(
++                                         $'^'  *sql_term       auto . *inc_cntr()
++                                      )                        auto . *reduce('^', top_cntr() + 1)
++                                   )                           auto . *pop_cntr()
++                                |  ''
++                                )
++                             ))
+
+          sql_term       =    TZ(1, "sql_term",
++                             (  @sqlofs
++                                *sql_factor
++                                ARBNO(                         auto . *push_cntr()
++                                   (  $'*' *sql_factor         auto . *inc_cntr()
++                                      ARBNO(
++                                         $'*' *sql_factor      auto . *inc_cntr()
++                                      )                        auto . *reduce('*', top_cntr() + 1)
++                                   |  $'/' *sql_factor         auto . *inc_cntr()
++                                      ARBNO(
++                                         $'/' *sql_factor      auto . *inc_cntr()
++                                      )                        auto . *reduce('/', top_cntr() + 1)
++                                   |  $'%' *sql_factor         auto . *inc_cntr()
++                                      ARBNO(
++                                         $'%' *sql_factor      auto . *inc_cntr()
++                                      )                        auto . *reduce('%', top_cntr() + 1)
++                                   )                           auto . *pop_cntr()
++                                |  ''
++                                )
++                             ))
+
+          sql_factor     =    TZ(1, "sql_factor",
++                             (
++                                (  *sql_element
++                                |  $'+'  *sql_factor           auto . *reduce('+', 1)
++                                |  $'-'  *sql_factor           auto . *reduce('-', 1)
++                                |  $'~'  *sql_factor           auto . *reduce('~', 1)
++                                )
++                             ))
+
+          sql_element    =    TZ(1, "sql_element",
++                             (
++                                C_CONST                        auto . *shift('c_const', cconst)
++                             |  I_CONST                        auto . *shift('i_const', iconst)
++                             |  R_CONST                        auto . *shift('r_const', rconst)
++                             |  V_CONST                        auto . *shift('v_const', vconst)
++                             |  *sql_function
++                             |  *sql_column
++                                (  $'(+)'
++                                                               auto . *reduce('(+)', 1)
++                                |  ''
++                                )
++                             |  $':'
++                                *sql_identifier                auto . *asgn('c3po[ic3po]', '"' id '"')
++                                                               auto . *asgn('ic3po', 'ic3po + 1')
++                                                               auto . *shift('identifier', id)
++                                                               auto . *reduce(':', 1)
++                             |  null                           auto . *shift('null')
++                             |  $'(' *sql_expr $')'            auto . *reduce('()', 1)
++                             ))
+
+          sql_group_list =    TZ(1, "sql_group_list",
++                             (                                 auto . *push_cntr()
++                                *sql_column                    auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   *sql_column
++                                )                              auto . *reduce('group_list', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_order_list =    TZ(1, "sql_order_list",
++                             (                                 auto . *push_cntr()
++                                *sql_order_spec                auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   *sql_order_spec
++                                )                              auto . *reduce('order_list', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_order_spec =    TZ(1, "sql_order_spec",
++                             (
++                                *sql_expr
++                                (  asc                         auto . *shift('asc')
++                                                               auto . *reduce('order_spec', 2)
++                                |  desc                        auto . *shift('desc')
++                                                               auto . *reduce('order_spec', 2)
++                                |  ''                          auto . *reduce('order_spec', 1)
++                                )
++                             ))
+
+          sql_column     =    TZ(1, "sql_column",
++                             (
++                                (  *sql_identifier             auto . *shift('identifier', id)
++                                                               auto . *asgn('thx[ithx]', '"' id '"')
++                                |  *string                     auto . *shift('s_const', sconst)
++                                )
++                                (  $'.'
++                                   (  *sql_identifier          auto . *shift('identifier', id)
++                                                               auto . *asgn('thx[ithx]', '"' id '"')
++                                   |  *string                  auto . *shift('s_const', sconst)
++                                   )
++                                   (  $'.'
++                                      (  *sql_identifier       auto . *shift('identifier', id)
++                                                               auto . *asgn('thx[ithx]', '"' id '"')
++                                      |  *string               auto . *shift('s_const', sconst)
++                                      )                        auto . *reduce('column', 3)
++                                   |  ''                       auto . *reduce('column', 2)
++                                   )
++                                |  ''                          auto . *reduce('column', 1)
++                                )
++                             ))
+
+          sql_function   =    TZ(1, "sql_function",
++                             (
++                                (  abs               $'(' *sql_expr_list $')'  auto . *reduce('abs', 1)
++                                |  bitand            $'(' *sql_expr_list $')'  auto . *reduce('bitand', 1)
++                                |  count             $'('
++                                                     $'*'                      auto . *shift('identifier', '*')
++                                                     $')'                      auto . *reduce('count', 1)
++                                |  decode            $'(' *sql_expr_list $')'  auto . *reduce('decode', 1)
++                                |  floor             $'(' *sql_expr_list $')'  auto . *reduce('floor', 1)
++                                |  rawtohex          $'(' *sql_expr_list $')'  auto . *reduce('rawtohex', 1)
++                                |  lpad              $'(' *sql_expr_list $')'  auto . *reduce('lpad', 1)
++                                |  to_number         $'(' *sql_expr_list $')'  auto . *reduce('to_number', 1)
++                                |  ltrim             $'(' *sql_expr_list $')'  auto . *reduce('ltrim', 1)
++                                |  rtrim             $'(' *sql_expr_list $')'  auto . *reduce('rtrim', 1)
++                                |  max               $'(' *sql_expr_list $')'  auto . *reduce('max', 1)
++                                |  min               $'(' *sql_expr_list $')'  auto . *reduce('min', 1)
++                                |  avg               $'(' *sql_expr_list $')'  auto . *reduce('avg', 1)
++                                |  sum               $'(' *sql_expr_list $')'  auto . *reduce('sum', 1)
++                                |  mod               $'(' *sql_expr_list $')'  auto . *reduce('mod', 1)
++                                |  nls_charset_name  $'(' *sql_expr_list $')'  auto . *reduce('nls_charset_name', 1)
++                                |  nvl               $'(' *sql_expr_list $')'  auto . *reduce('nvl', 1)
++                                |  rpad              $'(' *sql_expr_list $')'  auto . *reduce('rpad', 1)
++                                |  sign              $'(' *sql_expr_list $')'  auto . *reduce('sign', 1)
++                                |  instr             $'(' *sql_expr_list $')'  auto . *reduce('instr', 1)
++                                |  substr            $'(' *sql_expr_list $')'  auto . *reduce('substr', 1)
++                                |  to_char           $'(' *sql_expr_list $')'  auto . *reduce('to_char', 1)
++                                |  to_date           $'(' *sql_expr_list $')'  auto . *reduce('to_date', 1)
++                                |  round             $'(' *sql_expr_list $')'  auto . *reduce('round', 1)
++                                |  trunc             $'(' *sql_expr_list $')'  auto . *reduce('trunc', 1)
++                                |  upper             $'(' *sql_expr_list $')'  auto . *reduce('upper', 1)
++                                |  lower             $'(' *sql_expr_list $')'  auto . *reduce('lower', 1)
++                                )
++                             ))
+
+          sql_references =    TZ(1, "sql_function",
++                             (                                 auto . *push_cntr()
++                                *sql_reference                 auto . *inc_cntr()
++                                ARBNO(
++                                   $','                        auto . *inc_cntr()
++                                   *sql_reference
++                                )                              auto . *reduce('references', top_cntr())
++                                                               auto . *pop_cntr()
++                             ))
+
+          sql_reference  =    TZ(1, "sql_reference",
++                             (
++                                *sql_identifier                auto . *shift('identifier', id)
++                                (  $'.'
++                                   *sql_identifier             auto . *shift('identifier', id)
++                                                               auto . *reduce('table', 2)
++                                |  ''                          auto . *reduce('table', 1)
++                                )
++                                (  *sql_identifier             auto . *shift('identifier', id)
++                                                               auto . *reduce('reference', 2)
++                                |  ''                          auto . *reduce('reference', 1)
++                                )
++                             ))
+
+          sql_condition  =    TZ(1, "sql_condition",
++                             (
++                                *sql_condition_term
++                                (                              auto . *push_cntr()
++                                   or *sql_condition_term      auto . *inc_cntr()
++                                   ARBNO(                      auto . *inc_cntr()
++                                      or *sql_condition_term
++                                   )                           auto . *reduce('or', top_cntr() + 1)
++                                                               auto . *pop_cntr()
++                                |  ''
++                                )
++                             ))
+
+          sql_condition_term = TZ(1, "sql_condition_term",
++                             (
++                                *sql_condition_factor
++                                (                              auto . *push_cntr()
++                                   and *sql_condition_factor   auto . *inc_cntr()
++                                   ARBNO(                      auto . *inc_cntr()
++                                      and *sql_condition_factor
++                                   )                           auto . *reduce('and', top_cntr() + 1)
++                                                               auto . *pop_cntr()
++                                |  ''
++                                )
++                             ))
+
+          sql_condition_factor = TZ(1, "sql_condition_factor",
++                             (
++                                (  *sql_condition_element
++                                |  not
++                                   *sql_condition_factor       auto . *reduce('not', 1)
++                                )
++                             ))
+
+          sql_condition_element = TZ(1, "sql_condition_element",
++                             (
++                                *sql_expr
++                                (  *sql_comparison                auto . *pop('cc')
++                                   (  *sql_expr                   auto . *reduce(t(cc), 2)
++                                   |  (  any  *sql_subquery       auto . *reduce('any', 1)
++                                      |  some *sql_subquery       auto . *reduce('some', 1)
++                                      |  all  *sql_subquery       auto . *reduce('all', 1)
++                                      |  *sql_subquery
++                                      )                           auto . *reduce(t(cc), 2)
++                                   )
++                                |  not in *sql_expr_group         auto . *reduce('not_in', 2)
++                                |  not in *sql_subquery           auto . *reduce('not_in', 2)
++                                |  in     *sql_expr_group         auto . *reduce('in', 2)
++                                |  in     *sql_subquery           auto . *reduce('in', 2)
++                                |  not between
++                                   *sql_expr and *sql_expr        auto . *reduce('not_between', 3)
++                                |  between
++                                   *sql_expr and *sql_expr        auto . *reduce('between', 3)
++                                |  is null                        auto . *reduce('is_null', 1)
++                                |  is not null                    auto . *reduce('is_not_null', 1)
++                                |  not like
++                                   *sql_expr
++                                   (  escape
++                                      *sql_expr                   auto . *reduce('not_like', 3)
++                                   |  ''                          auto . *reduce('not_like', 2)
++                                   )
++                                |  like
++                                   *sql_expr
++                                   (  escape
++                                      *sql_expr                   auto . *reduce('like', 3)
++                                   |  ''                          auto . *reduce('like', 2)
++                                   )
++                                )
++                                |    *sql_expr_group
++                                (  *sql_equal_or_not
++                                   (  any  *sql_subquery          auto . *reduce('any', 1)
++                                   |  any  *sql_expr_group_group  auto . *reduce('any', 1)
++                                   |  some *sql_subquery          auto . *reduce('some', 1)
++                                   |  some *sql_expr_group_group  auto . *reduce('some', 1)
++                                   |  all  *sql_subquery          auto . *reduce('all', 1)
++                                   |  all  *sql_expr_group_group  auto . *reduce('all', 1)
++                                   |  *sql_subquery
++                                   |  *sql_expr_group_group
++                                   )
++                                |  not in *sql_subquery           auto . *reduce('not_in', 2)
++                                |  not in *sql_expr_group_group   auto . *reduce('not_in', 2)
++                                |  in     *sql_subquery           auto . *reduce('in', 2)
++                                |  in     *sql_expr_group_group   auto . *reduce('in', 2)
++                                )
++                             |  exists
++                                *sql_subquery                     auto . *reduce('exists', 1)
++                             |  $'('
++                                *sql_condition
++                                $')'                              auto . *reduce('()', 1)
++                             ))
+
+          sql_comparison =    TZ(1, "sql_comparison",
++                             (
++                                $'='                              auto . *shift('=')
++                             |  $'!='                             auto . *shift('!=')
++                             |  $'<>'                             auto . *shift('<>')
++                             |  $'<'                              auto . *shift('<')
++                             |  $'<='                             auto . *shift('<=')
++                             |  $'>'                              auto . *shift('>')
++                             |  $'>='                             auto . *shift('>=')
++                             ))
+
+          sql_equal_or_not =  TZ(1, "sql_equal_or_not",
++                             (
++                                $'='                              auto . *shift('=')
++                             |  $'!='                             auto . *shift('!=')
++                             |  $'<>'                             auto . *shift('<>')
++                             ))
+
+          sql_subquery   =    TZ(1, "sql_subquery",
++                             (
++                                $'('
++                                select *sql_item_list
++                                from *sql_references
++                                (  where *sql_condition
++                                |  ''                             auto . *shift()
++                                )
++                                (  group by *sql_group_list
++                                |  ''                             auto . *shift()
++                                )                                 auto . *reduce('subquery', 4)
++                                $')'
++                             ))
+
+*---------- ------------------------------------------------------------- -----------------
+-INCLUDE 'io.inc'
+*---------- ------------------------------------------------------------- -----------------
+            DEFINE('position(ofs)i')                                      :(position_end)
+position    i              =    ofs
+position_1  i              =    IDENT(linemap[i]) i - 1                   :S(position_1)
+            position       =    'Line: ' linemap[i] ' Position: ' ofs - i + 1 :(RETURN)
+position_end
+
+*---------- ------------------------------------------------------------- -----------------
+            dir            =    TABLE()
+            dir['akm']     =    '/bmc/meta/akmmsl'
+            dir['al2']     =    '/bmc/meta/al2msl'
+            dir['ali']     =    '/bmc/meta/alimsl'
+            dir['alm']     =    '/bmc/meta/almmsl'
+            dir['alo']     =    '/bmc/meta/alomsl'
+            dir['als']     =    '/bmc/meta/alsmsl'
+
+*           EXIT(3, 'msl2c.exe')
+            INPUT_(.list, 8, 80, "/bmc/scripts/msl.lst")                  :F(ioerror)
+loop0       filename       =    list                                      :F(END)
+            DIFFER(filename)                                              :F(END)
+            filename       POS(0) ident . msldir '/' =
+            funcid         =    lwr(progname(filename))
+            infilenm       =    '/bmc/scripts/' msldir '/' filename
+            outfilenm      =    dir[msldir] '/' funcid '.cpp'
+            INPUT_(.INPUT,    5, 512, infilenm)                           :F(ioerr1)
+            OUTPUT_(.outfile, 9, 512, outfilenm)                          :F(ioerr2)
+            OUTPUT         =    DUPL('=', 40) ' ' funcid ' ...'
+            ofs            =    0
+            lineno         =    1
+            msl            =    ''
+            linemap        =    TABLE()
+loop1       linemap[ofs]   =    lineno
+            line           =    INPUT                                     :F(compile)
+            ofs            =    ofs + SIZE(line) + 1
+            lineno         =    lineno + 1
+            msl            =    msl line nl                               :(loop1)
+compile     msl            *defs                                          :S(fini3)F(fini2)
+fini1       OUTPUT         =    filename ' ... '                          :(fini3)
+fini2       OUTPUT         =    filename ' ... Failure'
+            OUTPUT         =    '*** ' position(ofs)
+            OUTPUT         =    '*** Error ' SUBSTR(msl, ofs, 32)         :(END)
+fini3       ENDFILE(5)
+            ENDFILE(9)                                                    :(loop0)
+fini4       dodebug        =    IDENT(dodebug) 9                          :S(compile)F(END)
+
+error       OUTPUT         =    "Error: " lineno                          :(END)
+ioerror     OUTPUT         =    "I/O Error: " filename                    :(END)
+ioerr1      OUTPUT         =    "I/O Error: " infilenm                    :(END)
+ioerr2      OUTPUT         =    "I/O Error: " outfilenm                   :(END)
+END

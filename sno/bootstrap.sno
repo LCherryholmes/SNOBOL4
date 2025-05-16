@@ -1,0 +1,716 @@
+*---------------------------------------------------------------------------------------------------
+* Program:       SNOBOL4/Clojure Bootstrap Port
+* Author:        Lon Cherryholmes
+* First Created: 2002/12/10
+* Last Modified: 2021/02/27
+* Version:       0.30
+*---------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'FENCE.inc'
+-INCLUDE 'io.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'assign.inc'_
+-INCLUDE 'match.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'ShiftReduce.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'trace.inc'
+
+ 			&FULLSCAN      =  1
+                  &MAXLNGTH      =  524288
+*                 Four tab-stops defined for the pretty-print routine.
+*                 xxStop[1] - subject
+*                 xxStop[2] - pattern or =
+*                 xxStop[3] - object of assignment
+*                 xxStop[4] - goto field
+*                 xxSmBump - the amount of extra space when within multi-line nesting
+*                 xxLgBump - the amount of extra space when no goto field is present
+                  xxStop         =  ARRAY('1:4')
+                  xxStop[1]      =  12;* 20
+                  xxStop[2]      =  12;* 20
+                  xxStop[3]      =  12;* 20
+                  xxStop[4]      =  -1;* 132
+                  xxSmBump       =  8
+                  xxLgBump       =  24
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+*                 Parser patterns:
+                  snoInteger     =  SPAN(digits)
+                  snoDQ          =  '"' BREAK('"' nl) ~ 'snoDQ' '"'
+                  snoSQ          =  "'" BREAK("'" nl) ~ 'snoSQ' "'"
+                  snoReal        =  (  SPAN(digits)
++                                      ('.' FENCE(SPAN(digits) | epsilon) | epsilon)
++                                      ('E' | 'e' | 'D' | 'd')
++                                      ('+' | '-' | epsilon)
++                                      SPAN(digits)
++                                   |  SPAN(digits) '.' FENCE(SPAN(digits) | epsilon)
++                                   )
+                  snoId          =  ANY(&UCASE &LCASE)
++                                   FENCE(SPAN('.' digits &UCASE '_' &LCASE) | epsilon)
+                  snoFunction    =  SPAN('.' digits &UCASE '_' &LCASE)
++                                $  tx $ *match(snoFunctions, snoTxInList)
+                  snoBuiltinVar  =  SPAN('.' digits &UCASE '_' &LCASE)
++                                $  tx $ *match(snoBuiltinVars, snoTxInList)
+                  snoSpecialNm   =  SPAN('.' digits &UCASE '_' &LCASE)
++                                $  tx $ *match(snoSpecialNms, snoTxInList)
+                  snoProtKwd     =  '&' SPAN(&UCASE &LCASE) $ tx $ *match(snoProtKwds, snoTxInList)
+                  snoUnprotKwd   =  '&' SPAN(&UCASE &LCASE) $ tx $ *match(snoUnprotKwds, snoTxInList)
+
+                  snoGray        =  *snoWhite | epsilon
+                  snoWhite       =  (  SPAN(' ' tab)
++                                      FENCE(nl ('+' | '.') FENCE(SPAN(' ' tab) | epsilon) | epsilon)
++                                   |  nl ('+' | '.') FENCE(SPAN(' ' tab) | epsilon)
++                                   )
+
+                  snoTxInList    =  (POS(0) | ' ') *upr(tx) (' ' | RPOS(0))
+                  snoSpecialNms  =  'ABORT CONTINUE END FRETURN NRETURN RETURN SCONTINUE START'
+                  snoBuiltinVars =  'ABORT ARB BAL FAIL FENCE INPUT OUTPUT REM TERMINAL'
+                  snoProtKwds    =  'ABORT ALPHABET ARB BAL FAIL FENCE FILE FNCLEVEL '
++                                   'LASTFILE LASTLINE LASTNO LCASE LINE REM RTNTYPE '
++                                   'STCOUNT STNO SUCCEED UCASE'
+                  snoUnprotKwds  =  'ABEND ANCHOR CASE CODE COMPARE DUMP ERRLIMIT '
++                                   'ERRTEXT ERRTYPE FTRACE INPUT MAXLNGTH OUTPUT '
++                                   'PROFILE STLIMIT TRACE TRIM FULLSCAN'
+                  snoFunctions   =  'ANY APPLY ARBNO ARG ARRAY ATAN BACKSPACE BREAK BREAKX '
++                                   'CHAR CHOP CLEAR CODE COLLECT CONVERT COPY COS DATA '
++                                   'DATATYPE DATE DEFINE DETACH DIFFER DUMP DUPL EJECT '
++                                   'ENDFILE EQ EVAL EXIT EXP FENCE FIELD GE GT HOST '
++                                   'IDENT INPUT INTEGER ITEM LE LEN LEQ LGE LGT LLE '
++                                   'LLT LN LNE LOAD LOCAL LPAD LT NE NOTANY OPSYN OUTPUT '
++                                   'POS PROTOTYPE REMDR REPLACE REVERSE REWIND RPAD RPOS '
++                                   'RSORT RTAB SET SETEXIT SIN SIZE SORT SPAN SQRT STOPTR '
++                                   'SUBSTR TAB TABLE TAN TIME TRACE TRIM UNLOAD'
+
+                  $'='           =  *snoWhite '=' *snoWhite
+                  $'?'           =  *snoWhite '?' *snoWhite
+                  $'|'           =  *snoWhite '|' *snoWhite
+                  $'+'           =  *snoWhite '+' *snoWhite
+                  $'-'           =  *snoWhite '-' *snoWhite
+                  $'/'           =  *snoWhite '/' *snoWhite
+                  $'*'           =  *snoWhite '*' *snoWhite
+                  $'^'           =  *snoWhite '^' *snoWhite
+                  $'!'           =  *snoWhite '!' *snoWhite
+                  $'**'          =  *snoWhite '**' *snoWhite
+                  $'$'           =  *snoWhite '$' *snoWhite
+                  $'.'           =  *snoWhite '.' *snoWhite
+                  $'&'           =  *snoWhite '&' *snoWhite
+                  $'@'           =  *snoWhite '@' *snoWhite
+                  $'#'           =  *snoWhite '#' *snoWhite
+                  $'%'           =  *snoWhite '%' *snoWhite
+                  $'~'           =  *snoWhite '~' *snoWhite
+                  $','           =  *snoGray ',' *snoGray
+                  $'('           =  '(' *snoGray
+                  $'['           =  '[' *snoGray
+                  $'<'           =  '<' *snoGray
+                  $')'           =  *snoGray ')'
+                  $']'           =  *snoGray ']'
+                  $'>'           =  *snoGray '>'
+
+                  snoExprList    =  nPush() *snoXList ("'snoExprList'" & '*(GT(nTop(), 1) nTop())') nPop()
+                  snoXList       =  nInc() (*snoExpr | epsilon ~ '') FENCE($',' *snoXList | epsilon)
+                  snoExpr        =  *snoExpr0
+                  snoExpr0       =  *snoExpr1 FENCE($'=' *snoExpr0 ("'='" & 2) | epsilon)
+                  snoExpr1       =  *snoExpr2 FENCE($'?' *snoExpr1 ("'?'" & 2) | epsilon)
+                  snoExpr2       =  *snoExpr3 FENCE($'&' *snoExpr2 ("'&'" & 2) | epsilon)
+                  snoExpr3       =  nPush() *snoX3 ("'|'" & '*(GT(nTop(), 1) nTop())') nPop()
+                  snoX3          =  nInc() *snoExpr4 FENCE($'|' *snoX3 | epsilon)
+                  snoExpr4       =  nPush() *snoX4 ("'..'" & '*(GT(nTop(), 1) nTop())') nPop()
+                  snoX4          =  nInc() *snoExpr5 FENCE(*snoWhite *snoX4 | epsilon)
+                  snoExpr5       =  *snoExpr6  FENCE($'@' *snoExpr5 ("'@'" & 2) | epsilon)
+                  snoExpr6       =  *snoExpr7  FENCE($'+' *snoExpr6 ("'+'" & 2) | $'-' *snoExpr6 ("'-'" & 2) | epsilon)
+                  snoExpr7       =  *snoExpr8  FENCE($'#' *snoExpr7 ("'#'" & 2) | epsilon)
+                  snoExpr8       =  *snoExpr9  FENCE($'/' *snoExpr8 ("'/'" & 2) | epsilon)
+                  snoExpr9       =  *snoExpr10 FENCE($'*' *snoExpr9 ("'*'" & 2) | epsilon)
+                  snoExpr10      =  *snoExpr11 FENCE($'%' *snoExpr10 ("'%'" & 2) | epsilon)
+                  snoExpr11      =  *snoExpr12 FENCE(($'^' | $'!' | $'**') *snoExpr11 ("'^'" & 2) | epsilon)
+                  snoExpr12      =  *snoExpr13 nPush() *snoX12_1 ("'snoAssign'" & '*(GT(nTop(), 0) nTop() + 1)') nPop()
+                  snoX12_1       =  *snoX12_2 FENCE(*snoX12_1 | epsilon) | epsilon
+                  snoX12_2       =  (  nInc() $'$' *snoExpr13 ("'$'" & 1)
++                                   |  nInc() $'.' *snoExpr13 ("'.'" & 1)
++                                   )
+                  snoExpr13      =  *snoExpr14 FENCE($'~' *snoExpr13 ("'~'" & 2) | epsilon)
+                  snoExpr14      =  '@' *snoExpr14 ("'@'" & 1)
++                                |  '~' *snoExpr14 ("'~'" & 1)
++                                |  '?' *snoExpr14 ("'?'" & 1)
++                                |  *snoProtKwd ~ 'snoProtKwd'
++                                |  *snoUnprotKwd ~ 'snoUnprotKwd'
++                                |  '&' *snoExpr14 ("'&'" & 1)
++                                |  '+' *snoExpr14 ("'+'" & 1)
++                                |  '-' *snoExpr14 ("'-'" & 1)
++                                |  '*' *snoExpr14 ("'*'" & 1)
++                                |  '$' *snoExpr14 ("'$'" & 1)
++                                |  '.' *snoExpr14 ("'.'" & 1)
++                                |  ('!' | '¬') *snoExpr14 ("'!'" & 1)
++                                |  '%' *snoExpr14 ("'%'" & 1)
++                                |  '/' *snoExpr14 ("'/'" & 1)
++                                |  '#' *snoExpr14 ("'#'" & 1)
++                                |  '=' *snoExpr14 ("'='" & 1)
++                                |  '|' *snoExpr14 ("'|'" & 1)
++                                |  *snoExpr15
+                  snoExpr15      =  *snoExpr16 FENCE(nPush() *snoX15 ("'[]'" & 'nTop() + 1') nPop() | epsilon)
+                  snoX15         =  nInc()
++                                   ($'[' *snoExprList $']' | $'<' *snoExprList $'>')
++                                   FENCE(*snoX15 | epsilon)
+                  snoExpr16      =  FENCE(
++                                      nPush()
++                                      $'('
++                                      *snoExpr
++                                      (  $',' *snoXList ("','" & 'nTop() + 1')
++                                      |  epsilon
++                                      )
++                                      $')'
++                                      nPop()
++                                   |  *snoFunction ~ 'snoFunction' $'(' *snoExprList $')' ("'snoCall'" & 2)
++                                   |  *snoId ~ 'snoInvoke' $'(' *snoExprList $')' ("'snoCall'" & 2)
++                                   |  *snoBuiltinVar ~ 'snoBuiltinVar'
++                                   |  *snoSpecialNm ~ 'snoSpecialNm'
++                                   |  *snoId ~ 'snoId'
++                                   |  *snoSQ
++                                   |  *snoDQ
++                                   |  *snoReal ~ 'snoReal'
++                                   |  *snoInteger ~ 'snoInteger'
++                                   )
+
+                  snoSGoto       =  ('S' | 's') . *assign(.SorF, 'S')
+                  snoFGoto       =  ('F' | 'f') . *assign(.SorF, 'F')
+                  snoSorF        =  *snoSGoto | *snoFGoto
+                  snoTarget      =  $'(' . *assign(.snoBrackets, '()') *snoExpr $')'
++                                |  $'<' . *assign(.snoBrackets, '<>') *snoExpr $'>'
+                  snoGoto        =  *snoGray ':'
++                                   *snoGray
++                                   FENCE(
++                                      *snoTarget ("*(':' snoBrackets)" & 1) epsilon ~ ''
++                                   |  *snoSorF *snoTarget ("*(':' SorF snoBrackets)" & 1)
++                                      FENCE(*snoGray *snoSorF *snoTarget ("*(':' SorF snoBrackets)" & 1) | epsilon ~ '')
++                                   )
+                  snoControl     =  '-' BREAK(nl ';')
+                  snoComment     =  '*' BREAK(nl)
+                  snoLabel       =  BREAK(' ' tab nl ';') ~ 'snoLabel'
+                  snoStmt        =  *snoLabel
++                                   (  *snoWhite
++                                      *snoExpr14
++                                      FENCE(
++                                         epsilon ~ ''
++                                         *snoWhite
++                                         ('=' ~ '=' *snoWhite *snoExpr | '=' ~ '=' epsilon ~ '')
++                                      |  ($'?' | *snoWhite)
++                                         *snoExpr1
++                                         FENCE(
++                                            *snoWhite
++                                            ('=' ~ '=' *snoWhite *snoExpr | '=' ~ '=' epsilon ~ '')
++                                         |  epsilon ~ '' epsilon ~ ''
++                                         )
++                                      |  epsilon ~ '' epsilon ~ '' epsilon ~ ''
++                                      )
++                                   |  epsilon ~ '' epsilon ~ '' epsilon ~ '' epsilon ~ ''
++                                   )
++                                   FENCE(*snoGoto | epsilon ~ '' epsilon ~ '')
++                                   *snoGray
+
+                  snoCommands    =  *snoCommand FENCE(*snoCommands | epsilon)
+                  snoCommand     =  nInc()
++                                   FENCE(
++                                      *snoComment ~ 'comment' ("'snoComment'" & 1) nl
++                                   |  *snoControl ~ 'control' ("'snoControl'" & 1) (nl | ';')
++                                   |  *snoStmt ("'snoStmt'" & 7) (nl | ';')
++                                   )
+
+                  snoParse       =  nPush()
++                                   ARBNO(*snoCommand)
++                                   ("'snoParse'" & 'nTop()')
++                                   nPop()
+
+                  snoCompiland   =  nPush()
++                                   ARBNO(*snoCommand)
++                                   ("'snoParse'" & 'nTop()')
++                                   (icase('END') (' ' BREAK(nl) nl | nl) ARBNO(BREAK(nl) nl) | epsilon)
++                                   nPop()
+
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+*                 Pretty-print routine.
+*                 null = xx(x=tree)
+*                 Recursive routine given a tree, to output SNOBOL4 code.
+                  DEFINE('xx(x,kludge,stmtno)c,c1,c2,c3,i,n,s,t,v')                 :(xxEnd)
+xx                DIFFER(x)                                                         :F(RETURN)
+                  t              =  t(x)
+                  v              =  v(x)
+                  n              =  n(x)
+                  c              =  c(x)
+                  TERMINAL       =  GT(doDebug, 0) 'xx(' t ')' ', sz = ' level '+' SIZE(v) ', v = ' v
+                  DIFFER(t)                                                         :S($('xx_' t))F(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoParse       xxWidth        =  (GT(xxStop[4], 0) xxStop[4], 1024)              :(xx_0)
+xx_0              i              =  0
+xx_1              i              =  LT(i, n) i + 1                                  :F(RETURN)
+                  xx(c[i], FALSE, stmtno)                                           :(xx_1)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoBuiltinVar  Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoFunction    Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoId          Gen(ss(x,, kludge))                                               :S(RETURN)F(error)
+xx_snoInvoke      Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoInteger     Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoLabel       Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoProtKwd     Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoReal        Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoSpecialNm   Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoSQ          Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoDQ          Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_snoUnprotKwd   Gen(ss(x))                                                        :S(RETURN)F(error)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_:()            Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_:<>            Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_:S()           Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_:S<>           Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_:F()           Gen(ss(x))                                                        :S(RETURN)F(error)
+xx_:F<>           Gen(ss(x))                                                        :S(RETURN)F(error)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xxUnOp            Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  (Gen('(' t ' ') xx(c[1]) Gen(nl ')'))                             :(RETURN)
+xxBinOp           Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  (Gen('(' t ' ') IncLevel() Gen(nl))
+                  (xx(c[1]) Gen(nl))
+                  (IncLevel() xx(c[2]) Gen(')'))                                    :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_!              EQ(n, 1)                                                          :S(xxUnOp)
+xx_#              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_$              t = EQ(n, 1) '$'                                                  :S(xxUnOp)
+                  t = EQ(n, 2) '$'                                                  :S(xxBinOp)F(error)
+xx_%              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_&              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_*              (EQ(n, 1) Gen("'") xx(c[1]))                                      :S(RETURN)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_+              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_-              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_.              t = EQ(n, 1) '.'                                                  :S(xxUnOp)
+                  t = EQ(n, 2) '.'                                                  :S(xxBinOp)F(error)
+xx_/              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_=              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_?              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_@              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_^              EQ(n, 2)                                                          :S(xxBinOp)F(error)
+xx_~              EQ(n, 1)                                                          :S(xxUnOp)
+                  EQ(n, 2)                                                          :S(xxBinOp)F(error)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoComment
+*                 SetLevel(0)
+*                 GenSetCont()
+*                 Gen(';' v(c[1]) nl)
+                                                                                    :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoControl     SetLevel(0)
+                  GenSetCont()
+                  Gen(v(c[1]) nl)                                                   :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_???
+xx_??=
+xx_===            Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  Gen('(' t nl)
+                  IncLevel()
+                  i              =  0
+xx_oper0          i              =  LT(i, n) i + 1                                  :F(xx_oper2)
+                  (IDENT(t, '??=') EQ(i, n) GT(n(c[i]), 1))                         :F(xx_oper1)
+                  (Gen('[') xx(c[i]) Gen(']') nl)                                   :(xx_oper0)
+xx_oper1          (xx(c[i]) Gen(nl))                                                :(xx_oper0)
+xx_oper2          (DecLevel() Gen(')'))                                             :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoStmt        SetLevel(0)
+                  xxWidth        =  (GT(xxStop[4], 0) xxStop[4], 1024)
+                  xxLbl          =  ss(c[1])
+                  xxSubj         =  c[2]
+                  xxPatrn        =  c[3]
+                  xxAsgn         =  v(c[4])
+                  xxRepl         =  c[5]
+                  xxGo1          =  c[6]
+                  xxGo2          =  c[7]
+                  Gen(GT(stmtno, 1) nl)
+                  Gen(xxLbl)
+                  GenTab(xxStop[1] - 1)
+                  SetLevel(xxStop[1])
+                  Gen('[')
+                  DIFFER(t(xxSubj))                                                 :F(xx_snoStmt7)
+                  Gen("'")
+                  c1 = Tree('___',, 1, xxSubj)
+                  (DIFFER(t(xxPatrn)) ?(t(c1) = '???') Append(c1, xxPatrn))         :F(xx_snoStmt1)
+                  (DIFFER(t(xxRepl))  ?(t(c1) = '??=') Append(c1, xxRepl))          :(xx_snoStmt3)
+xx_snoStmt1       (DIFFER(xxAsgn)     ?(t(c1) = '==='))                             :F(xx_snoStmt2)
+                  (DIFFER(t(xxRepl))  ?(t(c1) = '===') Append(c1, xxRepl))          :(xx_snoStmt3)
+xx_snoStmt2       c1 = xxSubj                                                       :(xx_snoStmt3)
+xx_snoStmt3       xx(c1)
+xx_snoStmt7       DIFFER(t(xxGo1))                                                  :F(xx_snoStmt9)
+                  xxWidth        =  (GT(xxStop[4], 0) 256, 1024)
+                  (GT(xxStop[4], 0) GenTab(xxStop[4]))
+                  (GT(xxStop[4], 0) SetLevel(xxStop[4]))
+                  Gen(' {')
+                  xx(xxGo1)
+                  DIFFER(t(xxGo2))                                                  :F(xx_snoStmt8)
+                  Gen(' ')
+                  xx(xxGo2)                                                         :(xx_snoStmt8)
+xx_snoStmt8       Gen('}')
+xx_snoStmt9       Gen(']')                                                          :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoAssign      Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  c1             =  0
+                  c2             =  0
+                  c3             =  FALSE
+                  i              =  1
+xx_snoAssign0     i              =  LT(i, n) i + 1                                  :F(xx_snoAssign1)
+                  c1             =  IDENT(t(c[i]), '.') c1 + 1                      :S(xx_snoAssign0)
+                  c2             =  IDENT(t(c[i]), '$') c2 + 1                      :S(xx_snoAssign0)
+xx_snoAssign1     (GT(c1, 0) Gen('(. ' nl))
+                  (GT(c1, 0) IncLevel())
+                  (GT(c2, 0) Gen('($ ' nl))
+                  (GT(c2, 0) IncLevel())
+                  i              =  1
+xx_snoAssign2     i              =  LT(i, n) i + 1                                  :F(xx_snoAssign4)
+                  IDENT(t(c[i]), '$')                                               :F(xx_snoAssign2)
+                  (?(c3 = EQ(c3, FALSE) TRUE) xx(c[1]) Gen(nl))
+                  (xx(c(c[i])[1]) Gen(nl))                                          :(xx_snoAssign2)
+xx_snoAssign4     i              =  1
+xx_snoAssign5     i              =  LT(i, n) i + 1                                  :F(xx_snoAssign7)
+                  IDENT(t(c[i]), '.')                                               :F(xx_snoAssign5)
+                  (?(c3 = EQ(c3, FALSE) TRUE) xx(c[1]) Gen(nl))
+xx_snoAssign6     (xx(c(c[i])[1]) Gen(nl))                                          :(xx_snoAssign5)
+xx_snoAssign7     (GT(c2, 0) DecLevel() GenTab() Gen(')'))
+                  (GT(c1, 0) DecLevel() GenTab() Gen(')'))                          :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_,              Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  Gen('(,' nl)
+                  IncLevel()
+                  i              =  0
+xx_,0             i              =  LT(i, n) i + 1                                  :F($'xx_,1')
+                  xx(c[i])
+                  Gen(nl)                                                           :($'xx_,0')
+xx_,1             DecLevel()
+                  GenTab()
+                  Gen(')')                                                          :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_|              EQ(n, 1)                                                          :S(xxUnOp)
+                  Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  Gen('(ALT' nl)
+                  IncLevel()
+                  i              =  0
+xx_|0             i              =  LT(i, n) i + 1                                  :F($'xx_|1')
+                  (xx(c[i]) Gen(nl))                                                :($'xx_|0')
+xx_|1             DecLevel()
+                  Gen(')')                                                          :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_..             Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  xx(c[1])
+                  i              =  1
+xx_..0            i              =  LT(i, n) i + 1                                  :F(RETURN)
+                  Gen(nl)
+                  xx(c[i])                                                          :($'xx_..0')
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_[]             Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  Gen('(')
+                  xx(c[1], TRUE)
+                  IncLevel()
+                  i              =  1
+xx_[]0            i              =  LT(i, n) i + 1                                  :F($'xx_[]1')
+                  Gen(nl)
+                  GenTab()
+                  xx(c[i])                                                          :($'xx_[]0')
+xx_[]1            Gen(nl)
+                  DecLevel()
+                  GenTab()
+                  Gen(')')                                                          :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoCall        Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  (Gen('(') xx(c[1], TRUE))
+                  (IncLevel() xx(c[2]) Gen(nl))
+                  (DecLevel() Gen(')'))                                             :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+xx_snoExprList    Gen(ss(x, xxWidth - GetLevel()))                                  :S(RETURN)
+                  i              =  0
+xx_snoExprList0   i              =  LT(i, n) i + 1                                  :F(RETURN)
+                  Gen(nl)
+                  Gen(IDENT(c[i]) 'epsilon')                                        :S(xx_snoExprList0)
+                  Gen(IDENT(t(c[i])) 'epsilon')                                     :S(xx_snoExprList0)
+                  (IDENT(t(c[i]), '..') Gen('[') xx(c[i]) Gen(']'))                 :S(xx_snoExprList0)
+                  xx(c[i])                                                          :(xx_snoExprList0)
+xxEnd
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+*                 Stringize Subject
+*                 string = ss(x=tree, len=integer)
+*                 Recursive function given a tree, to return SNOBOL4 code as a string.
+                  DEFINE('ss(x,len,kludge)c,c1,c2,c3,i,n,s,t,v')                    :(ssEnd)
+ss                DIFFER(x)                                                         :F(RETURN)
+                  len            =  IDENT(len) 1024
+                  GT(len, 0)                                                        :F(FRETURN)
+                  t              =  t(x)
+                  v              =  v(x)
+                  n              =  n(x)
+                  c              =  c(x)
+                  TERMINAL       =  GT(doDebug, 0) 'ss(' t ')' ', sz = ' level '+' SIZE(v) ', v = ' v
+                  DIFFER(t)                                                         :S($('ss_' t))F(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_snoBuiltinVar  ss             =  upr(v)                                          :(ss_atomic)
+ss_snoFunction    ss             =  upr(v)                                          :(ss_atomic)
+ss_snoId          ss             =  IDENT(v, 'epsilon') v                           :S(ss_atomic)
+                  ss             =  IDENT(kludge) ":" v                             :S(ss_atomic) ;* WARNING
+                  ss             =  DIFFER(kludge) v                                :S(ss_atomic)F(error)
+ss_snoInvoke      ss             =  v                                               :(ss_atomic)
+ss_snoInteger     ss             =  v                                               :(ss_atomic)
+ss_snoLabel       v              POS(0) *snoSpecialNm RPOS(0)                       :F(ss_snoLabel1)
+                  ss             =  ':' upr(v)                                      :(ss_atomic)
+ss_snoLabel1      v              POS(0) RPOS(0)                                     :F(ss_snoLabel2)
+                  ss             =                                                  :(ss_atomic)
+ss_snoLabel2      v              POS(0) SPAN(&UCASE '_' &LCASE digits) RPOS(0)      :F(ss_snoLabel3)
+                  ss             =  ':' v                                           :(ss_atomic)
+ss_snoLabel3      ss             =  '"' v '"'                                       :(ss_atomic)
+ss_snoProtKwd     ss             =  upr(v)                                          :(ss_atomic)
+ss_snoReal        ss             =  v                                               :(ss_atomic)
+ss_snoSpecialNm   ss             =  upr(v)                                          :(ss_atomic)
+ss_snoDQ          ss             =  '"' v '"'                                       :(ss_atomic)
+ss_snoSQ          ss             =  '"'
+ss_snoSQ0         v              POS(0) '"' . tx =                                  :S(ss_snoSQ1)
+                  v              POS(0) '\' . tx =                                  :S(ss_snoSQ1)
+                  v              POS(0) LEN(1) . tx =                               :S(ss_snoSQ2)F(ss_snoSQ3)
+ss_snoSQ1         ss             =  ss '\' tx                                       :(ss_snoSQ0)
+ss_snoSQ2         ss             =  ss tx                                           :(ss_snoSQ0)
+ss_snoSQ3         ss             =  ss '"'                                          :(ss_atomic)
+ss_snoUnprotKwd   ss             =  upr(v)                                          :(ss_atomic)
+ss_atomic         LE(SIZE(ss), len)                                                 :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_:()            c1 = 'G'                                                          :(ss_g1)
+ss_:<>            c1 = 'G'                                                          :(ss_g5)
+ss_:S()           c1 = 'S'                                                          :(ss_g1)
+ss_:S<>           c1 = 'S'                                                          :(ss_g5)
+ss_:F()           c1 = 'F'                                                          :(ss_g1)
+ss_:F<>           c1 = 'F'                                                          :(ss_g5)
+ss_g1             IDENT(t(c[1]), '$')                                               :S(ss_g2)
+                  IDENT(t(c[1]), 'snoId')                                           :S(ss_g3)
+                  IDENT(t(c[1]), 'snoSpecialNm')                                    :S(ss_g3)F(ss_g4)
+ss_g2             ss = (DIFFER(c1) '\' c1 ' ', epsilon) ss(c(c[1])[1])              :(RETURN)
+ss_g3             ss = (DIFFER(c1) '\' c1 ' ', epsilon) ':' v(c[1])                 :(RETURN)
+ss_g4             ss = (DIFFER(c1) '\' c1 ' ', epsilon) ss(c[1])                    :(RETURN)
+ss_g5             ss = (DIFFER(c1) '\' c1 ' ', epsilon) '($' ss(c[1]) ')'           :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ssUnOp            ss             =  '(' t ' ' ss(c[1], len - SIZE(t) - 3) ')'       :S(RETURN)F(FRETURN)
+ssBinOp           ss             =  '(' t ' ' ss(c[1], len - SIZE(t) - 2)           :F(FRETURN)
+                  ss             =  ss ' ' ss(c[2], len - SIZE(ss) - 2) ')'         :S(RETURN)F(FRETURN)
+ssFlipOp          ss             =  '(' t ' ' ss(c[2], len - SIZE(t) - 2)           :F(FRETURN)
+                  ss             =  ss ' ' ss(c[1], len - SIZE(ss) - 2) ')'         :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_!              EQ(n, 1)                                                          :S(ssUnOp)
+ss_#              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_$              t = EQ(n, 1) '$'                                                  :S(ssUnOp)
+                  t = EQ(n, 2) '$'                                                  :S(ssBinOp)F(error)
+ss_%              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_&              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_*              t = EQ(n, 1) "'"                                                  :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_+              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_-              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_.              t = EQ(n, 1) '.'                                                  :S(ssUnOp)
+                  t = EQ(n, 2) '.'                                                  :S(ssBinOp)F(error)
+ss_/              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_=              t = EQ(n, 1) '==='                                                :S(ssUnOp)
+                  t = EQ(n, 2) '==='                                                :S(ssBinOp)F(error)
+ss_?              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_@              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_^              EQ(n, 2)                                                          :S(ssBinOp)F(error)
+ss_~              EQ(n, 1)                                                          :S(ssUnOp)
+                  EQ(n, 2)                                                          :S(ssBinOp)F(error)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_snoAssign      c1             =  0
+                  c2             =  0
+                  c3             =  FALSE
+                  i              =  1
+ss_snoAssign0     i              =  LT(i, n) i + 1                                  :F(ss_snoAssign1)
+                  c1             =  IDENT(t(c[i]), '.') c1 + 1                      :S(ss_snoAssign0)
+                  c2             =  IDENT(t(c[i]), '$') c2 + 1                      :S(ss_snoAssign0)F(error)
+ss_snoAssign1     ss             =  ss GT(c1, 0) '(. '
+                  ss             =  ss GT(c2, 0) '($ '
+                  i              =  1
+ss_snoAssign2     i              =  LT(i, n) i + 1                                  :F(ss_snoAssign4)
+                  IDENT(t(c[i]), '$')                                               :F(ss_snoAssign2)
+                  EQ(c3, TRUE)                                                      :S(ss_snoAssign3)
+                  c3             =  TRUE
+                  ss             =  ss ss(c[1], len - SIZE(ss))                     :F(FRETURN)
+ss_snoAssign3     ss             =  ss ' ' ss(c(c[i])[1], len - SIZE(ss) - 1)       :S(ss_snoAssign2)F(FRETURN)
+ss_snoAssign4     i              =  1
+ss_snoAssign5     i              =  LT(i, n) i + 1                                  :F(ss_snoAssign7)
+                  IDENT(t(c[i]), '.')                                               :F(ss_snoAssign5)
+                  EQ(c3, TRUE)                                                      :S(ss_snoAssign6)
+                  c3             =  TRUE
+                  ss             =  ss ss(c[1], len - SIZE(ss))                     :F(FRETURN)
+ss_snoAssign6     ss             =  ss ' ' ss(c(c[i])[1], len - SIZE(ss) - 1)       :S(ss_snoAssign5)F(FRETURN)
+ss_snoAssign7     ss             =  ss GT(c2, 0) ')'
+                  ss             =  ss GT(c1, 0) ')'                                :(RETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_,              ss             =  LE(3, len) '(,'                                 :F(FRETURN)
+                  i              =  0
+ss_,0             i              =  LT(i, n) i + 1                                  :F($'ss_,1')
+                  ss             =  ss ' [' ss(c[i], len - SIZE(ss) - 6) ']'        :S($'ss_,0')F(FRETURN)
+ss_,1             ss             =  ss LE(SIZE(ss), len - 1) ')'                    :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_|              EQ(n, 1)                                                          :S(ssUnOp)
+                  ss             =  LE(5, len) '(ALT'                               :F(FRETURN)
+                  i              =  0
+ss_|0             i              =  LT(i, n) i + 1                                  :F($'ss_|1')
+                  ss             =  ss ' ' ss(c[i], len - SIZE(ss) - 2)             :S($'ss_|0')F(FRETURN)
+ss_|1             ss             =  ss LE(SIZE(ss), len - 1) ')'                    :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_..             ss             =  ss(c[1], len)                                   :F(FRETURN)
+                  i              =  1
+ss_..0            i              =  LT(i, n) i + 1                                  :F(RETURN)
+                  ss             =  ss ' ' ss(c[i], len - SIZE(ss) - 1)             :S($'ss_..0')F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_[]             ss             =  '(' ss(c[1], len - 2, TRUE)                     :F(FRETURN)
+                  i              =  1
+ss_[]0            i              =  LT(i, n) i + 1                                  :F($'ss_[]1')
+                  ss             =  ss ' ' ss(c[i], len - SIZE(ss) - 2)             :S($'ss_[]0')F(FRETURN)
+ss_[]1            ss             =  ss LE(SIZE(ss), len - 1) ')'                    :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_???
+ss_??=
+ss_===            ss             =  LE(0, len - SIZE(t) - 2) '(' t                  :F(FRETURN)
+                  i              =  0
+ss_oper0          i              =  LT(i, n) i + 1                                  :F(ss_oper2)
+                  (IDENT(t, '??=') EQ(i, n) GT(n(c[i]), 1))                         :F(ss_oper1)
+                  ss             =  ss ' [' ss(c[i], len - SIZE(ss) - 4) ']'        :(ss_oper0)
+ss_oper1          ss             =  ss ' ' ss(c[i], len - SIZE(ss) - 2)             :S(ss_oper0)F(FRETURN)
+ss_oper2          ss             =  ss LE(SIZE(ss), len - 1) ')'                    :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_snoCall        ss             =  '(' ss(c[1], len - 2, TRUE)                     :F(FRETURN)
+                  ss             =  ss DIFFER(t(c[2])) ' '
+                  ss             =  ss ss(c[2], len - SIZE(ss) - 3) ')'             :S(RETURN)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+ss_snoExprList    i              =  0
+ss_snoExprList0   i              =  LT(i, n) i + 1                                  :F(RETURN)
+                  ss             =  ss GT(i, 1) ' '
+                  LE(SIZE(ss), len)                                                 :F(FRETURN)
+                  IDENT(c[i])                                                       :S(ss_snoExprList1)
+                  IDENT(t(c[i]))                                                    :S(ss_snoExprList1)
+                  IDENT(t(c[i]), '..')                                              :S(ss_snoExprList2)F(ss_snoExprList3)
+ss_snoExprList1   ss             =  ss LE(SIZE(ss), len - 7) 'epsilon'              :S(ss_snoExprList0)F(FRETURN)
+ss_snoExprList2   ss             =  ss '[' ss(c[i], len - SIZE(ss) - 2) ']'         :S(ss_snoExprList0)F(FRETURN)
+ss_snoExprList3   ss             =  ss ss(c[i], len - SIZE(ss))                     :S(ss_snoExprList0)F(FRETURN)
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+error             TERMINAL = 'Yikes!'
+                  TDump(x) :(END)
+ssEnd
+*================ ============== == =============================================== ========================
+                  DEFINE('visit(x,fnc)i')                                           :(visitEnd)
+visit             APPLY(fnc, x)                                                     :F(RETURN)
+                  i              =  0
+visit_1           i              =  LT(i, n(x)) i + 1                               :F(RETURN)
+                  visit(c(x)[i], fnc)                                               :(visit_1)
+visitEnd
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+                  DEFINE('findRefs(x)n,v')
+                  snoRefs        =                                                  :(findRefsEnd)
+findRefs          DIFFER(x)                                                         :F(RETURN)
+                  IDENT(t(x), 'snoCall')                                            :F(findRefs_1)
+                  n              =  1
+findRefs_0        n              =  LT(n, n(x)) n + 1                               :F(FRETURN)
+                  visit(c(x)[n], .findRefs)                                         :(findRefs_0)
+findRefs_1        (IDENT(t(x), '&') EQ(n(x), 1))                                    :F(findRefs_2)
+                  v              =  ss(x)                                           :(findRefs_9)
+findRefs_2        IDENT(t(x), 'snoId')                                              :F(RETURN)
+                  v              =  v(x)                                            :(findRefs_9)
+findRefs_9        v              POS(0) SPAN('0123456789' &UCASE '_') RPOS(0)       :F(FRETURN)
+                  snoRefs        =  DIFFER(snoRefs) snoRefs ' ' v                   :S(FRETURN)
+                  snoRefs        =  IDENT(snoRefs) v                                :(FRETURN)
+findRefsEnd
+*---------------- -------------- -- ----------------------------------------------- ------------------------
+                  DEFINE('refs(p)c,n,s,subj')                                       :(refsEnd)
+refs              c              =  c(p)
+                  n              =  0
+refs_0            n              =  LT(n, n(p)) n + 1                               :F(RETURN)
+                  IDENT(t(c[n]), 'snoStmt')                                         :F(refs_0)
+                  s              =  s + 1
+                  IDENT(t(c(c[n])[3]))                                              :F(refs_0)
+                  IDENT(t(c(c[n])[4]), '=')                                         :F(refs_0)
+                  IDENT(t(c(c[n])[2]), 'snoId')                                     :S(refs_1)
+                  IDENT(t(c(c[n])[2]), '$')                                         :S(refs_1)F(refs_0)
+refs_1            subj           =  ss(c(c[n])[2])
+                  snoRefs        =
+                  visit(c(c[n])[5], .findRefs)
+                  OUTPUT         =  LPAD(s, 3, 0) ': ' RPAD(subj, 38) ' ' snoRefs   :(refs_0)
+refsEnd
+*================ ============== == =============================================== ========================
+*                 Main program.
+*                 Read a SNOBOL4 program.
+*                 Parse the SNOBOL4 program.
+*                 Generate a more beautiful SNOBOL4 program.
+                  doDebug        =  0
+                  stmtNo         =  0
+                  snoSpace       =  SPAN(' ' tab) | epsilon
+                  snoCmt         =  ANY('*-') ('//' SPAN(' ') | epsilon)
+                  OUTPUT         =  '(load-file "snodef.clj"'
+                  OUTPUT         =  '(def CODE {' ;*(into (sorted-map-by #(= (str %1) (str %2)))
+                  snobol         =  Tree('snobol')                                  :(main00)
+                  snoWork        =  snoProtKwds
+init00            snoWork        POS(0) SPAN(&UCASE) . work (' ' | epsilon) =       :F(init01)
+                  OUTPUT         =  '(def &' work ' nil)'                           :(init00)
+init01            snoWork        =  snoUnprotKwds
+init02            snoWork        POS(0) SPAN(&UCASE) . work (' ' | epsilon) =       :F(init03)
+                  OUTPUT         =  '(def &' work ' (atom 0))'                      :(init02)
+init03            snoWork        =  snoFunctions
+init04            snoWork        POS(0) SPAN(&UCASE) . work (' ' | epsilon) =       :F(init05)
+                  OUTPUT         =  '(defn ' work ' [& _])'                         :(init04)
+init05            snoWork        =   "$ & ? ??? ??= ==="
++                                    " ALT Append DecLevel Gen GenSetCont GenTab GetLevel IncLevel"
++                                    " Pop Push SetLevel Tree"
++                                    " assign c findRefs icase lwr match n nDec nInc nPop nPush"
++                                    " refs ss t tree upr v visit xx xxStop"
+init06            snoWork        POS(0) (BREAK(' ') . work ' ' | (LEN(1) RTAB(0)) . work) = :F(init07)
+                  OUTPUT         =  '(defn ' work ' [& _])'                         :(init06)
+init07            OUTPUT         =  '(def epsilon "")'
+                  OUTPUT         =  '(def NULL "")'
+main00            snoLine        =  INPUT                                           :F(fini)
+main01            snoSrc         =
+                  snoLine        POS(0) *snoCmt RTAB(0) . cmt                       :F(main02)
+                  OUTPUT         =  DIFFER() '; ' cmt                               :(main00)
+main02            snoSrc         =  snoSrc snoLine nl
+                  snoLine        =  INPUT                                           :F(main05)
+                  snoLine        POS(0) ANY('.+')                                   :S(main02)
+                  snoSrc         POS(0) *snoParse *snoSpace RPOS(0)                 :F(mainErr1)
+                  DIFFER(sno = Pop())                                               :F(mainErr2)
+                  stmtNo         =  stmtNo + 1
+                  Append(snobol, sno)
+                  xx(sno, FALSE, stmtNo)                                            :(main01)
+main05            snoSrc         POS(0) *snoParse *snoSpace RPOS(0)                 :F(mainErr1)
+                  DIFFER(sno = Pop())                                               :F(mainErr2)
+                  stmtNo         =  stmtNo + 1
+                  Append(snobol, sno)
+                  xx(sno, FALSE, stmtNo)                                            :(fini)
+mainErr1          OUTPUT         =  'Parse Error'
+                  OUTPUT         =  snoSrc                                          :(END)
+mainErr2          OUTPUT         =  'Internal Error'
+                  OUTPUT         =  snoSrc                                          :(END)
+fini              refs(snobol)
+                  findRefs(snobol)
+                  SetLevel(0)
+                  GenSetCont()
+                  Gen('})' nl)
+*-INCLUDE 'debug.sno'
+END

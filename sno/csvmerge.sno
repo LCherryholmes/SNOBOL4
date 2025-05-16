@@ -1,0 +1,71 @@
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+START
+            csvInputHeader    =     'Branch,Component,Status,Reviewer,Explanation'
+            csvOutputHeader   =     'Branch,Component,Status,Vantives'
+            csvItem           =     '"' ARBNO('""' | NOTANY('"')) '"' | ARBNO(NOTANY(','))
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            INPUT(.csvInput, 3, 'ssmerge-log.csv')                                     :f(ioerr)
+            DATA('csv(branch,status,reviewer,explanation,vids)')
+            csvTbl            =     TABLE()
+main03      csvInfo           =     csvInput                                           :f(error)
+            csvInfo           POS(0) *csvInputHeader RPOS(0)                           :f(main03)
+main05      csvInfo           =     csvInput                                           :f(main10)
+            csvInfo           POS(0) *csvItem . branch
++                             ',' *csvItem . component
++                             ',' *csvItem . status
++                             ',' *csvItem . reviewer
++                             (',' *csvItem . explanation | epsilon)
++                             RPOS(0)                                                  :f(xerr1)
+            csvTbl[component] =     csv(branch, status, reviewer, explanation)         :(main05)
+main10      ENDFILE(3)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            rivers            =     'dev/brazos/colorado/grande/'
+main13      rivers            POS(0) BREAK('/') . river '/' =                          :f(main20)
+            rid               =     REPLACE(SUBSTR(river, 1, 1), &LCASE, &UCASE)
+            INPUT(.txtInput, 3, 'ssdb-' river '-log.txt')                              :f(ioerr)
+main15      txtInfo           =     txtInput                                           :f(error)
+            txtInfo           POS(0) 'Vantive Detail Report:'                          :f(main15)
+            txtInfo           =     txtInput                                           :f(error)
+            txtInfo           POS(0) RPOS(0)                                           :f(error)
+main17      txtInfo           =     txtInput                                           :f(error)
+            txtInfo           POS(0) RPOS(0)                                           :s(main19)
+            txtInfo           SPAN('0123456789') . vid ': ' REM . component            :f(error)
+            component         POS(0) '$/' river '/' =                                  :f(error)
+            csv               =     DIFFER(csvTbl[component]) csvTbl[component]        :f(main17)
+            vids              =     vids(csv)
+            vids              =     IDENT(vids) TABLE()
+            vids[vid]         rid                                                      :s(main17)
+            vids[vid]         =     vids[vid] rid
+            vids(csv)         =     vids                                               :(main17)
+main19      ENDFILE(3)                                                                 :(main13)
+
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+main20      OUTPUT(.csvOutput, 3, 'ssmerge-vantives.csv')                              :f(ioerr)
+            csvOutput         =     csvOutputHeader
+            csvArr            =     CONVERT(csvTbl, 'ARRAY')                           :f(error)
+            i                 =     0
+main25      i                 =     i + 1
+            component         =     csvArr[i, 1]                                       :f(main30)
+            csv               =     csvArr[i, 2]
+            branch            =     branch(csv)
+            status            =     status(csv)
+            vantives          =
+            vids              =     vids(csv)
+            vidsArr           =     DIFFER(vids) SORT(vids)                            :f(main29)
+            j                 =     0
+main27      j                 =     j + 1
+            vid               =     vidsArr[j, 1]                                      :f(main29)
+            rids              =     vidsArr[j, 2]
+            vantives          =     DIFFER(vantives) vantives ' ' vid '(' rids ')'     :s(main27)
+            vantives          =     IDENT(vantives) vid '(' rids ')'                   :(main27)
+main29      csvOutput         =     branch
++                                   ',' component
++                                   ',' status
++                                   ',' vantives                                       :(main25)
+main30      ENDFILE(3)                                                                 :(END)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+ioerr       OUTPUT            =     'i/o error'                                        :(END)
+xerr1       OUTPUT            =     'unexpected error: ' csvInfo                       :(END)
+xerr2       OUTPUT            =     'unexpected error: ' txtInfo                       :(END)
+*-INCLUDE   'debug.sno'
+END

@@ -1,0 +1,211 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'build.inc'
+            &STLIMIT          =     -1
+            &ERRLIMIT         =     0
+*           &DUMP             =     3
+
+            $' '              =     (SPAN(' ' tab) | epsilon)
+            dspPattern        =     POS(0) 'Project: "' ARB '"=' ARB . dspNm ' - '
+            dspDirPattern     =     POS(0) ARB . dspDirNm slash (*pathNode '.dsp') . dspFileNm
+            dspBeginSource    =     POS(0) '# Begin Source File' RPOS(0)
+            dspEmpty          =     POS(0) RPOS(0)
+            dspSrcPattern     =     POS(0) 'SOURCE=' ('"' *pathName . srcNm '"' | *pathName . srcNm) RPOS(0)
+            dspAddCppYu       =     POS(0) . dspAddCppYcNm '# ADD CPP /Yu"' BREAK('"') . dspAddCppYuNm '"' RPOS(0)
+            dspAddCppYc       =     POS(0) . dspAddCppYuNm '# ADD CPP /Yc"' BREAK('"') . dspAddCppYcNm '"' RPOS(0)
+            dspEndSource      =     POS(0) '# End Source File' RPOS(0)
+
+            hashInclude       =     '#' $' ' 'include'
+            incLTGTPattern    =     POS(0) hashInclude $' ' '<' . incLft BREAK('>') . incNm '>' . incRgt
+            incDQDQPattern    =     POS(0) hashInclude $' ' '"' . incLft BREAK('"') . incNm '"' . incRgt
+
+            integer           =     SPAN(digits)
+            ident             =     ANY(&UCASE &LCASE '_') FENCE(SPAN(&UCASE &LCASE '_' digits) | epsilon)
+            string            =     '"' ARBNO(BREAK(bs '"') bs LEN(1) | BREAK('"')) '"'
+
+            bitmapPattern     =     POS(0)
++                                   (*ident | *integer) ('+' *integer '+' *integer | epsilon)
++                                   $' ' 'BITMAP'
++                                   ($' ' 'MOVEABLE' | epsilon)
++                                   ($' ' 'PURE' | epsilon)
++                                   ($' ' 'DISCARDABLE' | epsilon)
++                                   $' ' *string . incNm
+            iconPattern       =     POS(0)
++                                   *ident
++                                   $' ' 'ICON'
++                                   ($' ' 'DISCARDABLE' | epsilon)
++                                   $' ' *string . incNm
+            cursorPattern     =     POS(0)
++                                   *ident
++                                   $' ' 'CURSOR'
++                                   ($' ' 'DISCARDABLE' | epsilon)
++                                   $' ' *string . incNm
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ReadDep(depNm)dep,depInput,depLine,depIncDirNm,depIncFileNm,depIncNm,depSrcNm')
+                                                                                             :(ReadDepEnd)
+ReadDep     INPUT(.depInput, 5, depNm)                                                       :f(ioerr2)
+            dep               =     TABLE()
+ReadDep1    depLine           =     depInput                                                 :f(ReadDep5)
+            depLine           POS(0) '#' ARB RPOS(0)                                         :s(ReadDep1)
+            depLine           POS(0) RPOS(0)                                                 :s(ReadDep1)
+            depLine           POS(0) tab RPOS(0)                                             :s(ReadDep1)
+            depLine           POS(0) '.' slash *pathLeaf . depSrcNm ' : ' bs RPOS(0)         :s(ReadDep2)
+            depLine           POS(0) '.' slash *pathLeaf slash *pathLeaf . depSrcNm ' : ' bs RPOS(0) :s(ReadDep2)
+            depLine           POS(0) tab                '"' BREAK('"') . depIncNm '"' bs RPOS(0)     :s(ReadDep3)
+            depLine           POS(0) tab '{$(INCLUDE)}' '"' BREAK('"') . depIncNm '"' bs RPOS(0)     :s(ReadDep3)
+            OUTPUT            =     'unrecognized input: ' depLine                           :(END)
+ReadDep2    dep[depSrcNm]     =     TABLE()                                                  :(ReadDep1)
+ReadDep3    depIncNm          POS(0) ARB . depIncDirNm bs *pathLeaf . depIncFileNm RPOS(0)   :s(ReadDep4)
+            depIncNm          POS(0) epsilon . depIncDirNm *pathLeaf . depIncFileNm RPOS(0)  :s(ReadDep4)
+ReadDep4    depIncFileNm      =     lwr(depIncFileNm)
+            dep[depSrcNm][depIncFileNm] = 1                                                  :(ReadDep1)
+ReadDep5    ENDFILE(5)
+            ReadDep           =     dep                                                      :(RETURN)
+ReadDepEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('RelPath(dirNm,pthNm)dir,drive,dots')                                     :(RelPathEnd)
+RelPath     RelPath           =     pthNm
+            pthNm             POS(0) ANY(&LCASE &UCASE) . drive ':' =                        :f(RelPath0)
+            dirNm             POS(0) drive ':' =                                             :f(RETURN)
+RelPath0    pthNm             POS(0) ('//' BREAK('/') '/' BREAK('/')) . drive =              :f(RelPath1)
+            dirNm             POS(0) drive =                                                 :f(RETURN)
+RelPath1    pthNm             POS(0) BREAK('/') . dir '/' =                                  :f(RelPath2)
+            dirNm             POS(0) dir ('/' | RPOS(0)) =                                   :s(RelPath1)
+            pthNm             =     dir '/' pthNm
+RelPath2    dirNm             POS(0) RPOS(0)                                                 :s(RelPath4)
+            dirNm             POS(0) BREAK('/') '/' =                                        :s(RelPath3)
+            dirNm             POS(0) ARB RPOS(0) =
+RelPath3    dots              =     '../' dots                                               :(RelPath2)
+RelPath4    RelPath           =     DIFFER(dots) dots pthNm                                  :s(RETURN)
+            RelPath           =     pthNm
+            RelPath           POS(0) '../'                                                   :s(RETURN)
+            RelPath           =     './' RelPath                                             :(RETURN)
+RelPathEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Xerror(n)')                                                              :(XerrorEnd)
+Xerror      Xerror            =     .END
+            OUTPUT            =     'unexpected error ' n '.'                                :(NRETURN)
+XerrorEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            doVerbose         =     0
+            EXIT(3, 'dep.exe')
+            Utility()
+            argPos            =     HOST(3)
+            river             =     HOST(2, argPos)                                          :f(Xerror(8))
+            bld               =     DIFFER(build[river]) build[river]                        :f(Xerror(9))
+            dspNm             =     HOST(2, argPos + 1)                                      :f(Xerror(10))
+            dspNm             dspDirPattern                                                  :f(Xerror(11))
+            dspNm             =     fslash(dspNm)
+            dspNm             POS(0) './' =
+            depNm             =     dspNm
+            depNm             '.dsp' RPOS(0) = '.dep'
+            dspDirNm          =     fslash(dspDirNm)
+            workDir           =     $bld_wrk_dir_var(bld)
+            inclPaths         =     $bld_inc_paths_var(bld)
+            inclPaths[0]      =     *dspDirNm
+            isRC              =     RPOS(3) '.' icase('RC')
+            isRES             =     RPOS(4) '.' (icase('BMP') | icase('ICO') | icase('CUR'))
+            INPUT(.dspInput, 5, dspNm)                                                       :f(ioerr3)
+            OUTPUT(.depOutput, 6, depNm)                                                     :f(ioerr4)
+            depOutput         =     '# Microsoft Developer Studio Generated Dependency File, included by '
+            depOutput         =
+main20      dspLine           =     dspInput                                                 :f(main100)
+            dspLine           dspBeginSource                                                 :f(main20)
+            dspLine           =     dspInput                                                 :f(Xerror(20))
+            dspLine           dspEmpty                                                       :f(Xerror(30))
+            dspLine           =     dspInput                                                 :f(Xerror(40))
+            dspLine           dspSrcPattern                                                  :f(Xerror(50 ':"' dspLine '"'))
+main21      dspLine           =     dspInput                                                 :f(Xerror(60))
+            dspLine           dspAddCppYu                                                    :s(main21)
+            dspLine           dspAddCppYc                                                    :s(main21)
+            dspLine           dspEndSource                                                   :f(main21)
+main22
+*           srcNm             =     REPLACE(srcNm, &UCASE, &LCASE)
+            srcNm             '.' ('C' | 'c' | 'CPP' | 'cpp' | 'RC' | 'rc') RPOS(0)          :f(main20)
+            srcNm             =     fslash(srcNm)
+            srcNm             POS(0) './' =
+            srcPathNm         =     dspDirNm '/' srcNm
+            OUTPUT            =     GE(doVerbose, 1) DUPL('-', 19) ' "' srcNm '"'
+*           dspAddCppYuNm     =     REPLACE(dspAddCppYuNm, &UCASE, &LCASE)
+*           dspAddCppYcNm     =     REPLACE(dspAddCppYcNm, &UCASE, &LCASE)
+            seenTbl           =     TABLE()
+            missTbl           =     TABLE()
+            src               =     ARRAY('0:127')
+            srcs              =     ARRAY('0:127')
+            srcCnt            =     0
+            INPUT(.src[srcCnt], srcCnt + 20, srcPathNm '[-m10]')                             :f(ioerr5)
+            srcs[srcCnt]      =     srcPathNm
+main30      srcLine           =     src[srcCnt]                                              :f(main70)
+            srcLine           RPOS(1) cr =
+            srcLine           incLTGTPattern                                                 :f(main35)
+            tryCnt            =     0                                                        :(main50)
+main35      srcLine           incDQDQPattern                                                 :f(main40)
+            tryCnt            =     -1                                                       :(main50)
+main40      srcs[srcCnt]      isRC                                                           :f(main30)
+            srcLine           bitmapPattern                                                  :s(main43)
+            srcLine           iconPattern                                                    :s(main43)
+            srcLine           cursorPattern                                                  :s(main43)f(main30)
+*           srcLine           ('BITMAP' | 'ICON' | 'CURSOR')                                 :f(main30)
+*           OUTPUT            =     'Error: Missed: ' srcLine                                :(main30)
+main43      incNm             bs bs = '/'                                                    :s(main43)
+            incNm             POS(0) '"' BREAK('"') . incNm '"' RPOS(0)                      :f(Xerror(65))
+            tryCnt            =     -1                                                       :(main50)
+main50      pad               =     DUPL(' ', srcCnt * 8)
+*           incNm             =     REPLACE(incNm, &ucase, &lcase)
+            incNm             =     fslash(incNm)
+*           (DIFFER(dspAddCppYuNm) IDENT(incNm, dspAddCppYuNm))                              :s(main30)
+            IDENT(seenTbl[lwr(incNm)])                                                       :f(main30)
+            srcCnt            =     srcCnt + 1
+main60      tryCnt            =     tryCnt + 1
+            tryDirNm          =     inclPaths[tryCnt]                                        :f(main90)
+            tryDirNm          =     EVAL(tryDirNm)                                           :f(Xerror(70))
+            tryPathNm         =     tryDirNm '/' incNm
+            IDENT(missTbl[tryPathNm])                                                        :f(main60)
+            INPUT(.src[srcCnt], srcCnt + 20, tryPathNm '[-m10]')                             :s(main65)
+            missTbl[tryPathNm] =    TRUE                                                     :(main60)
+main65      srcs[srcCnt]      =     tryPathNm
+            tryPathNm         POS(0) env['studioDirNm'] '/'                                  :s(main70)
+            GE(doVerbose, 3)                                                                 :f(main69)
+            tstDirNm          =     splitname(tryPathNm)[1]
+            tstFileNm         =     splitname(tryPathNm)[2]
+            tstNms            =     exec('ls', '-1 "' tstDirNm '"')
+main67      tstNms            POS(0) BREAK(nl) . tstNm nl =                                  :f(main68)
+            tstNm             POS(0) icase(tstFileNm) RPOS(0)                                :f(main67)
+            IDENT(tstFileNm, tstNm)                                                          :s(main69)
+main68      OUTPUT            =      DUPL('*', 19) ' "' srcs[srcCnt - 1] '": ' tstFileNm ' --> ' tstNm
+main69      seenTbl[lwr(incNm)] =   tryPathNm
+            OUTPUT            =     GE(doVerbose, 2) pad incLft incNm incRgt ' (' tryPathNm ')'
+            tryPathNm         isRES                                                          :s(main70)f(main30)
+main70      ENDFILE(srcCnt + 20)
+            src[srcCnt]       =
+            srcs[srcCnt]      =
+main80      srcCnt            =     GT(srcCnt, 0) srcCnt - 1                                 :s(main30)
+            depOutput         =     '.' bs bslash(srcNm) ' : ' bs
+            seenArr           =     SORT(seenTbl, 2)                                         :f(main89)
+            seenCnt           =     0
+main81      seenCnt           =     seenCnt + 1
+            actNm             =     seenArr[seenCnt, 1]                                      :f(main89)
+            actPathNm         =     seenArr[seenCnt, 2]
+main83      DIFFER(doGeneral)                                                                :f(main85)
+            actPathNm         icase(actNm) . actNm RPOS(0)
+            actPathNm         POS(0) dspDirNm '/' ARBNO(NOTANY('/')) RPOS(0)                 :f(main84)
+            depOutput         =     tab '"' '.' bs actNm '"' bs                              :(main81)
+main84      depOutput         =     tab '{$(INCLUDE)}' '"' actNm '"' bs                      :(main81)
+main85      actRelPathNm      =     RelPath(dspDirNm, actPathNm)
+*           OUTPUT            =     RPAD(dspDirNm, 40) ' ' RPAD(actPathNm, 50) ' ' actRelPathNm
+            actRelPathNm      =     bslash(actRelPathNm)
+            depOutput         =     tab '"' actRelPathNm '"' bs                              :(main81)
+main89      depOutput         =     tab
+            depOutput         =                                                              :(main20)
+main90      OUTPUT            =     GE(doVerbose, 3) pad incLft incNm incRgt ' (error)'     :(main80)
+main100     ENDFILE(6)
+            ENDFILE(5)                                                                       :(fini)
+fini                                                                                         :(END)
+ioerr2      OUTPUT            =     'i/o error: ' depNm                                      :(fini)
+ioerr3      OUTPUT            =     'i/o error: ' dspNm                                      :(fini)
+ioerr4      OUTPUT            =     'i/o error: ' depNm                                      :(fini)
+ioerr5      OUTPUT            =     'i/o error: ' srcPathNm                                  :(main20)
+xerr        OUTPUT            =     'unexpected error.'                                      :(END)
+*-INCLUDE 'debug.sno'
+END

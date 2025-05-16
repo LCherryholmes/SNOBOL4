@@ -1,0 +1,69 @@
+*----------------------------------------------------------------------------------
+* Microsoft SQL Server, Transact-SQL Mangler
+* Author: Lon Cherryholmes
+* First Created: January 14, 2004
+* Last Modified: January 14, 2004
+*------- -------------- ----- ----------------------------- -----------------------
+START    &ALPHABET      POS(0)  LEN(1) . nul  ;* null char
+         &ALPHABET      POS(9)  LEN(1) . ht   ;* horizontal tab
+         &ALPHABET      POS(10) LEN(1) . lf   ;* line feed
+         &ALPHABET      POS(11) LEN(1) . vt   ;* vertical tab
+         &ALPHABET      POS(12) LEN(1) . ff   ;* form feed
+         &ALPHABET      POS(13) LEN(1) . cr   ;* carriage return
+         ON             =     1
+         OFF            =     0
+         digits         =     '0123456789'
+         chars          =     '!%&(){}*+,-./:;<=>^|~'
+         white          =     SPAN(' ' ht lf vt ff cr)
+         cComment       =     '/*' BREAKX('*') '*/'
+         sqlComment     =     '--' BREAK(lf)
+         dq             =     ('""' | NOTANY('"') BREAK('"')) *dq | ''
+         sq             =     ("''" | NOTANY("'") BREAK("'")) *sq | ''
+         exponent       =     ANY('Ee') (ANY('+-') | '') SPAN(digits)
+         tokenIdent     =     ANY('@#_' &UCASE &LCASE) (SPAN('@$#_' &UCASE &LCASE digits) | '')
+         tokenBinary    =     ('0x' | '0X') SPAN('0123456789ABCDEFabcdef')
+         tokenMoney     =     '$' SPAN(digits) ('.' SPAN(digits) | '')
+         tokenReal      =     (  SPAN(digits)
++                                (  '.' (SPAN(digits) | '') (exponent | '')
++                                |  exponent
++                                )
++                             |  '.' SPAN(digits) (exponent | '')
++                             )
+         tokenInteger   =     SPAN(digits)
+         tokenDQString  =     '"' *dq '"'
+         tokenSQString  =     "'" *sq "'"
+         tokenNSQString =     "N'" *sq "'"
+         tokenDelimited =     '[' BREAK(']') ']'
+*------- -------------- ----- ----------------------------- -----------------------
+         EXIT(3, 'mangle.exe')
+         QI             =     ON
+         tsql           =
+         msql           =
+main00   line           =     INPUT                         :F(main10)
+         tsql           =     tsql line lf                  :(main00)
+main10   tsql           POS(0) RPOS(0)                      :S(fini)
+         tsql           POS(0) white      =                 :S(main10)
+         tsql           POS(0) cComment   =                 :S(main10)
+         tsql           POS(0) sqlComment =                 :S(main10)
+         tsql           POS(0) tokenNSQString   . thx =     :S(main15)
+         tsql           POS(0) tokenIdent       . thx =     :S(main20)
+         tsql           POS(0) tokenBinary      . thx =     :S(main30)
+         tsql           POS(0) tokenMoney       . thx =     :S(main40)
+         tsql           POS(0) tokenReal        . thx =     :S(main50)
+         tsql           POS(0) tokenInteger     . thx =     :S(main60)
+         tsql           POS(0) tokenDQString    . thx =     :S(main70)
+         tsql           POS(0) tokenSQString    . thx =     :S(main80)
+         tsql           POS(0) tokenDelimited   . thx =     :S(main20)
+         tsql           POS(0) SPAN(chars)      . thx =     :S(main20)
+         OUTPUT         =  'Error: ' SUBSTR(tsql, 1, 40)    :(END)
+main15   msql           =  msql ' ' '{strN}'                :(main10)
+main20   msql           =  msql ' ' thx                     :(main10)
+main30   msql           =  msql ' ' '{BS}'                  :(main10)
+main40   msql           =  msql ' ' '${##.##}'              :(main10)
+main50   msql           =  msql ' ' '{##.##}'               :(main10)
+main60   msql           =  msql ' ' '{##}'                  :(main10)
+main70   msql           =  msql ' ' EQ(QI, OFF) '{str}'     :S(main10)
+         msql           =  msql ' ' EQ(QI, ON) thx          :S(main10)F(error)
+main80   msql           =  msql ' ' '{str}'                 :(main10)
+fini     OUTPUT         =  msql                             :(END)
+END

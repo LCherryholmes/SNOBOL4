@@ -1,0 +1,228 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'WordNet.inc'
+-INCLUDE 'Cide.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'export.inc'
+-INCLUDE 'XML.inc'
+*-----------------------------------------------------------------------
+        USCtags = TABLE() ;*   | 'uscDoc' | 'level'
+        USCtags['title'       ] = 't'
+        USCtags['subtitle'    ] = 'st'
+        USCtags['division'    ] = 'd'
+        USCtags['part'        ] = 'pt'
+        USCtags['subpart'     ] = 'spt'
+        USCtags['chapter'     ] = 'ch'
+        USCtags['subchapter'  ] = 'sch'
+        USCtags['section'     ] = 's'
+*       USCtags['subsection'  ] = 'ss' ;* '?'
+*       USCtags['paragraph'   ] = 'p' ;* '?'
+*       USCtags['subparagraph'] = 'sp' ;* '?'
+*       USCtags['clause'      ] = 'cl' ;* '?'
+*       USCtags['subclause'   ] = 'scl' ;* '?'
+*       USCtags['item'        ] = 'i' ;* '?'
+*       USCtags['subitem'     ] = 'si' ;* '?'
+*       USCtags['subsubitem'  ] = 'ssi' ;* '?'
+*       USCtags['level'       ] = 'l' ;* '?'
+        USCtags['rule'        ] = 'rule'
+        USCtags['courtRules'  ] = 'courtRules'
+        USCtags['reorgPlans'  ] = 'reorgPlans'
+        USCkeys =   't' | 'st' | 'sch' | 'spt' | 's' | 'ch' | 'pt'
++               |   'd' | 'rule' | 'courtRules' | 'reorgPlans'
+*  ---- ----------- --- --------------------------------------- ------------
+        DEFINE('USC(x)i,id')                                    :(USCEnd)
+USC     &TRACE      =   4194304
+                                                                :($('USC_' t(x)))
+* ------------------------- ------- --  ----------------------- ------------
+USC_uscDoc
+        Gen('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"' nl)
+        Gen('"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">' nl)
+        Gen('<html xmlns="http://www.w3.org/1999/xhtml">' nl)
+        USC_(x)
+        Gen('</html>' nl)                                       :(RETURN)
+
+USC_meta
+        IncLevel(1)
+        Gen('<head>' nl)
+        Gen('<link rel="stylesheet" type="text/css" href="usc.css"  />' nl)
+        Gen('<title>' nl)
+        Gen(' United States Code Document' nl)
+        Gen('</title>' nl)
+        Gen('</head>' nl)
+        DecLevel(1)                                             :(RETURN)
+
+USC_main
+        IncLevel(1)
+        Gen('<body width="700">' nl)
+        IncLevel(1)
+        Gen('<div>' nl)
+        DecLevel(2)
+        Gen(nl nl)
+        USC_(x)
+        Gen('</div></body>')                                    :(RETURN)
+
+USC_title
+        Gen('<h1 class="usc-title-head">')
+        USC_(x)
+        Gen('</h1>' nl)                                         :(RETURN)
+
+
+USC_division
+USC_subtitle
+USC_subpart
+USC_part
+USC_chapter
+USC_subchapter
+                                                                :(USC3)
+USC_subsection
+USC_section
+                                                                :(USC3)
+USC_subsubitem
+USC_subitem
+USC_level
+USC_item
+USC_subclause
+USC_clause
+USC_subparagraph
+USC_paragraph
+
+USC_toc
+USC_notes
+USC_sourceCredit
+USC_quotedContent
+                                                                :(USC3)
+
+USC_dc:title
+USC_dc:type
+USC_dc:creator
+USC_dc:publisher
+USC_dcterms:created
+                t(x) ? POS(0) BREAK(':') ':' =                  :(USC3)
+
+USC_docNumber
+USC_docPublicationName
+
+USC_img
+USC_tfoot
+USC_b
+USC_sub
+USC_signature
+USC_name
+USC_layout
+USC_colgroup
+USC_table
+USC_thead
+USC_tbody
+USC_col
+USC_th
+USC_sup
+USC_a
+USC_inline
+USC_i
+USC_tocItem
+USC_tr
+USC_span
+USC_chapeau
+USC_column
+USC_td
+USC_note
+USC_date
+USC_heading
+USC_content
+USC_p
+USC_num
+USC_ref
+
+USC_role
+USC_br
+USC_proviso
+USC_article
+USC_header
+USC_continuation
+
+USC3    id          =   ID = ID + 1
+        r_data      =   DIFFER(pid) pid ',' id
+        n_data      =
++       cap(t(x))
++       ',' id
++       ',' seq
++       ',' (DIFFER(v(x))               '"' CsvDQize(v(x)) '"'                  , NULL)
++       ',' (DIFFER(d(x)['identifier']) '"' CsvDQize(d(x)['identifier']) '"'    , NULL)
++       ',' (DIFFER(d(x)['class'])      '"' CsvDQize(d(x)['class']) '"'         , NULL)
++       ',' (DIFFER(d(x)['colspan'])                 d(x)['colspan']            , NULL)
++       ',' (DIFFER(d(x)['date'])       '"' CsvDQize(d(x)['date']) '"'          , NULL)
++       ',' (DIFFER(d(x)['href'])       '"' CsvDQize(d(x)['href']) '"'          , NULL)
++       ',' (DIFFER(d(x)['id'])         '"' CsvDQize(d(x)['id']) '"'            , NULL)
++       ',' (DIFFER(d(x)['idref'])      '"' CsvDQize(d(x)['idref']) '"'         , NULL)
++       ',' (DIFFER(d(x)['name'])       '"' CsvDQize(d(x)['name']) '"'          , NULL)
++       ',' (DIFFER(d(x)['note'])       '"' CsvDQize(d(x)['note']) '"'          , NULL)
++       ',' (DIFFER(d(x)['origin'])     '"' CsvDQize(d(x)['origin']) '"'        , NULL)
++       ',' (DIFFER(d(x)['role'])       '"' CsvDQize(d(x)['role']) '"'          , NULL)
++       ',' (DIFFER(d(x)['rowspan'])                 d(x)['rowspan']            , NULL)
++       ',' (DIFFER(d(x)['src'])        '"' CsvDQize(d(x)['src']) '"'           , NULL)
++       ',' (DIFFER(d(x)['status'])     '"' CsvDQize(d(x)['status']) '"'        , NULL)
++       ',' (DIFFER(d(x)['style'])      '"' CsvDQize(d(x)['style']) '"'         , NULL)
++       ',' (DIFFER(d(x)['topic'])      '"' CsvDQize(d(x)['topic']) '"'         , NULL)
++       ',' (DIFFER(d(x)['type'])       '"' CsvDQize(d(x)['type']) '"'          , NULL)
++       ',' (DIFFER(d(x)['value'])      '"' CsvDQize(d(x)['value']) '"'         , NULL)
++       ',' (DIFFER(d(x)['width'])      '"' CsvDQize(d(x)['width']) '"'         , NULL)
+USC5    USC(c(x)[i = LT(i, n(x)) i + 1], id, i)                 :S(USC5)F(RETURN)
+USCEnd
+*=======================================================================
+*       ----------- --- ----------------------------------- ------------
+L00     &MAXLNGTH   =   4194304 ;* 2097152 ;* 1048576 ;* 524288
+*       &STLIMIT    =   -1
+*       ----------- --- ----------------------------------- ------------
+        cygwinDir   =   'C:/cygwin64/bin'
+        findDirPath =   'C:/LegalEarth/United States Code'
+        findWild    =   '*.xml'
+        findCmd     =   cygwinDir '/find "' findDirPath '" -type f -name "' findWild '"'
+        fileParams  =   '[-m10 -l65536]'
+        fileDirPat  =   (ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/')))
+        fileNamePat =   ARBNO(NOTANY('/'))
+        filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+        fileNo      =   0
+        fileNoMin   =   1 ;* 15
+        fileNoMax   =   1 ;* 15
+        fileLineNo  =   0
+        fileBytes   =   0
+        MaxD        =   0
+*       ----------- --- ----------------------------------- ------------
+        INPUT(.findInput, 3, "!!" findCmd fileParams)       :F(E1)
+L10     filePath    =   findInput                           :F(L90)
+        filePath    ?   filePattern                         :F(Yikes)
+        fileName    ?   ANY('Aa') '.xml' RPOS(0)            :S(L10)
+        fileNo      =   fileNo + 1
+        GE(fileNo, fileNoMin)                               :F(L10)
+        LE(fileNo, fileNoMax)                               :F(L90)
+        &TRACE      =   4194304
+        TERMINAL    =   '-------- Reading ' fileName
+        xml         =   XmlRead(filePath, fileParams)       :F(E2)
+        TERMINAL    =   '-------- Process ' fileName
+        COLLECT()
+        outName     =   filePath
+        outName     ?   '.xml' RPOS(0) = '.html'
+        OUTPUT(.HTML, 5, outName)                           :F(Yikes)
+        USC(xml,, 1)
+        ENDFILE(5)                                          :(L10)
+L90     ENDFILE(3)
+        TERMINAL    =   'Processed ' fileNo ' files.'
+        TERMINAL    =   'Processed ' fileLineNo ' lines.'
+        TERMINAL    =   'Processed ' fileBytes ' bytes.'
+        TERMINAL    =   'Maximum depth ' MaxD               :(END)
+*       ----------- --- ----------------------------------- ------------
+E1      OUTPUT      =   "Error: " findCmd                   :(END)
+E2      OUTPUT      =   "Error: " filePath                  :(END)
+E3      OUTPUT      =   "Error: " t(T[D]) " X " xT          :(END)
+E5      OUTPUT      =   "Error: " xmlLine                   :(END)
+*-INCLUDE 'debug.sno'
+END

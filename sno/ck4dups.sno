@@ -1,0 +1,43 @@
+*-------------------------------------------------------------------------------------------------------------------------
+-INCLUDE 'utility.inc'
+-INCLUDE 'system.inc'
+         Utility()
+         dirs        =   ARRAY('1:1')
+         dirs[1]     =   'C:/SNOBOL4_Merge'
+         dPath1      =   'SNOBOL4/'
+         dPath2      =   'SNOBOL4_Sub/'
+         i           =   0
+main1    i           =   i + 1
+         dPath       =   dirs[i]                                                     :F(fini)
+         fTbl        =   TABLE()
+         findResp    =   system('@-find', dPath ' -type f -print')                   :F(xerr1)
+main3    findResp    POS(0) BREAK(nl) . findPath nl =                                :F(main7)
+         findPath    POS(0) ARBNO(BREAK('/') '/') . p ARBNO(NOTANY('/')) . f RPOS(0) :F(xerr1)
+         fTbl[f]     =   fTbl[f] p ';'                                               :(main3)
+main7    fArr        =   DIFFER(fTbl) SORT(fTbl, 1)                                  :F(xerr1)
+         OUTPUT      =
+         OUTPUT      =   dPath ':'
+         OUTPUT      =
+         j           =   0
+main9    j           =   j + 1
+         f           =   fArr[j, 1]                                                  :F(main1)
+         filePaths   =   fArr[j, 2]
+main11   filePaths   POS(0) BREAK(';') ';' BREAK(';') ';'                            :F(main9)
+         filePaths   (POS(0) | ';') . x (dPath '/' dPath1 BREAK(';') . frp1) . fp1 ';' = x :F(main9)
+         filePaths   (POS(0) | ';') . x (dPath '/' dPath2 frp1       . frp2) . fp2 ';' = x :S(main13)
+         filePaths   =   fp2 ';' filePaths                                           :(main11)
+main13   cmpInfo     =
+         cmpResp     =   system('@-cmp', '"' fp1 '/' f '" "' fp2 '/' f '"')          :F(xerr2)
+         cmpResp     POS(0) fp1 '/' f ' ' fp2 '/' f ' ' RTAB(1) . cmpInfo nl
+         cmpInfo     POS(0) 'differ: '                                               :S(main11)
+*        OUTPUT      =   f ': ' fp1 ' ' fp2                                          :(main11)
+*        OUTPUT      =   DUPL('-', 80) ' '
+*        cmpResp     =   system('diff', '"' fp1 '/' f '" "' fp2 '/' f '"')           :F(xerr2)
+*        OUTPUT      =   RPAD(f, 24) ' ' RPAD(frp1, 128) ' "' cmpInfo '"'
+         system('rm', '-f "' fp2 f '"')
+                                                                                     :(main11)
+fini                                                                                 :(END)
+xerr1    OUTPUT = 'unexpected error.'                                                :(END)
+xerr2    OUTPUT = 'cmp error.'                                                       :(END)
+xerr3    OUTPUT = 'cmp digest error.'                                                :(END)
+END

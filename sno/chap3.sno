@@ -1,0 +1,60 @@
+*-----------------------------------------------------------------------------------------------------------------------------------
+*        fileinfo.spt - Produce information about a file
+*        This program counts the number of characters and lines in a file.
+
+         &TRIM    =  1
+NEXTL    CHARS    =  CHARS + SIZE(INPUT)                    :F(DONE)
+         LINES    =  LINES + 1                              :(NEXTL)
+DONE     OUTPUT   =  CHARS ' characters, ' +LINES ' lines read'
+END
+*-----------------------------------------------------------------------------------------------------------------------------------
+*        triplet.spt - Simple text formatting
+*        This program reformats a file by centering the lines and arranging them in groups of three.
+*        Note that statements containing an asterisk in column one are considered comments by SPITBOL.
+
+         &TRIM    =  1                                               ;* Trim input, prepare to count input lines:
+         N        =  0
+LOOP     S        =  INPUT                                  :F(END)  ;* Read next input line, all done if End-of-File.
+         OUTPUT   =  DUPL(' ', (80 - SIZE(S)) / 2) S                 ;* Precede with blanks to center within 80 character line:
+         N        =  REMDR(N + 1, 3)                                 ;* Increment count, but reset to zero every third line.
+         OUTPUT   =  EQ(N, 0)                               :(LOOP)  ;* Also, output a blank line when count resets:
+END
+*-----------------------------------------------------------------------------------------------------------------------------------
+*        palin.spt - Palindromes
+*        This program accepts an input line, and checks if it is a palindrome (a
+*        statement that reads the same forward and backward).
+
+         &TRIM    =  1
+         TERMINAL =  'Enter test lines, terminate with EOF'
+LOOP     S        =  REPLACE(TERMINAL, &LCASE, &UCASE)      :F(END)  ;* Read input line, convert lower case to upper.
+         TERMINAL =  IDENT(S, REVERSE(S)) 'Palindrome!'     :S(LOOP) ;* Check for palindrome:
+         TERMINAL =  'No, try again.'                       :(LOOP)
+END
+*-----------------------------------------------------------------------------------------------------------------------------------
+*        temp.spt - Temperature conversion
+*        This program asks the user for a low and high Fahrenheit temperature,
+*        and an increment. The values are specified as integers. It produces a list of
+*        temperatures in Fahrenheit and Celsius.
+
+         &TRIM    =  1
+AGAIN    TERMINAL =  'Enter low temperature (F), or <EOF> to end:'
+         LOW      =  TERMINAL                               :F(END)
+         TERMINAL =  'Enter high temperature:'
+         HIGH     =  TERMINAL                               :F(END)
+         TERMINAL =  'Enter temperature step or Return for 1:'
+         STEP     =  TERMINAL                               :F(END)
+
+*        If step omitted, default to 1:
+*        When the second argument is omitted, IDENT(STEP) asks whether
+*        STEP matches the null string. If not, we go to the next state-
+*        ment. If STEP is the null string, then the function succeeds,
+*        thereby producing the null string, which is concatenated with the
+*        following 1. The result is to assign 1 to STEP if STEP is null.
+         STEP     =  IDENT(STEP) 1
+         (  INTEGER(LOW) INTEGER(HIGH) INTEGER(STEP)
++           LT(LOW, HIGH) GT(STEP,0)
++        )                                                  :S(GO)         ;* Check for valid input:
+         TERMINAL =  'Must be integers, low<high, step>0'   :(AGAIN)
+GO       TERMINAL =  LOW ' ' (LOW - 32) * 5.0 / 9.0                        ;* Produce results:
+         LOW      =  LT(LOW, HIGH) LOW + STEP               :S(GO)F(AGAIN)
+END

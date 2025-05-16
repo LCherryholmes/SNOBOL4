@@ -1,0 +1,118 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'XDump.inc'
+*   ----------- --- ----------------------------------- ------------
+    DEFINE('XT(Q)QA,i,q,t,tot')                         :(XTEnd)
+XT  QA          =   DIFFER(Q) RSORT(Q, 2)               :F(RETURN)
+    i           =   DIFFER(QA) 0                        :F(RETURN)
+XT5 i           =   i + 1
+    t           =   QA[i, 1]                            :F(XT9)
+    q           =   QA[i, 2]
+    total       =   total + q
+    OUTPUT      =   LPAD(q, 6) ' ' t                    :(XT5)
+XT9 OUTPUT      =   'Total: ' total                     :(RETURN)
+XTEnd
+*   ----------- --- ----------------------------------- ------------
+    $'  '       =   SPAN(' ' tab cr lf)
+    $' '        =   FENCE($'  ' | epsilon)
+    text        =   NOTANY('<') BREAK('<')
+    SDQchars    =   NOTANY('"' bSlash) BREAK('"' bSlash)
+    SSQchars    =   NOTANY("'" bSlash) BREAK("'" bSlash)
+    SDQescape   =   bSlash ANY('"' bSlash)
+    SSQescape   =   bSlash ANY("'" bSlash)
+    STRING      =   '"' ARBNO(SDQchars | SDQescape) . xmlxValue '"'
++               |   "'" ARBNO(SSQchars | SSQescape) . xmlxValue "'"
+    ident1      =   ANY(&UCASE &LCASE)
+    identN      =   SPAN(&UCASE &LCASE digits '_.-')
+    ident       =   ident1 FENCE(identN | epsilon)
+    attr        =   ident
+    xattr       =   ident ':' ident
+    pairs       =   ARBNO($'  ' (xattr | attr) $' ' '=' $' ' STRING)
+    tag         =   FENCE(ident ':' ident | ident)
+    tagBeg      =   $' ' '<' tag (pairs | epsilon) $' ' '>'
+    tagSelf     =   $' ' '<' tag (pairs | epsilon) $' ' '/>'
+    tagEnd      =   $' ' '</' tag $' ' '>'
+    xcontrol    =   $' ' '<?xml ' BREAK('?') '?>'
++               |   $' ' '<?xml-stylesheet ' BREAK('?') '?>'
+*   ----------- --- ----------------------------------- ------------
+    left        =   ' ' | POS(0)
+    right       =   NOTANY(&UCASE &LCASE "-'" digits) | RPOS(0)
+    w           =   ANY(&UCASE &LCASE) (SPAN(&LCASE) | epsilon)
+    w           =   w $ wrd *DIFFER(W[upr(wrd)])
+    words       =   ( w ' ' w ' ' w ' ' w ' ' w ' ' w ' ' w
++                   | w ' ' w ' ' w ' ' w ' ' w ' ' w
++                   | w ' ' w ' ' w ' ' w ' ' w
++                   | w ' ' w ' ' w ' ' w
++                   | w ' ' w ' ' w
++                   | w ' ' w
++                   | w
++                   ) $ phrase *DIFFER(B[upr(phrase)])
+    search      =   POS(0) (ARB left) . p_left words . phrase right . p_right
+    wrdPeel     =   POS(0) SPAN(&UCASE) . wrd (' ' | RPOS(0))
+*   ----------- --- ----------------------------------- ------------
+L00 TERMINAL    =   '-------- Reading Bouvier'
+    INPUT(.input, 3, "Bouvier.txt")                     :F(Yikes)
+    B           =   TABLE(8192)
+    W           =   TABLE(8192)
+L05 phrase      =   input                               :F(L09)
+    B[phrase]   =   0
+L07 phrase      ?   wrdPeel =                           :F(L05)
+    W[wrd]      =   W[wrd] + 1                          :(L07)
+L09 ENDFILE(3)
+*       ----------- --- ----------------------------------- ------------
+    outDirPath  =   "C:/LegalEarth/United States Code (decorated)"
+    findDirPath =   "C:/LegalEarth/United States Code"
+    findWild    =   '"' "*.xml" '"'
+    findArgs    =   '"' findDirPath '"'
+    findOptions =   "-type f -name " findWild
+    findCmd     =   "C:/mksnt/find " findArgs " " findOptions
+    fileParams  =   '[-m10 -l65536]'
+    fileDirPat  =   ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/'))
+    fileNamePat =   ARBNO(NOTANY('/'))
+    filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+    fileExclude =   ANY('Aa') '.xml' RPOS(0)
+    fileNo      =   0
+    fileNoMin   =   1 ;* 15
+    fileNoMax   =   100 ;* 15
+    P           =   TABLE(8192)
+    INPUT(.findInput, 3, "!!" findCmd)                  :F(E_1)
+L10 filePath    =   findInput                           :F(L90)
+    filePath    ?   filePattern                         :F(E_2)
+    fileName    ?   fileExclude                         :S(L10)
+    fileNo      =   fileNo + 1
+    GE(fileNo, fileNoMin)                               :F(L10)
+    LE(fileNo, fileNoMax)                               :F(L90)
+    TERMINAL    =   '-------- Reading ' fileName
+    outPath     =   outDirPath '/' fileName
+    INPUT(.input, 4, filePath fileParams)               :F(E_2)
+    OUTPUT(.output, 5, outPath fileParams)              :F(E_3)
+L20 out         =
+    line        =   input                               :F(L80)
+L30 line        ?   POS(0) RPOS(0)                      :S(L70)
+    line        ?   POS(0) $'  ' . str =                :S(L40)
+    line        ?   POS(0) xcontrol . str =             :S(L40)
+    line        ?   POS(0) tagBeg . str =               :S(L40)
+    line        ?   POS(0) tagEnd . str =               :S(L40)
+    line        ?   POS(0) tagSelf . str =              :S(L40)
+    line        ?   POS(0) text . txt . str =           :S(L50)F(E_4)
+L40 out         =   out str                             :(L30)
+L50 txt         ?   search = p_right                    :F(L59)
+    P[phrase]   =   P[phrase] + 1
+    phrase      =   '<dict>' phrase '</dict>'
+    out         =   out p_left phrase                   :(L50)
+L59 out         =   out txt                             :(L30)
+L70 output      =   out                                 :(L20)
+L80 ENDFILE(5)
+    ENDFILE(4)                                          :(L10)
+L90 ENDFILE(3)
+    XT(P)                                               :(END)
+E_1 OUTPUT      =   "Error: " findCmd                   :(END)
+E_2 OUTPUT      =   "Error: " filePath                  :(END)
+E_3 OUTPUT      =   "Error: " outPath                   :(END)
+E_4 OUTPUT      =   "Error: " SUBSTR(line, 1, 64)       :(END)
+*   ----------- --- ----------------------------------- ------------
+*-INCLUDE 'debug.sno'
+END

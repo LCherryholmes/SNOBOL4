@@ -1,0 +1,32 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'ReadWrite.inc'
+    &MAXLNGTH = 4000000
+    $' ' = FENCE(SPAN(' ' nl) | epsilon)
+    json = Read('YouTube Subscriptions.html') :F(Yikes)
+    TERMINAL = SIZE(json)
+L10 json ? '"channelId":' $' ' '"' BREAK('"') . OUTPUT '"' = :F(END)
+
+    json ? '"title":' $' ' '{'
++          $' ' '"simpleText":' '"' BREAK('"') . OUTPUT '"'
++          $' ' '}' =
+
+    json ? '"videoCountText":' '{'
++          $' ' '"runs":' '['
++          $' ' '{'
++          $' ' '"text":' '"' (BREAK(' ') ' video' ('s' | epsilon)) . OUTPUT '"'
++          $' ' '}'
++          $' ' ']'
++          $' ' '}' =
+
+    json ? '"subscriberCountText":' '{'
++          $' ' '"runs":' '['
++          $' ' '{'
++          $' ' '"text":' '"' (BREAK(' ') ' subscriber' ('s' | epsilon)) . OUTPUT '"'
++          $' ' '}'
++          $' ' ']'
++          $' ' '}' =
+
+    :(L10)
+*x-INCLUDE 'debug.sno'
+END

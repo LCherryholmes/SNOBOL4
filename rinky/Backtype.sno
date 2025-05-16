@@ -1,0 +1,130 @@
+*-------------------------------------------------------------------------------------------------------
+* Backtype.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'export.inc'
+-INCLUDE 'ini.inc'
+-INCLUDE 'system.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'HTML.inc'
+-INCLUDE 'trace.inc'
+*========== =========== === ======================================================= ====================
+            $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            cookies     =   'Cookies.txt'
+            userAgent   =   'Mozilla/5.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            hexDigits   =   '0123456789ABCDEF'
+            bypassHTTP  =   FALSE
+			bVerbose    =   FALSE
+*---------- --------------- --- ------------------------------------------------------- ----------------
+            iTags           =   0
+            aTags           =   ARRAY('1:17')
+            aTags[iTags = iTags + 1] = 'author'
+            aTags[iTags = iTags + 1] = 'blog'
+            aTags[iTags = iTags + 1] = 'comment'
+            aTags[iTags = iTags + 1] = 'comments'
+            aTags[iTags = iTags + 1] = 'content'
+            aTags[iTags = iTags + 1] = 'date'
+            aTags[iTags = iTags + 1] = 'entry'
+            aTags[iTags = iTags + 1] = 'feed'
+            aTags[iTags = iTags + 1] = 'id'
+            aTags[iTags = iTags + 1] = 'itemsperpage'
+            aTags[iTags = iTags + 1] = 'name'
+            aTags[iTags = iTags + 1] = 'post'
+            aTags[iTags = iTags + 1] = 'since_ts'
+            aTags[iTags = iTags + 1] = 'startindex'
+            aTags[iTags = iTags + 1] = 'title'
+            aTags[iTags = iTags + 1] = 'totalresults'
+            aTags[iTags = iTags + 1] = 'url'
+
+            iT              =   0
+BT01        iT              =   iT + 1
+            tag             =   aTags[iT]                                               :F(BT02)
+            $('<' tag '>')  =   ($' ' '<' tag $' ' '>') @x
+            $('</' tag '>') =   ($' ' '</' tag $' ' '>') @x                             :(BT01)
+
+BT02        xmlInteger      =   SPAN('0123456789') @x
+            xmlHex          =   SPAN('0123456789ABCDEFacbdef') @x
+            xmlValue        =   BREAK('<') @x
+
+            xmlTotalResults =   $'<totalresults>' *xmlInteger $'</totalresults>'
+            xmlStartIndex   =   $'<startindex>' *xmlInteger $'</startindex>'
+            xmlItemsPerPage =   $'<itemsperpage>' *xmlInteger $'</itemsperpage>'
+            xmlSinceTS      =   $'<since_ts>' *xmlInteger $'</since_ts>'
+            xmlId           =   $'<id>' *xmlValue $'</id>'
+            xmlURL          =   $'<url>' *xmlValue $'</url>'
+            xmlContent      =   $'<content>' *xmlValue . OUTPUT $'</content>'
+            xmlDate         =   $'<date>' *xmlValue $'</date>'
+            xmlTitle        =   $'<title>' *xmlValue $'</title>'
+            xmlName         =   $'<name>' *xmlValue $'</name>'
+
+            xmlParse        =   '<?xml version="1.0" encoding="utf-8"?>' $' ' *xmlFeed
+            xmlFeed         =   $'<feed>' *xmlPreamble *xmlComments $'</feed>'
+            xmlPreamble     =   *xmlTotalResults *xmlStartIndex *xmlItemsPerPage *xmlSinceTS
+            xmlComments     =   $'<comments>' *xmlEntries $'</comments>'
+            xmlEntries      =   ARBNO(*xmlEntry)
+            xmlEntry        =   $'<entry>' *xmlComment *xmlBlog *xmlPost *xmlAuthor *xmlURL $'</entry>'
+            xmlComment      =   $'<comment>' *xmlId *xmlURL *xmlContent *xmlDate $'</comment>'
+            xmlBlog         =   $'<blog>' *xmlId *xmlURL *xmlTitle $'</blog>'
+            xmlPost         =   $'<post>' *xmlURL *xmlTitle $'</post>'
+            xmlAuthor       =   $'<author>' *xmlName (*xmlURL | epsilon) $'</author>'
+*========== =========== === ======================================================= ====================
+*           EXIT(3, 'Backtype.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+            curl        =   curl_easy_init()                                        :F(error)
+*           EQ(0, cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))       :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))         :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))          :F(error)
+            key         =   '75d773f1bd406dc3e668'
+            q           =   'Katz'
+            url         =   'http://api.backtype.com/comments/search.xml?q=' URLEncode(q) '&key=' key
+            sFileName   =   'Comments.xml'
+            EQ(bypassHTTP, TRUE)                                                    :F(BT3)
+            xml         =   Read(sFileName, .tFileMap)                              :(BT5)
+BT3         EQ(0, cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, url))                    :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            xml         =   curl_easy_getdata()
+            Write(sFileName, xml)
+BT5         xml         POS(0) *xmlParse $' ' RPOS(0)                               :F(BT7)
+            OUTPUT      =   'Success'                                               :(BT9)
+BT7         OUTPUT      =   'Failure: @' x ' ' T8Pos(x, tFileMap)
+            OUTPUT      =   SUBSTR(xml, x, 32)
+BT9         curl_easy_cleanup(curl)                                                 :(END)
+*========== =========== === ======================================================= ====================
+error       OUTPUT      =   'Error: ' cc ': ' curl_easy_strerror(cc)
+            DIFFER(curl)                                                            :F(END)
+            OUTPUT      =   RPAD("CURLINFO_EFFECTIVE_URL: ", 34)            curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL)
+            OUTPUT      =   RPAD("CURLINFO_RESPONSE_CODE: ", 34)            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+            OUTPUT      =   RPAD("CURLINFO_TOTAL_TIME: ", 34)               curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME)
+            OUTPUT      =   RPAD("CURLINFO_NAMELOOKUP_TIME: ", 34)          curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME)
+            OUTPUT      =   RPAD("CURLINFO_CONNECT_TIME: ", 34)             curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME)
+            OUTPUT      =   RPAD("CURLINFO_PRETRANSFER_TIME: ", 34)         curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME)
+            OUTPUT      =   RPAD("CURLINFO_SIZE_UPLOAD: ", 34)              curl_easy_getinfo(curl, CURLINFO_SIZE_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SIZE_DOWNLOAD: ", 34)            curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SPEED_DOWNLOAD: ", 34)           curl_easy_getinfo(curl, CURLINFO_SPEED_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SPEED_UPLOAD: ", 34)             curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_HEADER_SIZE: ", 34)              curl_easy_getinfo(curl, CURLINFO_HEADER_SIZE)
+            OUTPUT      =   RPAD("CURLINFO_REQUEST_SIZE: ", 34)             curl_easy_getinfo(curl, CURLINFO_REQUEST_SIZE)
+            OUTPUT      =   RPAD("CURLINFO_SSL_VERIFYRESULT: ", 34)         curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT)
+            OUTPUT      =   RPAD("CURLINFO_FILETIME: ", 34)                 curl_easy_getinfo(curl, CURLINFO_FILETIME)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_LENGTH_DOWNLOAD: ", 34)  curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_LENGTH_UPLOAD: ", 34)    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_STARTTRANSFER_TIME: ", 34)       curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_TYPE: ", 34)             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+            OUTPUT      =   RPAD("CURLINFO_REDIRECT_TIME: ", 34)            curl_easy_getinfo(curl, CURLINFO_REDIRECT_TIME)
+            OUTPUT      =   RPAD("CURLINFO_REDIRECT_COUNT: ", 34)           curl_easy_getinfo(curl, CURLINFO_REDIRECT_COUNT)
+            OUTPUT      =   RPAD("CURLINFO_PRIVATE: ", 34)                  curl_easy_getinfo(curl, CURLINFO_PRIVATE)
+            OUTPUT      =   RPAD("CURLINFO_HTTP_CONNECTCODE: ", 34)         curl_easy_getinfo(curl, CURLINFO_HTTP_CONNECTCODE)
+            OUTPUT      =   RPAD("CURLINFO_HTTPAUTH_AVAIL: ", 34)           curl_easy_getinfo(curl, CURLINFO_HTTPAUTH_AVAIL)
+            OUTPUT      =   RPAD("CURLINFO_PROXYAUTH_AVAIL: ", 34)          curl_easy_getinfo(curl, CURLINFO_PROXYAUTH_AVAIL)
+            OUTPUT      =   RPAD("CURLINFO_OS_ERRNO: ", 34)                 curl_easy_getinfo(curl, CURLINFO_OS_ERRNO)
+            :(END)
+*-INCLUDE 'debug.sno'
+END

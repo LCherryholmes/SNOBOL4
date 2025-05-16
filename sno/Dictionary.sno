@@ -1,0 +1,47 @@
+*-------------------------------------------------------------------------------------------------------
+* Dictionary.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'RANDOM.inc'
+-INCLUDE 'HTTP.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'semantic.inc'
+* The word you've entered isn't in the dictionary. Click on a spelling suggestion below or try again using the search bar above.
+* variants: or less commonly <<amongst>>
+*========== =========== === =================================================== ====================
+            doHTTP      =   TRUE
+            dictURL     =   'https://www.merriam-webster.com/dictionary'
+            dictDir     =   'C:/LegalEarth/Merriam-Webster'
+*           dictURL     =   'https://www.dictionary.com/browse/'
+*           dictURL     =   'https://en.oxforddictionaries.com/definition'
+*========== =========== === =================================================== ====================
+*           EXIT(3, 'Dictionary.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+L00         HTTP_Init('Dictionary')                                             :F(Yikes)
+            INPUT(.wordInput, 3, 'Dictionary.in')                               :F(Yikes)
+L10         word        =   wordInput                                           :F(L90)
+            seconds     =   RANDOM(90)
+            OUTPUT      =   word '(' seconds ')'
+            html        =
+            html        =   HTTP_Get('Dictionary', dictURL '/' word)            :F(LE1)
+            Write(dictDir '/' word '.html', html)                               :F(Yikes)
+            Pause(seconds)                                                      :(L10)
+L90         ENDFILE(3)                                                          :(LFini)
+LE1         OUTPUT      =   'HTTP GET Error ...'
+            curl_easy_error_info(curl, cc)
+LFini       curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === =================================================== ====================
+*-INCLUDE 'debug.sno'
+END

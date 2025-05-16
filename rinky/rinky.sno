@@ -1,0 +1,9 @@
+    patrn       =   POS(0) '"' BREAK('"') . u1 '","' BREAK('"') . u2 '"'
+    tURL        =   TABLE()
+L10 line        =   INPUT                       :F(L20)
+    line        patrn                           :F(err)
+    tURL[u1]    =   IDENT(u1, u2) tURL[u1] + 1  :S(L10)F(err)
+L20 aURL        =   SORT(tURL)
+L30 OUTPUT      =   aURL[i = i + 1, 1]          :S(L30)F(END)
+err TERMINAL    =   line                        :(END)
+END

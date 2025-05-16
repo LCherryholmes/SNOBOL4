@@ -1,0 +1,387 @@
+*-------------------------------------------------------------------------------------------------------
+* YelpReviews.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'export.inc'
+-INCLUDE 'ini.inc'
+-INCLUDE 'system.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'trace.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'match.inc'
+*--======== =========== === ======================================================= ====================
+            cookies     =   'YelpReviewsCookies.txt'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            doParseTree =   FALSE
+            xTrace      =   0
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DATA('DatumType(id,from_name,from_category,from_id,message,picture,link,source,name,caption'
++                         ',description,icon,type,created_time,updated_time,likes,attribution)')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            iColumns              =  18
+            yrColumns             =  ARRAY('1:' iColumns)
+            yrColumns[c = 1]      =  column("Entity",           "varchar(32)",  *xE)
+            yrColumns[c = c + 1]  =  column("Id",               "varchar(max)", *id(yrxDatum))
+            yrColumns[c = c + 1]  =  column("From_Name",        "varchar(max)", *from_name(yrxDatum))
+            yrColumns[c = c + 1]  =  column("From_Category",    "varchar(max)", *from_category(yrxDatum))
+            yrColumns[c = c + 1]  =  column("From_Id",          "bigint",       *from_id(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Message",          "varchar(max)", *message(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Picture",          "varchar(max)", *picture(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Link",             "varchar(max)", *link(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Source",           "varchar(max)", *source(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Name",             "varchar(max)", *name(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Caption",          "varchar(max)", *caption(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Description",      "varchar(max)", *description(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Icon",             "varchar(max)", *icon(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Type",             "varchar(max)", *type(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Created_time",     "datetime",     *created_time(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Updated_time",     "datetime",     *updated_time(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Likes",            "int",          *likes(yrxDatum))
+            yrColumns[c = c + 1]  =  column("Attribution",      "varchar(max)", *attribution(yrxDatum))
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'{'        =   $' ' TY(1, '{', '{')
+            $'}'        =   $' ' TY(1, '}', '}')
+            $'['        =   $' ' TY(1, '[', '[')
+            $']'        =   $' ' TY(1, ']', ']')
+            $':'        =   $' ' TY(1, ':', ':')
+            $','        =   $' ' TY(1, ',', ',')
+*---------- ----------- --- ----------------------------------------------------------------------------
+            yrInt       =   SPAN('0123456789') . yrxN
+            yrYear      =   yrInt $ yrxN *EQ(SIZE(yrxN), 4)
+            yrMonth     =   yrInt $ yrxN *EQ(SIZE(yrxN), 2)
+            yrDay       =   yrInt $ yrxN *EQ(SIZE(yrxN), 2)
+            yrHour      =   yrInt $ yrxN *EQ(SIZE(yrxN), 2)
+            yrMinute    =   yrInt $ yrxN *EQ(SIZE(yrxN), 2)
+            yrSecond    =   yrInt $ yrxN *EQ(SIZE(yrxN), 2)
+            yrDate      =   yrYear '-' yrMonth '-' yrDay
+            yrTime      =   yrHour ':' yrMinute ':' yrSecond
+            yrDateExtra =   '+' yrInt $ yrxN *EQ(SIZE(yrxN), 4)
+            yrDateTime  =   $' ' TY(2, 'yrDateTime',
++                                      '"'
++                                      (yrDate . yrxDate 'T' yrTime . yrxTime yrDateExtra)
++                                      '"' . *assign(.yrxDateTime, yrxDate ' ' yrxTime)
++                                )
+*---------- ----------- --- ----------------------------------------------------------------------------
+            yrEscChar   =   bSlash
++                           (  ANY('ntbrf' '"' bSlash fSlash "'")
++                           |  ANY('01234567') FENCE(ANY('01234567') | epsilon)
++                           |  ANY('0123') ANY('01234567') ANY('01234567')
++                           |  'u' LEN(4) $ yrxU $ *match(yrxU, POS(0) SPAN('0123456789ABCDEFabcdef') RPOS(0))
++                           )
+
+            yrString    =   '"' (ARBNO(BREAK('"' bSlash lf) | yrEscChar)) . yrxVal '"'
+
+            yrStrVal    =   $' ' TY(2, 'yrStrVal', yrString . *assign(.yrxVal, JSONDecode(yrxVal)))
+            yrNullVal   =   $' ' TY(2, 'yrNullVal', 'null' epsilon . yrxVal)
+            yrVar       =   $' ' TY(2, 'yrVar', ('"' SPAN(&UCASE '_' &LCASE) '"') . yrxVar)
+            yrIntVal    =   $' ' TY(2, 'yrIntVal',
++                                      (   SPAN('0123456789') . yrxVal
++                                      |   '"' SPAN('0123456789') . yrxVal '"'
++                                      )
++                                )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            yrTab       =   4
+            yrPretty    =   FENCE $ yrxP POS(0) . *assign(.yrxP, NULL) . *assign(.yrxL, 0)
++                           *yrAggregate
++                           $' ' RPOS(0)
+
+            yrAggregate =   $'{'                    . *assign(.yrxP, yrxP '{' nl)
++                                                   . *assign(.yrxL, yrxL + 1)
++                                                   . *assign(.yrxP, yrxP DUPL(' ', yrxL * yrTab))
++                           *yrTerm ARBNO($','      . *assign(.yrxP, yrxP nl DUPL(' ', (yrxL - 1) * yrTab) RPAD(',', yrTab)) *yrTerm)
++                           $'}'                    . *assign(.yrxP, yrxP nl)
++                                                   . *assign(.yrxL, yrxL - 1)
++                                                   . *assign(.yrxP, yrxP DUPL(' ', yrxL * yrTab) '}')
+
+            yrList      =   $'['                    . *assign(.yrxP, yrxP '[' nl)
++                                                   . *assign(.yrxL, yrxL + 1)
++                                                   . *assign(.yrxP, yrxP DUPL(' ', yrxL * yrTab))
++                         !(*yrElement ARBNO($','   . *assign(.yrxP, yrxP nl DUPL(' ', (yrxL - 1) * yrTab) RPAD(',', yrTab)) *yrElement))
++                           $']'                    . *assign(.yrxP, yrxP nl)
++                                                   . *assign(.yrxL, yrxL - 1)
++                                                   . *assign(.yrxP, yrxP DUPL(' ', yrxL * yrTab) ']')
+
+            yrTerm      =   $' ' *yrVar      . yrxA . *assign(.yrxP, yrxP yrxA)
++                           $':'                    . *assign(.yrxP, yrxP ' : ')
++                           *yrElement
+
+            yrElement   =   *yrAggregate
++                       |   *yrList
++                       |   $' ' yrDateTime  . yrxA . *assign(.yrxP, yrxP yrxA)
++                       |   $' ' yrIntVal    . yrxA . *assign(.yrxP, yrxP yrxA)
++                       |   $' ' yrStrVal    . yrxA . *assign(.yrxP, yrxP yrxA)
++                       |   $' ' yrNullVal   . yrxA . *assign(.yrxP, yrxP yrxA)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            yrPretty    =   epsilon $ t8Max
++                           TZ(1, 'yrPretty', yrPretty)
+            yrAggregate =   TZ(1, 'yrAggregate', yrAggregate)
+            yrList      =   TZ(1, 'yrList', yrList)
+            yrTerm      =   TZ(1, 'yrTerm', yrTerm)
+            yrElement   =   TZ(1, 'yrElement', yrElement)
+*---------- ----------- --- ----------------------------------------------------------------------------
+            yrTags      =   'address1/address2/address3/avg_rating/businesses/categories/'
++                           'category_filter/city/code/country/country_code/date/distance/id/is_closed/'
++                           'latitude/longitude/message/mobile_url/name/nearby_url/neighborhoods/phone/'
++                           'photo_url/photo_url_small/rating/rating_img_url/rating_img_url_small/'
++                           'review_count/reviews/search_url/state/state_code/text/text_excerpt/url/'
++                           'user_name/user_photo_url/user_photo_url_small/user_url/version/zip/'
+YR01        yrTags      ?   POS(0) BREAK('/') . yrxT '/' =                          :F(YR03)
+            $upr(yrxT)  =   $' ' TY(1, '"' yrxT '"', '"' yrxT '"')                  :(YR01)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+YR03        yrResponse  =   POS(0) FENCE epsilon $ yrxResponse *yrJson $' ' RPOS(0)
+
+            yrJson      =   $'{' MESSAGE    $':' *yrMessage
++                           $',' BUSINESSES $':' *yrBusinesses
++                           $'}'
+
+            yrMessage   =   $'{' TEXT       $':' '"OK"'
++                           $',' CODE       $':' 0
++                           $',' VERSION    $':' '"1.1.1"'
++                           $'}'
+
+            yrBusinesses =  $'['                       . *assign(.yrxB, 0)
++                                                      . *assign(.yrxBusinesses, TABLE())
++                          !(   *yrBusiness            . *assign(.yrxBusinesses[yrxB = yrxB + 1], yrxBusiness)
++                               ARBNO($',' *yrBusiness . *assign(.yrxBusinesses[yrxB = yrxB + 1], yrxBusiness))
++                           )
++                           $']'
+
+            yrBusiness   =  $'{' RATING_IMG_URL         $':' *yrStr
++                           $',' COUNTRY_CODE           $':' *yrStr
++                           $',' ID                     $':' *yrStr
++                           $',' IS_CLOSED              $':' *yrBool
++                           $',' CITY                   $':' *yrStr
++                           $',' MOBILE_URL             $':' *yrStr
++                           $',' REVIEW_COUNT           $':' *yrInt
++                           $',' ZIP                    $':' *yrStr
++                           $',' STATE                  $':' *yrStr
++                           $',' LATITUDE               $':' *yrReal
++                           $',' RATING_IMG_URL_SMALL   $':' *yrStr
++                           $',' ADDRESS1               $':' *yrStr
++                           $',' ADDRESS2               $':' *yrStr
++                           $',' ADDRESS3               $':' *yrStr
++                           $',' PHONE                  $':' *yrStr
++                           $',' STATE_CODE             $':' *yrStr
++                           $',' CATEGORIES             $':' *yrCategories
++                           $',' PHOTO_URL              $':' *yrStr
++                           $',' DISTANCE               $':' *yrReal
++                           $',' NAME                   $':' *yrStr
++                           $',' NEIGHBORHOODS          $':' $'[' $']'
++                           $',' URL                    $':' *yrStr
++                           $',' COUNTRY                $':' *yrStr
++                           $',' AVG_RATING             $':' *yrReal
++                           $',' LONGITUDE              $':' *yrReal
++                           $',' PHOTO_URL_SMALL        $':' *yrStr
++                           $',' REVIEWS                $':' *yrReviews
++                           $',' NEARBY_URL             $':' *yrStr
++                           $'}'
+
+            yrCategories =  $'[' !(*yrCategory ARBNO($',' *yrCategory)) $']'
+
+            yrCategory   =  $'{' CATEGORY_FILTER        $':' *yrStr
++                           $',' SEARCH_URL             $':' *yrStr
++                           $',' NAME                   $':' *yrStr
++                           $'}'
+
+            yrReviews    =  $'[' !(*yrReview ARBNO($',' *yrReview)) $']'
+
+            yrReview     =  epsilon                                     . *assign(.yrxReview, ReviewType())
++                           $'{' RATING_IMG_URL_SMALL   $':' *yrStr     . *assign(.rating_img_url_small(yrxReview), yrxVal)
++                           $',' USER_PHOTO_URL_SMALL   $':' *yrStr     . *assign(.user_photo_url_small(yrxReview), yrxVal)
++                           $',' RATING_IMG_URL         $':' *yrStr     . *assign(.rating_img_url(yrxReview), yrxVal)
++                           $',' RATING                 $':' *yrInt     . *assign(.rating(yrxReview), yrxVal)
++                           $',' MOBILE_URI             $':' *yrStr     . *assign(.mobile_uri(yrxReview), yrxVal)
++                           $',' URL                    $':' *yrStr     . *assign(.url(yrxReview), yrxVal)
++                           $',' USER_URL               $':' *yrStr     . *assign(.user_url(yrxReview), yrxVal)
++                           $',' TEXT_EXCERPT           $':' *yrStr     . *assign(.text_excerpt(yrxReview), yrxVal)
++                           $',' USER_PHOTO_URL         $':' *yrStr     . *assign(.user_photo_url(yrxReview), yrxVal)
++                           $',' DATE                   $':' *yrDate    . *assign(.date(yrxReview), yrxDateTime)
++                           $',' USER_NAME              $':' *yrStr     . *assign(.user_name(yrxReview), yrxVal)
++                           $',' ID                     $':' *yrStr     . *assign(.id(yrxReview), yrxVal)
++                           $'}'
+*---------- --------------- --- ------------------------------------------------------------------------
+            yrResponse      =   epsilon $ t8Max
++                               TZ(1, 'yrResponse', yrResponse)
+            yrJson          =   TZ(1, 'yrJson', yrJson)
+            yrMessage       =   TZ(1, 'yrMessage', yrMessage)
+            yrBusinesses    =   TZ(1, 'yrBusinesses', yrBusinesses)
+            yrBusiness      =   TZ(1, 'yrBusiness', yrBusiness)
+            yrCategories    =   TZ(1, 'yrCategories', yrCategories)
+            yrCategory      =   TZ(1, 'yrCategory', yrCategory)
+            yrReviews       =   TZ(1, 'yrReviews', yrReviews)
+            yrReview        =   TZ(1, 'yrReview', yrReview)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            urlCompany  =   'http://www.google.com'
+            yrUrl       =   'https://graph.facebook.com/search'
+            yrLimit     =   25
+*--         yrType      =   'status'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            yrExpr      =  *(   'limit'   '=' yrLimit
++                          ('&' 'type'    '=' DIFFER(yrType) yrType, NULL)
++                          ('&' 'since'   '=' DIFFER(xT['Since']) URLEncode(xT['Since']), NULL)
++                          ('&' 'until'   '=' DIFFER(xT['Until']) URLEncode(xT['Until']), NULL)
++                           '&' 'q'       '=' URLEncode(xQ)
++                           )
+*--======== =========== === ======================================================= ====================
+            EXIT(3, 'YelpReviews.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            Args('YelpReviews')                                                 :F(END)
+            xIT         =   IniRead('YelpReviews.ini')                          :F(error)
+            xIA         =   CONVERT(xIT, 'ARRAY')                               :F(error)
+            curl        =   curl_easy_init()                                    :F(YRErr)
+*--         EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlCompany))        :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(YRErr)
+            SQL_Connect(xServer, xDatabase)                                     :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(yrColumns, 'YelpReviews')                                  :F(SQLFail)
+YR05        xIA[iEntities = iEntities + 1, 1]                                   :S(YR05)
+            iEntities   =   GT(iEntities, 2) iEntities - 1                      :F(YREnd)
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   2 * 24 * 60 * 60  ;*-- 2 day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+            timeZone    =   -4 * 60 * 60  ;*-- North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;*-- Israel, GMT+2 hours in seconds
+            yrCntA      =   ARRAY('1:' iEntities, 1)
+            yrModA      =   ARRAY('1:' iEntities, 1)
+            isCancelled =   FALSE
+            SETEXIT(.YRErrExit)
+            &ERRLIMIT   =   1
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   0
+YR10        iPoll       =   EQ(isCancelled, FALSE) iPoll + 1                    :F(YREnd)
+            yrTotA      =   ARRAY('1:' iEntities)
+*---------- FOR all entities ... ----------------------------------------------
+            iE          =   0
+YR20        xE          =   EQ(isCancelled, FALSE) xIA[iE = iE + 1, 1]          :F(YR90)
+            xT          =   DIFFER(xE, 'Global') xIA[iE, 2]                     :F(YR20)
+            xQ          =   DIFFER(xT['Query']) xT['Query']                     :F(YR20)
+            xQ          =   EVAL(xQ)                                            :F(error)
+            yrCntA[iE]  =   GT(yrCntA[iE], 1) yrCntA[iE] - 1                    :S(YR20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(YR25)
+            xT['Since'] =
+            xT['Until'] =
+            xT['Max']   =
+YR25        periodSecs  =   (IDENT(xT['Since']) 30, 60)
+            xT['Since'] =   IDENT(xT['Since']) backTime
+            yrxMinBatch =
+            yrxMaxBatch =
+*---------- FOR every page ... ------------------------------------------------
+            yrxHasMore  =   TRUE
+            iPage       =   0
+YR40        iPage       =   EQ(yrxHasMore, TRUE) iPage + 1                      :F(YR80)
+            EQ(isCancelled, FALSE)                                              :F(YR90)
+*--         Get result ...
+            yrxExpr     =   EVAL(yrExpr)
+            url         =   yrUrl '?' yrxExpr
+YR43        iTry        =   0
+YR44        iTry        =   LT(iTry, 10) iTry + 1                               :F(YRErr)
+            EQ(isCancelled, FALSE)                                              :F(YR90)
+            sleep(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            TERMINAL    =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            sleep(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            TERMINAL    =   GE(xVerbose, 5) iE ',' DTEncode(prevTime) ' GET ...?' URLDecode(yrxExpr)
+*--         json        =   Read('YelpReviews.json')                            :S(Yipper)F(error)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(YRErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(YRErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(YR44)
+            json        =   curl_easy_getdata()
+            LineMap(json, .t8Map)
+            json        ?   *yrPretty = yrxP
+*--         Process result ...
+YR45        Write('YelpReviews.json', json)
+            Write('YelpReviews-' (iWritten = iWritten + 1) '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *yrResponse                                         :S(YR50)
+            yrError     =   'Response pattern failure.'
+            TERMINAL    =   'yrxExpr=' yrxExpr                                  :(YREnd)
+YR47        TERMINAL    =   yrError
+            sleep(oneMin)                                                       :(YR43)
+YR48        TERMINAL    =   yrError
+            sleep(oneMin)                                                       :(YR80)
+*---------- FOR every chunk/entry ... -----------------------------------------
+YR50        PumpOpen(.yrOutput, 'YelpReviews')
+            yrxMinDate  =
+            yrxMaxDate  =
+            iCount      =   0
+            yriD        =   0
+YR53        yriD        =   LT(yriD, yrxD) yriD + 1                             :F(YR60)
+            yrxDatum    =   yrxData[yriD]                                       :F(error)
+            yrxDate     =   created_time(yrxDatum)
+            yrxMinDate  =   MinDate(yrxDate, yrxMinDate)
+            yrxMaxDate  =   MaxDate(yrxDate, yrxMaxDate)
+            (DIFFER(xT['Since']) LGT(yrxDate, xT['Since']), IDENT(xT['Since'])) :F(YR53)
+            (DIFFER(xT['Until']) LLE(yrxDate, xT['Until']), IDENT(xT['Until'])) :F(YR53)
+            iCount      =   iCount + 1
+            PumpRow(.yrOutput, yrColumns)                                       :S(YR53)F(SQLFail)
+*---------- END FOR every chunk/entry -----------------------------------------
+YR60        PumpClose(.yrOutput, 'YelpReviews', iCount)                         :F(SQLFail)
+            OUTPUT      =   GE(xVerbose, 4) iE
++                           ',' yrxMinDate ',' yrxMaxDate ',' iPage ',' iCount
+            yrTotA[iE]  =   yrTotA[iE] + iCount
+            yrxMinBatch =   MinDate(yrxMinDate, yrxMinBatch)
+            yrxMaxBatch =   MaxDate(yrxMaxDate, yrxMaxBatch)
+            xT['Until'] =   DIFFER(yrxMinDate) DTEncode(DTSubtract(DTDecode(yrxMinDate), 1))
+            xT['Max']   =   DIFFER(yrxMaxDate) IDENT(xT['Max']) yrxMaxDate
+            yrxHasMore  =   LT(yrxD, yrLimit) FALSE                             :S(YR40)
+            yrxHasMore  =   LLT(yrxMinDate, xT['Since']) FALSE                  :(YR40)
+*---------- END FOR every page ------------------------------------------------
+YR80        OUTPUT      =   GE(xVerbose, 3) iE ',"' xE '"'
++                           ',' yrxMinBatch ',' yrxMaxBatch ',' yrTotA[iE]
+            yrModA[iE]  =   EQ(yrTotA[iE]) LT(yrModA[iE], 5) yrModA[iE] + 1
+            yrModA[iE]  =   GT(yrTotA[iE]) GT(yrModA[iE], 1) yrModA[iE] - 1
+            yrCntA[iE]  =   yrModA[iE]
+            xT['Since'] =   DIFFER(xT['Max']) xT['Max']                         :F(YR20)
+            xT['Until'] =
+            xT['Max']   =                                                       :(YR20)
+*---------- END FOR every entity ----------------------------------------------
+YR90        yrReport    =
+            iTotal      =   0
+            iE          =   0
+YR93        iE          =   LT(iE, iEntities) iE + 1                            :F(YR95)
+            DIFFER(xE = xIA[iE, 1], 'Global')                                   :F(YR93)
+            iTotal      =   iTotal + yrTotA[iE]
+            yrReport    =   yrReport ',' LPAD(yrTotA[iE], 2)                    :(YR93)
+YR95        OUTPUT      =   GE(xVerbose, 1) '"' Datetime() '"'
++                           ',' LPAD(iPoll, 4) ',' LPAD(iTotal, 3) yrReport     :(YR10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     TERMINAL    =   'SQL Failure: ' SQL_GetLastError()                  :(YREnd)
+YRErr       curl_easy_error_info(curl, cc)                                      :(YREnd)
+*---------- ----------- --- ---------------------------------------------------
+YREnd       IniWrite('YelpReviews.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), TERMINAL = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), TERMINAL = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*---------- ----------- --- ---------------------------------------------------
+YRErrExit   IDENT(&ERRTYPE, 320)                                                :F(ABORT)
+            &ERRLIMIT   =   1
+            TERMINAL    =   'Cancelling ...'
+            isCancelled =   TRUE                                                :(SCONTINUE)
+*--======== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

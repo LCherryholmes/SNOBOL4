@@ -1,0 +1,104 @@
+*-------------------------------------------------------------------------------------------------------
+START       TRUE              =     1
+            FALSE             =     0
+            &STLIMIT          =     -1
+            SETEXIT(.ErrExit)
+            &ERRLIMIT         =     1
+            doCheck           =     FALSE
+            win               =     POS(0) SPAN('. |') 'o' SPAN('. |') RPOS(0)
+            hist              =     ARRAY('1:33')
+            jump              =     ARRAY('1:76')
+            repl              =     ARRAY('1:76')
+            seen              =     TABLE(1001)
+
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('Display(board)row')                                             :(DisplayEnd)
+Display     EQ(REMDR(m, 100), 0)                                                    :F(RETURN)
+*           EQ(REMDR(m, 1000000), 0)                                                :F(RETURN)
+*           TERMINAL          =     LPAD(m, 12) ' ' board                           :(RETURN)
+            TERMINAL          =     CHAR(27) '[H'
+            TERMINAL          =     m
+            TERMINAL          =
+Display10   board             LEN(7) .  row '|' =                                   :F(RETURN)
+            TERMINAL          =     '  ' row                                        :(Display10)
+DisplayEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('Print(board)row')                                               :(PrintEnd)
+Print       row               =     LEN(7) .  OUTPUT '|'
+            board             row row row row row row row '' . OUTPUT               :(RETURN)
+PrintEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('PrintHist()i')                                                  :(PrintHistEnd)
+PrintHist   Print(hist[i = i + 1])                                                  :S(PrintHist)F(RETURN)
+PrintHistEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('WasSeen(board)')                                                :(WasSeenEnd)
+WasSeen     DIFFER(seen[board])                                                     :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(flip1,   flip2,   board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)
+            DIFFER(seen[board = REPLACE(rotate1, rotate2, board)])                  :S(RETURN)F(FRETURN)
+WasSeenEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('Move(board)i')                                                  :(MoveEnd)
+Move        (EQ(doCheck, TRUE) WasSeen(board))                                      :S(RETURN)
+            m                 =     m + 1
+            h                 =     h + 1
+            hist[h]           =     board
+            Display(board)
+            board             win                                                   :F(Move10)
+            PrintHist()                                                             :(Move99)
+Move10      i                 =     0
+Move20      i                 =     LT(i, 76) i + 1                                 :F(Move30)
+            nxtboard          =     board
+            nxtboard          jump[i] = EVAL(repl[i])                               :F(Move20)
+            Move(nxtboard)                                                          :(Move20)
+Move30      seen[board]       =     EQ(doCheck, TRUE) TRUE
+Move99      hist[h]           =
+            h                 =     h - 1                                           :(RETURN)
+MoveEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('HrzPat(pos)')                                                   :(HrzPatEnd)
+HrzPat      jump[j + 1]       =     TAB(pos) . b1 'oo.' RTAB(0) . b2                :F(error)
+            jump[j + 2]       =     TAB(pos) . b1 '.oo' RTAB(0) . b2                :F(error)
+            repl[j + 1]       =     *(b1 '..o' b2)                                  :F(error)
+            repl[j + 2]       =     *(b1 'o..' b2)                                  :F(error)
+            j                 =     j + 2
+            HrzPat            =     .HrzPat                                         :(NRETURN)
+HrzPatEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            DEFINE('VrtPat(pos)')                                                   :(VrtPatEnd)
+VrtPat      jump[j + 1]       =     TAB(pos) . b1 'o' LEN(7) . b2 'o' LEN(7) . b3 '.' RTAB(0) . b4  :F(error)
+            jump[j + 2]       =     TAB(pos) . b1 '.' LEN(7) . b2 'o' LEN(7) . b3 'o' RTAB(0) . b4  :F(error)
+            repl[j + 1]       =     *(b1 '.' b2 '.' b3 'o' b4)                      :F(error)
+            repl[j + 2]       =     *(b1 'o' b2 '.' b3 '.' b4)                      :F(error)
+            j                 =     j + 2
+            VrtPat            =     .VrtPat                                         :(NRETURN)
+VrtPatEnd
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+            rotate1           =     '  ABC  |  DEF  |GHIJKLM|NOPQRST|UVWXYZa|  bcd  |  efg  |'
+            rotate2           =     '  UNG  |  VOH  |ebWPIDA|fcXQJEB|gdYRKFC|  ZSL  |  aTM  |'
+            flip1             =     '  ABC  |  DEF  |GHIJKLM|NOPQRST|UVWXYZa|  bcd  |  efg  |'
+            flip2             =     '  CBA  |  FED  |MLKJIHG|TSRQPON|aZYXWVU|  dcb  |  gfe  |'
+            board             =     '  ...  |  ...  |.......|.......|.......|  ...  |  ...  |'
+            j                 =     0
+            board             @pos '...' $ *HrzPat(pos) FAIL
+            board             @pos '.' LEN(7) '.' LEN(7) '.' $ *VrtPat(pos) FAIL
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+*           h                 =     0
+*           board             =     '  ...  |  ...  |..o.o..|.ooooo.|..ooo..|  .o.  |  ...  |'
+*           Move(board)
+            TERMINAL          =     CHAR(27) '[h' CHAR(27) '[2J'
+            h                 =     0
+            board             =     '  ooo  |  ooo  |ooooooo|ooo.ooo|ooooooo|  ooo  |  ooo  |'
+            Move(board)                                                             :(END)
+*---------- ----------------- ----- ----------------------------------------------- --------------------
+ErrExit     IDENT(&ERRTYPE, 320)                                                    :F(ABORT)
+            EXIT(3, 'cross' LPAD(m, 10, 0) '.exe')
+            &ERRLIMIT         =     1
+            SETEXIT(.ErrExit)                                                       :(SCONTINUE)
+*-INCLUDE 'debug.sno'
+END

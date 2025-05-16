@@ -1,0 +1,128 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'ss.inc'
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+            DEFINE('List()listLine')                                                    :(ListEnd)
+List        List              =     .dummy
+            IDENT(action)                                                               :S(NRETURN)
+            IDENT(action, 'branch')                                                     :S(List3)
+            hour              =     EQ(hour, 12) IDENT(ampm, 'a') 0                     :S(List1)
+            hour              =     EQ(hour, 12) IDENT(ampm, 'p') 12                    :S(List1)
+            hour              =     IDENT(ampm, 'p') hour + 12
+List1       year              =     LT(year, 90) year + 2000
+            year              =     GE(year, 90) LE(year, 99) year + 1900
+            comment           =     TRIM(comment)
+            filenm            =     ssFile
+            filenm            POS(0) '$/SQL LiteSpeed/' BREAK('/') '/' =
+            filenm            =     IDENT(action, 'label') '"' label '"'
+            user              =     IDENT(action, 'label')
+            listLine          =     LPAD(year, 4, 0)
++                                   '/' LPAD(month, 2, 0)
++                                   '/' LPAD(day, 2, 0)
++                                   ' ' LPAD(hour, 2, 0)
++                                   ':' LPAD(minute, 2, 0)
++                                   ' ' RPAD(action, 8)
++                                   ' ' RPAD(user, 14)
++                                   ' ' LPAD(ver, 3)
++                                   ' ' RPAD(filenm, 114)
++                                   ' ' comment
+            listLine          =     GT(SIZE(listLine), 2048) SUBSTR(listLine, 1, 2048)
+            OUTPUT            =     listLine
+List3       action            =     ''
+            ver               =     ''
+            year              =     ''
+            month             =     ''
+            day               =     ''
+            hour              =     ''
+            minute            =     ''
+            user              =     ''
+            label             =     ''
+            comment           =     ''
+                                                                                        :(NRETURN)
+ListEnd
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+            DEFINE('Actn(val)')                                                         :(ActnEnd)
+Actn        Actn              =     .dummy
+            action            =     val                                                 :(NRETURN)
+ActnEnd
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+            $' '              =     SPAN(' ')
+            ident             =     ANY(&UCASE) SPAN(&LCASE digits)
+            building0         =     POS(0) 'Building list for'
+            building          =     POS(0) 'Building list for ' ARB . file '.' (' ' | '') '.' RPOS(0)
+            history0          =     POS(0) 'History of'
+            history           =     POS(0) . *List() 'History of' (' ' | '') ('$/' ARB) . file (' ' | '') '...' RPOS(0)
+            marker            =     POS(0) . *List() SPAN('*') RPOS(0)
+            version           =     POS(0) . *List() SPAN('*') $' ' 'Version' $' ' SPAN('0123456789') . ver $' ' SPAN('*') RPOS(0)
+            info              =     POS(0)
++                                   'User:' $' ' ident . user
++                                   $' ' 'Date:'
++                                   $' ' SPAN('0123456789') . month
++                                   '/'  SPAN('0123456789') . day
++                                   '/'  SPAN('0123456789') . year
++                                   $' ' 'Time:'
++                                   $' ' SPAN('0123456789') . hour
++                                   ':'  SPAN('0123456789') . minute
++                                   ('a' | 'p') . ampm
+            peel_line         =     POS(0) BREAK(nl) . line  nl
+            peel_line1        =     POS(0) BREAK(nl) . line1 nl
+            EXIT(3, 'sshist.exe')
+            Utility()
+            i                 =     HOST(3) - 1
+args0       i                 =     i + 1
+            arg               =     HOST(2, i)                                          :F(args1)
+            arg               db                                                        :S(args0)
+            arg               POS(0) '-d' RPOS(0)                                       :S(args2)
+            arg               curprj                                                    :S(args0)
+                                                                                        :(args0)
+args2       i                 =     i + 1
+            ssVerDate         =     HOST(2, i)                                          :(args0)
+args1       ssDB              =     IDENT(ssDB) 'SourceSafe'
+            ssCurPrj          =     IDENT(ssCurPrj) '$/'
+            INPUT(.ssls, 3, '!!./ssls -f ' ssDB ' "' ssCurPrj '"')                      :F(ioerr)
+loop0       ssFile            =     ssls                                                :F(END)
+            ssArgs            =
+            ssArgs            =     DIFFER(ssVerDate) '-vd"' ssVerDate '"'
+            ssArgs            =     ssArgs ' "' ssFile '" -i-y'
+            ssHistory         =     SS(ssDB, '@-history', ssArgs)                       :F(xerr)
+loop1       ssHistory         peel_line =                                               :F(fini)
+            line              building0                                                 :S(build)
+            line              history0                                                  :S(hist)
+            line              marker                                                    :S(loop1)
+            line              version                                                   :S(loop1)
+            line              info                                                      :S(loop1)
+            line              POS(0) RPOS(0)                                            :S(loop1)
+            line              POS(0) 'Checked in ' . *Actn('update') ARB RPOS(0)        :S(loop1)
+            line              POS(0) 'Branched'    . *Actn('branch')     RPOS(0)        :S(loop1)
+            line              POS(0) 'Rolled back' . *Actn('rollback')   RPOS(0)        :S(loop1)
+            line              POS(0) 'Created'     . *Actn('add')        RPOS(0)        :S(loop1)
+            line              POS(0) 'Labeled'     . *Actn('label')      RPOS(0)        :S(loop1)
+            line              POS(0) 'Label: "' ARB . label '"'          RPOS(0)        :S(loop1)
+            line              POS(0) 'Comment: '       REM . comment                    :S(cmnt)
+            line              POS(0) 'Label comment: ' REM . comment                    :S(cmnt)
+                                                                                        :(loop1)
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+build       ssHistory         peel_line1 =                                              :F(xerr0)
+            line              =     DIFFER(line1) line ' ' line1                        :S(build)
+            line              building                                                  :S(loop1)f(xerr1)
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+hist        ssHistory         peel_line1 =                                              :F(xerr2)
+            line              =     DIFFER(line1) line ' ' line1                        :S(hist)
+            line              history                                                   :S(loop1)f(xerr3)
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+cmnt        ssHistory         peel_line =                                               :F(fini)
+            line              marker                                                    :S(loop1)
+            line              history                                                   :S(loop1)
+            line              version                                                   :S(loop1)
+            comment           =     comment ' ' line                                    :(cmnt)
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+fini        List()                                                                      :(loop0)
+*---------- ----------------- ----- --------------------------------------------------- -----------------------------
+ioerr       OUTPUT            =     '*** i/o error'                                     :(END)
+xerr        OUTPUT            =     '*** unexpected error executing ss history.'        :(loop1)
+xerr0       OUTPUT            =     '*** unexpected error in build 0: ' line            :(loop1)
+xerr1       OUTPUT            =     '*** unexpected error in build 1: ' line            :(loop1)
+xerr2       OUTPUT            =     '*** unexpected error in hist 0: ' line             :(loop1)
+xerr3       OUTPUT            =     '*** unexpected error in hist 1: ' line             :(loop1)
+END

@@ -1,0 +1,176 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2TwitterStream.sno
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =========== === ======================================================= ====================
+            xListener   =   'Listen2TwitterStream'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            tsChars     =   '0123456789' &LCASE &UCASE "&_-'"
+            tsQuery     =   POS(0) . *assign(.xFA[iT], '(') *tsAlts
++                           RPOS(0) . *assign(.xFA[iT], xFA[iT] ')')
+            tsAlts      =   *tsAlt ARBNO(*tsOR . *assign(.xFA[iT], xFA[iT] ') | (') *tsAlt)
+            tsOR        =   $'  ' 'OR' $'  '
+            tsAlt       =   '"' *tsWords . tsxWords . *assign(.xWT[lwr(tsxWords)], xWT[lwr(tsxWords)] + 1) '"'
+            tsWords     =   *tsWord ARBNO(' ' . *assign(.xFA[iT], xFA[iT] " $'  ' ") *tsWord)
+            tsWord      =   BREAK(' "') . tsxWord . *assign(.xFA[iT], xFA[iT] '"' lwr(tsxWord) '"') ;* 'SPAN(tsChars) $ tsx *LEQ(tsx, "' lwr(tsxWord) '")'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+*           Build track list and patterns ...
+            DEFINE('Configure()')                                                   :(ConfigureEnd)
+Configure   ReadConfig(xListener,, xModulo, xNumber)                                :F(error)
+            iSeqNo      =   xIT[0]['Sequence']
+            xFA         =   ARRAY('1:' xMaxEntity)
+            xWT         =   TABLE()
+            xTrack      =   '(POS(0) | NOTANY(tsChars)) '
+            iN          =   0
+            iT          =   0
+TS10        iT          =   LT(iT, xMaxEntity) iT + 1                               :F(TS20)
+            xT          =   DIFFER(xIT[iT]) xIT[iT]                                 :F(TS10)
+            iN          =   iN + 1
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            TERMINAL    =   xQ
+            xQ          ?   *tsQuery                                                :F(error)
+            OUTPUT      =   iT ' = ' xFA[iT]
+            xTrack      =   xTrack (EQ(iN, 1) '(', ' | ')
+            xTrack      =   xTrack '(' xFA[iT] ') $ *assign(.xTT[' iT '], xTT[' iT '] + 1)'
+            xFA[iT]     =   '(POS(0) | NOTANY(tsChars)) (' xFA[iT] ') (NOTANY(tsChars) | RPOS(0))'
+            xFA[iT]     =   EVAL(xFA[iT])                                           :S(TS10)F(error)
+TS20        xWA         =   SORT(xWT)                                               :F(error)
+            xTrack      =   xTrack ') (NOTANY(tsChars) | RPOS(0))'
+            OUTPUT      =   xTrack
+            xTrack      =   EVAL(xTrack)                                            :F(error)
+            iTT         =   0
+TS23        iTT         =   iTT + 1
+            tsxWords    =   xWA[iTT, 1]                                             :F(RETURN)
+            tsTrack     =   tsTrack (IDENT(tsTrack), ',') URLEncode(tsxWords)       :(TS23)
+ConfigureEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*========== =========== === =================================================== ====================
+START       EQ(xOffline, FALSE)                                                 :F(TS30)
+            SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener xNumber, xFailOver) :F(SQLFail)
+            SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            ReadSchema('Twitter')                                               :F(error)
+TS30        xCwd        =   GetCurrentDirectory()
+            SetupWait()                                                         :F(TSEnd)
+            SetupCancel()                                                       :F(TSEnd)
+            Configure()
+*---------- Streaming ... -----------------------------------------------------
+            TERMINAL    =   iTT ' search conditions'
+            LE(iTT, 400)                                                        :F(TSErr1)
+            (DIFFER(iTweets), TwitterBeginStream(xNumber, tsTrack))             :F(TSErr2)
+            iFail       =   0
+            iWritten    =   0
+            iAccepted   =   0
+            iRejected   =   0
+            iTweets     =   0
+TS80        TERMINAL    =   EQ(REMDR(iTweets, 10000), 0) Datetime()
++                           ': ' iTweets ' ' iAccepted ' ' iRejected
+            iTweets     =   iTweets + 1
+TS81        json        =   TwitterGetTweet()                                   :F(TSErr3)
+            TERMINAL    =   IDENT(json) 'NULL response'                         :S(TSErr3)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                    :F(TS80E) ;* :F(TSErr4)
+*           LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :S(TS90)F(TS80F)
+TS80E       iFail       =   iFail + 1
+            Write(xListener '-Error-' iFail '.json', json)
+            TERMINAL    =   iTweets ' pretty print error'                       :(TS80)
+TS80F       iFail       =   iFail + 1
+            Write(xListener '-Error-' iFail '.json', json)
+            TERMINAL    =   iTweets ' failure'                                  :(TS80)
+*---------- Postprocessing ... ------------------------------------------------
+TS90        r           =   Pop()
+*           Write(xListener '-' (iWritten = iWritten + 1) '.json', json)
+            EQ(xOffline, FALSE)                                                 :F(TS92)
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Twitter'
+            tK['$Twitter'] = '@id$'
+            BATCH       =
+            Schema(.BATCH, r, 'Twitter')
+            DIFFER(BATCH)                                                       :F(TS92)
+            SQL_A_ExecDirect(hstmt, BATCH)                                      :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+TS92        tsxSpace    =   DUPL(' ', 1024)
+            tsxSpace    ?             FENCE
++                                    *IDENT(t(r), 'JSON')
++                                  *IDENT(t(c(r)[1]), '{}')
++                                     *GE(n(c(r)[1]), i = 1)
++                               ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                                *IDENT(t(c(c(r)[1])[i]), ':')
++                              *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                              *IDENT(v(c(c(c(r)[1])[i])[1]), 'text')
++                              *IDENT(t(c(c(c(r)[1])[i])[2]), 'String')
++                        *?(tsxText = v(c(c(c(r)[1])[i])[2]))
+*           TERMINAL    =   tsxText
+            iMatch      =   FALSE
+            tsxTextLwr  =   REPLACE(tsxText, &UCASE, &LCASE)
+            xTT         =   TABLE()
+            tsxTextLwr  ?   xTrack FAIL                                         ;* :F(TS97)
+            iT          =   0
+TS93        iT          =   LT(iT, xMaxEntity) iT + 1                           :F(TS97)
+            GT(xTT[iT], 0)                                                      :F(TS93)
+*           tsxTextLwr  ?   xFA[iT]                                             :F(TS93)
+            iMatch      =   TRUE
+            EQ(xOffline, FALSE)                                                 :F(TS93)
+            iTopic      =   iT
+            BATCH       =
+            BATCH       =   BATCH 'DECLARE @id$ int' nl
+            Save(.BATCH, r, 'Twitter', 0)
+            SQL_Enqueue_Batch(BATCH)                                            :(TS93)
+TS97        iAccepted   =   EQ(iMatch, TRUE) iAccepted + 1
+            iRejected   =   EQ(iMatch, FALSE) iRejected + 1
+            EQ(iMatch, TRUE)                                                    :F(TS80)
+            EQ(xOffline, TRUE)                                                  :F(TS80)
+            iSeqNo      =   EQ(iLineNo, 0) iSeqNo + 1                           :F(TS98)
+            xIT[0]['Sequence'] = iSeqNo
+            jFileName   =   'L:/Twitter/' iSeqNo '.json'
+            OUTPUT(.jOutput, 5, jFileName '[-l131072]')                         :F(TS99)
+            IniWrite(xListener '.ini', xIT)
+TS98        jOutput     =   json                                                :F(TS99)
+            iLineNo     =   LT(iLineNo, 999) iLineNo + 1                        :S(TS80)
+            iLineNo     =   0
+            ENDFILE(5)                                                          :(TS80)
+TS99        ENDFILE(5)                                                          :(error)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()                  :(TSEnd)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(TSEnd)
+            IniWrite(xListener '.ini', xIT)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            Wait(oneMin)                                                        :(START)
+*---------- ----------- --- ---------------------------------------------------
+TSErr                                                                           :(TSEnd)
+TSErr1      OUTPUT      =   'Too many track words'                              :(TSEnd)
+TSErr2      OUTPUT      =   'Error initializing Twitter Stream'                 :(TSEnd)
+TSErr3      OUTPUT      =   'Error getting tweet'                               :(TSEnd)
+TSErr4      OUTPUT      =   'Error pretty print'                                :(TSEnd)
+TSErr5      OUTPUT      =   'Error parsing response'                            :(TSEnd)
+*---------- ----------- --- ---------------------------------------------------
+TSEnd       IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())      :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

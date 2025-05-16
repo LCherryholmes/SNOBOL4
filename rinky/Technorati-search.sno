@@ -1,0 +1,136 @@
+*-------------------------------------------------------------------------------------------------------
+* Technorati-search.sno
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'URL.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'RANDOM.inc'
+-INCLUDE 'HTTP.inc'
+-INCLUDE 'XML.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'semantic.inc'
+*========== =========== === =================================================== ====================
+            doParseTree =   FALSE
+            doHTTP      =   TRUE
+            xTrace      =   5
+*---------- ----------- --- ----------------------------------------------- ----------------------------
+-INCLUDE    'HTML.inc'
+            $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            xInt        =   TY(1, 'xInt', SPAN('0123456789'))
+            xQ          =   'Sewing'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            xSearchResults =
++           $'<OL' CLASS $'=' '"search-results site-list"' $'>'
++               epsilon . *assign(.xxR, 0)
++               epsilon . *assign(.xxResults, TABLE())
++               ARBNO(
++                   $'<LI' CLASS $'=' STRING  $'>'
++                       *xSearchResult . *assign(.xxResults[xxR = xxR + 1], xxResult)
++                   $'</LI>'
++               )
++           $'</OL>'
+*---------- ----------- --- --------------------------------------------------- ------------------------
+            DATA('ResultType(technoratiSite,siteDescription,blogSiteUrl,blogUrl,blogTitle,blogDescription)')
+*---------- ----------- --- --------------------------------------------------- ------------------------
+            xSearchResult =
++           epsilon . *assign(.xxResult, ResultType())
++           $'<TABLE>'
++               $'<TR>'
++                   $'<TH' CLASS $'=' STRING $'>'
++                       BREAK('<')
++                       $'<BR/>'
++                       $'<BR/>'
++                     !($'<SPAN' CLASS $'=' ('"badge-negative"' | '"badge-positive"') $'>' BREAK('<') . xx $'</SPAN>')
++                   $'</TH>'
++                   $'<TD' CLASS $'=' STRING $'>'
++                       $'<A' HREF $'=' STRING $'>'
++                           $'<IMG' SRC $'=' STRING
++                               WIDTH $'=' NUMBER
++                               HEIGHT $'=' NUMBER
++                               ALT $'=' STRING
++                           $'/>'
++                       $'</A>'
++                   $'</TD>'
++                   $'<TD' CLASS $'=' STRING $'>'
++                       $'<H3>'
++                           $'<A' HREF $'=' STRING $'>'                     . *assign(.technoratiSite(xxResult), htmxString)
++                               BREAK('<') . xx                             . *assign(.siteDescription(xxResult), XMLDecode(xx))
++                           $'</A>'
++                       $'</H3>'
++                       $'<A' CLASS $'=' STRING HREF $'=' STRING $'>'
++                           BREAK('<') . xx                                 . *assign(.blogSiteUrl(xxResult), XMLDecode(xx))
++                       $'</A>'
++                       $'<BR/>'
++                       BREAK('<')
++                       $'<STRONG>'
++                           BREAK('<')
++                           $'<A' CLASS $'=' STRING HREF $'=' STRING $'>'   . *assign(.blogUrl(xxResult), htmxString)
++                               BREAK('<') . xx                             . *assign(.blogTitle(xxResult), XMLDecode(xx))
++                           $'</A>'
++                       $'</STRONG>'
++                       $'<BR/>'
++                       $' ' BREAK('<') . xx                                . *assign(.blogDescription(xxResult), XMLDecode(xx))
++                   $'</TD>'
++                   $'<TD' CLASS $'=' '"statistics"' $'>' %*htmBODY_cont $'</TD>'
++               $'</TR>'
++           $'</TABLE>'
+*---------- ----------- --- --------------------------------------------------- ------------------------
+            xSearchResult = epsilon $ t8Max TZ(3, 'xSearchResult', xSearchResult)
+*---------- ----------- --- ----------------------------------------------------------------------------
+            xExpr       =  *(   'return'    '=' 'sites'
++                           '&' 'submit'    '='
++                           '&' 'sort'      '=' 'relevance'
++                           '&' 'topic'     '=' 'overall'
++                           '&' 'source'    '=' 'blogs'
++                           '&' 'authority' '=' 'all'
++                           '&' 'page'      '=' iPage
++                           '&' 'q'         '=' URLEncode(xQ)
++                           )
+*---------- ----------- --- --------------------------------------------------- ------------------------
+            urlCompany  =   'http://www.google.com'
+            xTRUrl      =   'http://technorati.com/search'
+*========== =========== === =================================================== ====================
+*           EXIT(3, 'Technorati.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+            HTTP_Init()
+            SETEXIT(.LErrExit)
+            &ERRLIMIT   =   1
+            xTrace      =   5
+            iPage       =   0
+L10         iPage       =   Pause(60) iPage + 1
+            html        =   HTTP_Get('Technorati', xTRUrl, EVAL(xExpr))         :F(LErr1)
+            html        *xSearchResults                                         :F(LErr9)
+            xxR         =   0
+L20         DIFFER(xxResult = xxResults[xxR = xxR + 1])                         :F(L10)
+            blogSiteUrl =   blogSiteUrl(xxResult)
+            blogUrl     =   blogUrl(xxResult)
+            TERMINAL    =   siteDescription(xxResult)
+            html        =   HTTP_Get('Technorati', blogSiteUrl)                 :F(LErr1)
+            html        POS(0) $ t8Max FENCE *htmRecognizer $' ' RPOS(0)        :F(LErr8)
+            TERMINAL    =   blogTitle(xxResult)
+            html        =   HTTP_Get('Technorati', blogUrl)                     :F(LErr1)
+            html        POS(0) $ t8Max FENCE *htmRecognizer $' ' RPOS(0)        :S(L20)F(LErr8)
+LErr1       curl_easy_error_info(curl, cc)                                      :(LEnd)
+LErr8       TERMINAL    =   'Error - Weird, Max=' T8Pos(t8Max, t8Map)
+            TERMINAL    =   SUBSTR(html, t8Max, 32)                             :(L20)
+LErr9       TERMINAL    =   'Error - Weird, Max=' T8Pos(t8Max, t8Map)
+            TERMINAL    =   SUBSTR(html, t8Max, 32)                             :(LEnd)
+LEnd        curl_easy_cleanup(curl)                                             :(END)
+*---------- ----------- --- ---------------------------------------------------
+LErrExit    IDENT(&ERRTYPE, 320)                                                :F(ABORT)
+            TERMINAL    =   'Cancelling, Max=' T8Pos(t8Max, t8Map)
+            TERMINAL    =   SUBSTR(html, t8Max, 32)                             :(ABORT)
+*========== =========== === =================================================== ====================
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,105 @@
+start
+*---------- ---------------------------------------------------------------- -----------------
+            &TRIM          =    1
+            digit          =    '01234566789'
+
+            nm_filter_txt  =    '/almfilter.txt'
+
+            prefix         =    ARRAY('1:8')
+            prefix[1]      =    ''
+            prefix[2]      =    'ora_'
+            prefix[3]      =    'd22_'
+            prefix[4]      =    'ali_'
+            prefix[5]      =    'alm_'
+            prefix[6]      =    'sy4_'
+            prefix[7]      =    'syb_'
+            prefix[8]      =    ''
+
+            nm_attr        =    ARRAY('1:8')
+            nm_attr[1]     =    '/bmc/meta/alodef/cmxattr'
+            nm_attr[2]     =    '/bmc/meta/alodef/oraattr'
+            nm_attr[3]     =    '/bmc/meta/al2def/d22attr'
+            nm_attr[4]     =    '/bmc/meta/alidef/aliattr'
+            nm_attr[5]     =    '/bmc/meta/almdef/almattr'
+            nm_attr[6]     =    '/bmc/meta/alsdef/sy4attr'
+            nm_attr[7]     =    '/bmc/meta/alsdef/sybattr'
+            nm_attr[8]     =    '/bmc/meta/akmdef/clmattr'
+
+            $' '           =    SPAN(' ') | ''
+            integer        =    SPAN(digit)
+            string         =    '"' ARB '"'
+            variable       =    (ANY(&UCASE &LCASE) (SPAN(digit &UCASE '_' &LCASE) | ''))
+            attribute      =    ('"' ARB . attrNm '"' | variable) . attrName
+
+            filter         =    variable . objType ': ' variable . attrNm
+            attrDefs       =    POS(0) 'ATTRDEF' $' ' *prefix[i] 'attr_' variable . objType '[] ='
+            attrDef        =    POS(0)
++                               $' ' '{'
++                               $' ' attribute
++                               $' ' ',' $' ' ('0' | variable)     . attrLength
++                               $' ' ',' $' ' ('0' | variable)     . attrMinVer
++                               $' ' ',' $' ' ('0' | variable)     . attrMaxVer
++                               $' ' ',' $' ' '0'
++                               $' ' ',' $' ' '0'
++                               $' ' ',' $' ' ('0' | variable)     . attrFormat
++                               $' ' ',' $' ' (integer | variable | variable ' | ' variable) . attrMasked
++                               $' ' '}'
+
+*---------- ---------------------------------------------------------------- -----------------
+                                                                             :(L0)
+            INPUT(.filter_txt, 8, nm_filter_txt)                             :F(END)
+L5          line                 =    filter_txt                             :F(L20)
+            line                 filter                                      :F(END)
+            DIFFER($objType)                                                 :S(L10)
+            $objType             =    TABLE()
+L10         ($objType)[attrNm]   =    1                                      :(L5)
+L20         ENDFILE(8)
+
+L0          i                    =    0
+L1          i                    =    LT(i, 8) i + 1                         :F(END)
+L25         INPUT(.attr_c, 9, nm_attr[i] '.c')                               :F(END)
+            OUTPUT(.OUTPUT, 10, nm_attr[i] '.new')                           :F(END)
+L30         line                 =    attr_c                                 :F(L60)
+            attrMinVer           =    '0'
+            attrMaxVer           =    '0'
+            IDENT(line)                                                      :S(L50)
+            line                 POS(0) '#include'                           :S(L50)
+            line                 POS(0) 'static'                             :S(L50)
+            line                 POS(0) '{'                                  :S(L50)
+            line                 POS(0) '};'                                 :S(L50)
+            line                 POS(0) $' ' '{ 0 }' RPOS(0)                 :S(L50)
+            line                 POS(0) $' ' '{ eDBMS'                       :S(L50)
+            line                 POS(0) 'ATTRLEN'                            :S(L50)
+            line                 attrDefs                                    :S(L50)
+            line                 attrDef                                     :S(L40)
+            OUTPUT               =    'Unrecognized input:'
+            OUTPUT               =    line                                   :S(END)
+L35         attrMasked           =    '0'
+            IDENT($objType)                                                  :S(L40)
+            NE(($objType)[attrNm], 1)                                        :S(L40)
+            attrMasked           =    'ATTR_CDL_MASKED'
+L40         EQ(i, 8)                                                         :S(L45)
+            OUTPUT               =    '   {'
++                                     ' ' RPAD(attrName   ',', 33)
++                                     ' ' RPAD(attrLength ',', 14)
++                                     ' ' RPAD(attrMinVer ',', 16)
++                                     ' ' RPAD(attrMaxVer ',', 21)
++                                     ' ' RPAD('0,', 2)
++                                     ' ' RPAD(attrFormat ',', 18)
++                                     ' ' attrMasked
++                                     ' },'
++                                                                            :(L30)
+L45         OUTPUT               =    '   {'
++                                     ' ' RPAD(attrName   ',', 33)
++                                     ' ' RPAD(attrLength ',', 14)
++                                     ' ' RPAD(attrMinVer ',', 2)
++                                     ' ' RPAD(attrMaxVer ',', 2)
++                                     ' ' RPAD('0,', 9)
++                                     ' ' RPAD(attrFormat ',', 18)
++                                     ' ' attrMasked
++                                     ' },'
++                                                                            :(L30)
+L50         OUTPUT               =    line                                   :(L30)
+L60         ENDFILE(9)
+            ENDFILE(10)                                                      :(L1)
+END

@@ -1,0 +1,11 @@
+      s    = '0123456789ABCDEF'
+      hx   = ANY(s) $ h *?(s ? @x h)
+      code = '  ' *?(c = '') | hx *?(c = +x) hx *?(c = c * 16 + x)
+      char = code *?(u = u (DIFFER(c) ' CHAR(' c ')', ''))
+      utf  = *?(u = '') char ' ' char ' ' char ' ' char *?(u ? POS(0) ' ' =)
+      name = REM $ n *?(n = REPLACE(n,'- ', '__'))
+read  line = INPUT  :F(END)
+      line ? POS(0) utf '  ' name RTAB(0)  :F(error)
+      OUTPUT = DUPL(' ', 15) "UTF[" u "]" " = '" n "'"  :(read)
+error TERMINAL = 'Error: ' line  :(read)
+END

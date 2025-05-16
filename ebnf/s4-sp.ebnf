@@ -1,0 +1,21 @@
+sno ← asn;
+asn ← mch | mch _ '=' _ asn;
+mch ← and | mch _ '?' _ and;
+and ← or  | and _ '&' _ or;
+or  ← cat | cat _ '|' _ or;
+cat ← at  | at     _    cat;
+at  ← sum | at  _ '@' _ sum;
+sum ← hsh | sum _ '+' _ hsh | sum _ '-' _ hsh;
+hsh ← div | hsh _ '#' _ div;
+div ← mul | div _ '/' _ mul;
+mul ← pct | mul _ '*' _ pct;
+pct ← xp  | pct _ '%' _ xp;
+xp  ← cap | cap _ '^' _ xp  | cap _ '!' _ xp | cap _ '**' _ xp;
+cap ← ttl | ttl _ '$' _ cap | ttl _ '.' _ cap;
+ttl ← uop | ttl _ '~' _ uop;
+uop ← ndx | '@' uop | '~' uop | '?' uop | '&' uop | '+' uop
+          | '-' uop | '*' uop | '$' uop | '.' uop | '!' uop
+          | '%' uop | '/' uop | '#' uop | '=' uop | '|' uop;
+ndx ← itm | ndx '<' lst '>' | ndx '[' lst ']';
+itm ← N | S | I | R | F | F '(' lst ')' | '(' sno ')' | '(' sno ',' lst ')';
+lst ← sno | lst ',' sno;

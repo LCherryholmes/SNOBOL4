@@ -1,0 +1,21 @@
+START
+ BD = ('BE' | 'B') ('AR' | 'A') ('DS' | 'D')
+ 'BEARDS' ? BD
+ 'BEARD'  ? BD
+ 'BEADS'  ? BD
+ 'BEAD'   ? BD
+ 'BARDS'  ? BD
+ 'BARD'   ? BD
+ 'BADS'   ? BD
+ 'BAD'    ? BD
+ 'BATS'   ? BD
+ BR  = ("B" | "R") ("E" | "EA") ("D" | "DS")
+ 'BED'   ? BR
+ 'BEDS'  ? BR
+ 'BEAD'  ? BR
+ 'BEADS' ? BR
+ 'RED'   ? BR
+ 'REDS'  ? BR
+ 'READ'  ? BR
+ 'READS' ? BR
+END

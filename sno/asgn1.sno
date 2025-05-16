@@ -1,0 +1,20 @@
+*     -----------------------------------------------------------------
+*     Assignment #1: Simple spelling checker program.
+*
+      &TRIM          =  1                                               ;*  Trim trailing blanks from all input
+      INPUT(.words, 3, "words.txt")                         :F(error)   ;*+ Open dictionary file for reading
+      dict           =  TABLE(1001)                                     ;*+ Create the dictionary table
+nextd dict[words]    =  0                                   :S(nextd)   ;*+ Enter all words into the dictionary
+      ENDFILE(3)                                                        ;*+ Close dictionary file
+      word           =  "'-" '0123456789' &LCASE                        ;*  Define the characters which form a 'word'
+      wpat           =  BREAK(word) SPAN(word) . item                   ;*  Pattern to isolate each word and assign it to item:
+      wcount         =  TABLE()                                         ;*  Create a table to maintain the word counts
+nextl line           =  REPLACE(INPUT, &UCASE, &LCASE)      :F(done)    ;*  Read a line of input
+nextw line           ?  wpat =                              :F(nextl)   ;*  Obtain next word
+      wcount[item]   =  IDENT(dict[item]) wcount[item] + 1  :(nextw)    ;** Increment misspelled usage count
+done  a              =  SORT(wcount)                        :F(empty)   ;*  Sort table to array. Fail if table is empty
+      i              =  0                                               ;*  Scan array, displaying misspelled words and counts
+print i              =  i + 1
+      OUTPUT         =  LPAD(a[i, 2], 3) ' ' a[i, 1]        :S(print)F(END)
+empty OUTPUT         =  'No words'
+END

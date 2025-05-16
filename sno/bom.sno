@@ -1,0 +1,424 @@
+*-------------------------------------------------------------------------------------------------------------------------
+* bom.sno
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'ini.inc'
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            deltaTypeTbl      =     TABLE()
+            deltaTypeTbl['F'] =     'File'
+            deltaTypeTbl['D'] =     'Dir'
+            deltaTypePat      =     icase('File') epsilon . *assign(.deltaType, *'F')
++                             |     icase('Dir')  epsilon . *assign(.deltaType, *'D')
+            deltaDropPat      =     POS(0) 'Drop'   . deltaAction SPAN(' ') *deltaTypePat SPAN(' ') RTAB(0) . deltaName
+            deltaCreatePat    =     POS(0) 'Create' . deltaAction SPAN(' ') *deltaTypePat SPAN(' ') RTAB(0) . deltaName
+            deltaAlterPat     =     POS(0) 'Alter'  . deltaAction SPAN(' ') *deltaTypePat SPAN(' ') RTAB(0) . deltaName
+
+            lslPattern        =     POS(0)
++                                   (  'F' . bomType
++                                      SPAN(' ') (integer | '-1') . bomLength
++                                      SPAN(' ') (integer | '-1') . bomCksum
++                                      SPAN(' ') REM . bomName
++                                   |  'D' . bomType
++                                      epsilon . bomLength
++                                      epsilon . bomCksum
++                                      SPAN(' ') REM . bomName
++                                   )
++                                   RPOS(0)
+
+            DATA('bom(bom_name,bom_type,bom_length,bom_cksum)')
+            bomPattern        =     POS(0) . *assign(.bom, *bom())
++                                   (  ('F' | epsilon) . *bom_type(bom)
++                                      SPAN(' ') (integer | '-1') . *bom_length(bom)
++                                      SPAN(' ') (integer | '-1') . *bom_cksum(bom)
++                                      SPAN(' ') REM . *bom_name(bom)
++                                   |  ('D' | epsilon) . *bom_type(bom)
++                                      epsilon . *bom_length(bom) . *bom_cksum(bom)
++                                      SPAN(' ') REM . *bom_name(bom)
++                                   )
+
+            bom1Pattern       =     *bomPattern
++                                   epsilon . *assign(.bom1,       *bom)
++                                   epsilon . *assign(.bom1Name,   *bom_name(bom1))
++                                   epsilon . *assign(.bom1Type,   *bom_type(bom1))
++                                   epsilon . *assign(.bom1Length, *bom_length(bom1))
++                                   epsilon . *assign(.bom1Cksum,  *bom_cksum(bom1))
+
+            bom2Pattern       =     *bomPattern
++                                   epsilon . *assign(.bom2,       *bom)
++                                   epsilon . *assign(.bom2Name,   *bom_name(bom2))
++                                   epsilon . *assign(.bom2Type,   *bom_type(bom2))
++                                   epsilon . *assign(.bom2Length, *bom_length(bom2))
++                                   epsilon . *assign(.bom2Cksum,  *bom_cksum(bom2))
+
+            bomExpression     =     *(bomType ' ' LPAD(bomLength, 10) ' ' LPAD(bomCksum, 10) ' ' bomName)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ReadBase(ReadBase)'
++              'bom,bomFile,bomNameFile,bomNameOutput,'
++              'bomSortCmd,bomSortFile,bomSortInput,bomSortOutput'
++           )                                                                                :(ReadBaseEnd)
+ReadBase    bomFile           =     ReadBase '.bom'
+            bomSortFile       =     bomPfx ReadBase '-sort.bom'
+            bomNameFile       =     bomPfx ReadBase '-names.txt'
+            bomSortCmd        =     exe['sort'] ' +0.24 "' bomFile '"'
+            INPUT(.bomSortInput, 3, '!!' bomSortCmd)                                         :F(error)
+            OUTPUT(.bomSortOutput, 4, bomSortFile)                                           :F(error)
+            OUTPUT(.bomNameOutput, 5, bomNameFile)                                           :F(error)
+ReadBase10  bomSortOutput     =     bomSortInput                                             :F(ReadBase20)
+            bomSortOutput     bomPattern                                                     :F(error)
+            bomNameOutput     =     bom_name(bom)                                            :(ReadBase10)
+ReadBase20  ENDFILE(5)
+            ENDFILE(4)
+            ENDFILE(3)                                                                       :(RETURN)
+ReadBaseEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ReadDelta(deltaFile)'
++              'deltaInput,deltaLine,deltaAction,deltaName,deltaType'
++           )                                                                                :(ReadDeltaEnd)
+ReadDelta   INPUT(.deltaInput, 3, deltaFile)                                                 :F(error)
+ReadDelta10 deltaLine           =     deltaInput                                             :F(ReadDelta30)
+            deltaLine           deltaCreatePat                                               :S(ReadDelta20)
+            deltaLine           deltaAlterPat                                                :S(ReadDelta10)
+            deltaLine           deltaDropPat                                                 :S(ReadDelta20)F(error)
+ReadDelta20 ReadDelta           =     IDENT(ReadDelta) TABLE()
+            ReadDelta[deltaName] =    delta(deltaAction, deltaName, deltaType)               :(ReadDelta10)
+ReadDelta30 ENDFILE(3)                                                                       :(RETURN)
+ReadDeltaEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('ReadDir(section,bomNum)'
++              'bom,bomCksum,bomFile,bomName,bomLength,changeRep,dir,'
++              'i,j,lslCmd,lslInput,lsOutput,numDirs,numFilters,scopeExclude,'
++              'scopeInclude,windir'
++           )                                                                                :(ReadDirEnd)
+ReadDir     ReadDir           =     bomPfx bomNum
+            bomFile           =     ReadDir '.bom'
+            OUTPUT(.bomOutput, 3, bomFile)                                                   :F(error)
+            windir            =     exec('env', 'windir')
+            windir            nl =
+            numDirs           =     ini[section]['NumberOfDirectories']
+            i                 =     -1
+ReadDir00   i                 =     LT(i + 1, numDirs) i + 1                                 :F(ReadDir80)
+            dir               =     ini[section]['Dir' i]
+            numFilters        =     ini[section]['Dir' i '_NumberOfFilters']
+            dir               '${WINDIR}' = windir
+            dir               '/' RPOS(0) =
+            lsOutput          =     system('-@#ls', dir)                                     :F(error)
+            DIFFER(lsOutput)                                                                 :F(ReadDirErr1)
+            lslCmd            =     exe['ls-l']
+            lslCmd            =     lslCmd EQ(l, FALSE) ' -l'
+            lslCmd            =     lslCmd EQ(c, FALSE) ' -c'
+            lslCmd            =     lslCmd ' "' dir '/"'
+            INPUT(.lslInput, 4, '!!' lslCmd)                                                 :F(error)
+ReadDir10   lslInfo           =     lslInput                                                 :F(ReadDir70)
+            lslInfo           lslPattern                                                     :F(error)
+            bomName           POS(0) dir RPOS(0)                                             :S(ReadDir10)
+            bomName           POS(0) dir '/' =                                               :F(error)
+            NE(numFilters, 0)                                                                :F(ReadDir60)
+            j                 =     -1
+ReadDir30   j                 =     LT(j + 1, numFilters) j + 1                              :F(ReadDir10)
+            scopeInclude      =     ini[section]['Dir' i '_ScopeIncludeFilter' j]
+            scopeExclude      =     ini[section]['Dir' i '_ScopeExcludeFilter' j]
+            changeRep         =     ini[section]['Dir' i '_ChangeFilter' j]
+            DIFFER(scopeInclude)                                                             :F(ReadDir40)
+            scopeInclude      =     EVAL(scopeInclude)                                       :F(error)
+            bomName           scopeInclude                                                   :F(ReadDir30)
+ReadDir40   DIFFER(scopeExclude)                                                             :F(ReadDir50)
+            scopeExclude      =     EVAL(scopeExclude)                                       :F(error)
+            bomName           scopeExclude                                                   :S(ReadDir10)
+ReadDir50   DIFFER(changeRep)                                                                :F(ReadDir60)
+            bomName           scopeInclude = EVAL(changeRep)
+ReadDir60   bomName           =     '{' LPAD(i, 2, 0) '}/' bomName
+            TERMINAL          =     EQ(w, TRUE) EVAL(bomExpression)
+            bomOutput         =     EVAL(bomExpression)                                      :S(ReadDir10)F(error)
+ReadDir70   ENDFILE(4)                                                                       :(ReadDir00)
+ReadDir80   ENDFILE(3)                                                                       :(RETURN)
+ReadDirErr1 OUTPUT            =     'Directory ' dir ' does not exist.  ReadDir fails!!!'    :(FRETURN)
+ReadDirEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('WriteBase(bom1Base,bom2Base)bom1File,bom2File,bomInput,bomOutput')       :(WriteBaseEnd)
+WriteBase   bom1File          =     bom1Base '.bom'
+            bom2File          =     bomPfx bom2Base '-sort.bom'
+            INPUT(.bomInput, 3, bom2File)                                                    :F(error)
+            OUTPUT(.bomOutput, 4, bom1File)                                                  :F(error)
+WriteBase10 bomOutput         =     bomInput                                                 :S(WriteBase10)
+            ENDFILE(4)
+            ENDFILE(3)                                                                       :(RETURN)
+WriteBaseEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('UpdateBase(bom1Base,bom2Base)'
++              'bom1File,bom2File,bomCatCmd,bomCatInput,bomDropsFile,bomSortCmd,bomSortOutput'
++           )                                                                                :(UpdateBaseEnd)
+UpdateBase  bom1File          =     bom1Base '.bom'
+            bom2File          =     bomPfx bom2Base '-sort.bom'
+            bomDropsFile      =     bomPfx bom1Base '-drops.bom'
+            bomCatCmd         =     exe['cat'] ' "' bom2File '" "' bomDropsFile '"'
+            bomSortCmd        =     exe['sort'] ' -o "' bom1File '"'
+            INPUT(.bomCatInput, 3, '!!' bomCatCmd)                                           :F(error)
+            OUTPUT(.bomSortOutput, 4, '!!' bomSortCmd)                                       :F(error)
+UpdateBase1 bomSortOutput     =     bomCatInput                                              :S(UpdateBase1)
+            ENDFILE(4)
+            ENDFILE(3)                                                                       :(RETURN)
+UpdateBaseEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('CompPhys(bomName,sect1,sect2)'
++              'bom1File,bom1Name,bom2File,bom2Name,'
++              'cmpCmd,cmpCnt,cmpInfo,cmpInput,diffCmd,diffInput,i'
++           )                                                                                :(CompPhysEnd)
+CompPhys    bom1Name          =     bomName
+            bom2Name          =     bomName
+            bom1Name          POS(0) '{' integer . i '}' =  ini[sect1]['Dir' +i]             :F(error)
+            bom2Name          POS(0) '{' integer . i '}' =  ini[sect2]['Dir' +i]             :F(error)
+            bom1File          =     '"' bom1Name '"'
+            bom2File          =     '"' bom2Name '"'
+            bomName           '.' *textPathExt RPOS(0)                                       :S(CompPhys4)
+            bomName           '.' *binaryPathExt RPOS(0)                                     :S(CompPhys6)F(CompPhys4)
+CompPhys4   diffCmd           =     exe['diff'] ' ' bom1File ' ' bom2File
+            TERMINAL          =     EQ(w, TRUE) diffCmd
+            INPUT(.diffInput, 3, '!!' diffCmd)                                               :F(error)
+CompPhys5   OUTPUT            =     diffInput                                                :S(CompPhys5)
+            ENDFILE(3)                                                                       :(RETURN)
+CompPhys6   cmpCmd            =     exe['cmp']
+            cmpCmd            =     cmpCmd ' -x -l'
+            cmpCmd            =     cmpCmd ' ' bom1File ' ' bom2File
+            TERMINAL          =     EQ(w, TRUE) cmpCmd
+            INPUT(.cmpInput, 3, '!!' cmpCmd)                                                 :F(error)
+            cmpCnt            =     0
+CompPhys7   cmpInfo           =     cmpInput                                                 :F(CompPhys8)
+            cmpCnt            =     cmpCnt + 1
+            cmpInfo           POS(0) bom1Name ' ' bom2Name ' ' REM . cmpInfo
+            OUTPUT            =     LE(cmpCnt, 48) '"' bom1Name '" ' cmpInfo                 :(CompPhys7)
+CompPhys8   ENDFILE(3)                                                                       :(RETURN)
+CompPhysEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('DoPhys(delta,sect1,sect2)'
++              'bom1File,bom1Name,bom2File,bom2Name,'
++              'deltaAction,deltaName,deltaType'
++           )                                                                                :(DoPhysEnd)
+DoPhys      deltaAction       =     delta_action(delta)
+            deltaType         =     delta_type(delta)
+            deltaName         =     delta_name(delta)
+            bom1Name          =     deltaName
+            bom2Name          =     deltaName
+            bom1Name          POS(0) '{' integer . i '}' =  ini[sect1]['Dir' +i]             :F(error)
+            bom2Name          POS(0) '{' integer . i '}' =  ini[sect2]['Dir' +i]             :F(error)
+            bom1File          =     '"' bom1Name '"'
+            bom2File          =     '"' bom2Name '"'
+            (IDENT(deltaType, 'F') IDENT(deltaAction, 'Create'))                             :S(DoPhysCP)
+            (IDENT(deltaType, 'F') IDENT(deltaAction, 'Alter'))                              :S(DoPhysCP)
+            (IDENT(deltaType, 'F') IDENT(deltaAction, 'Drop'))                               :S(DoPhysRM)
+            (IDENT(deltaType, 'D') IDENT(deltaAction, 'Create'))                             :S(DoPhysMD)
+            (IDENT(deltaType, 'D') IDENT(deltaAction, 'Drop'))                               :S(DoPhysRD)F(DoPhysRet)
+DoPhysCP    system('cp', '-fp ' bom2File ' ' bom1File)                                       :S(DoPhysRet)
+DoPhysRM    system('rm', '-f ' bom1File)                                                     :S(DoPhysRet)
+DoPhysMD    system('mkdir', bom1File)                                                        :S(DoPhysRet)
+DoPhysRD    system('rmdir', bom1File)                                                        :S(DoPhysRet)
+DoPhysRet                                                                                    :(RETURN)
+DoPhysEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Compare(bom1Base,bom2Base,sect1,sect2)'
++              'bom1,bom1Cksum,bom1File,bom1Info,bom1Input,bom1Name,bom1Length,bom1Type,'
++              'bom2,bom2Cksum,bom2File,bom2Info,bom2Input,bom2Name,bom2Length,bom2Type,'
++              'commInfo,commInput,delta,deltaAction,deltaAttrs,deltaExtType,deltaLine,deltaName,deltaType,'
++              'dropsFile,dropsOutput,n,nm1File,nm2File,numAlters,numCreates,numDrops,numEquals'
++           )
+            DATA('delta(delta_action,delta_type,delta_name,delta_attrs)')                    :(CompareEnd)
+Compare     delta             =     TABLE()
+            numDrops          =     0
+            numCreates        =     0
+            numAlters         =     0
+            bom1File          =     bomPfx bom1Base '-sort.bom'
+            bom2File          =     bomPfx bom2Base '-sort.bom'
+            dropsFile         =     bomPfx bom1Base '-drops.bom'
+            nm1File           =     bomPfx bom1Base '-names.txt'
+            nm2File           =     bomPfx bom2Base '-names.txt'
+            n                 =     0
+            INPUT(.bom1Input, 3, bom1File)                                                   :F(error)
+            INPUT(.bom2Input, 4, bom2File)                                                   :F(error)
+            INPUT(.commInput, 5, '!!' exe['comm'] ' "' nm1File '" "' nm2File '"')            :F(error)
+            OUTPUT(.dropsOutput, 6, dropsFile)                                               :F(error)
+Compare0    commInfo          =    commInput                                                 :F(CompareRpt)
+            commInfo          POS(0) tab tab RTAB(0) . bomName                               :S(CompareEQ)
+            commInfo          POS(0) tab     RTAB(0) . bomName                               :S(CompareGT)
+            commInfo          POS(0)         RTAB(0) . bomName                               :S(CompareLT)F(error)
+CompareEQ   bom1Info          =     bom1Input                                                :F(error)
+            bom1Info          bom1Pattern                                                    :F(error)
+            bom2Info          =     bom2Input                                                :F(error)
+            bom2Info          bom2Pattern                                                    :F(error)
+            DIFFER(bom1Type, bom2Type)                                                       :F(CompareEQ1)
+            numDrops          =     numDrops + 1
+            numCreates        =     numCreates + 1
+            delta[n = n + 1]  =     delta('Drop', bom1Type, bom1Name)
+            delta[n = n + 1]  =     delta('Create', bom2Type, bom2Name)                      :(Compare0)
+CompareEQ1  numEquals         =     numEquals + 1
+            EQ(l, TRUE)                                                                      :F(CompareEQ2)
+            DIFFER(bom1Length, '-1')                                                         :F(CompareEQ2)
+            DIFFER(bom2Length, '-1')                                                         :F(CompareEQ2)
+            IDENT(bom1Length, bom2Length)                                                    :F(CompareNE1)
+CompareEQ2  EQ(c, TRUE)                                                                      :F(Compare0)
+            DIFFER(bom1Cksum, '-1')                                                          :F(Compare0)
+            DIFFER(bom2Cksum, '-1')                                                          :F(Compare0)
+            IDENT(bom1Cksum, bom2Cksum)                                                      :F(CompareNE2)S(Compare0)
+CompareNE1  numEquals         =     numEquals - 1
+            numAlters         =     numAlters + 1
+            delta[n = n + 1]  =     delta('Alter', bom1Type, bom1Name, 'Length')             :(Compare0)
+CompareNE2  numEquals         =     numEquals - 1
+            numAlters         =     numAlters + 1
+            delta[n = n + 1]  =     delta('Alter', bom1Type, bom1Name, 'Cksum')              :(Compare0)
+CompareLT   bom1Info          =     bom1Input                                                :F(error)
+            bom1Info          bom1Pattern                                                    :F(error)
+            dropsOutput       =     bom1Info
+            numDrops          =     numDrops + 1
+            delta[n = n + 1]  =     delta('Drop', bom1Type, bom1Name)                        :(Compare0)
+CompareGT   bom2Info          =     bom2Input                                                :F(error)
+            bom2Info          bom2Pattern                                                    :F(error)
+            numCreates        =     numCreates + 1
+            delta[n = n + 1]  =     delta('Create', bom2Type, bom2Name)                      :(Compare0)
+CompareRpt  ENDFILE(6)
+            ENDFILE(5)
+            ENDFILE(4)
+            ENDFILE(3)
+            OUTPUT            =     '('  numDrops   ' ' Plural(numDrops,   'Drop')
++                                   ', ' numCreates ' ' Plural(numCreates, 'Create')
++                                   ', ' numAlters  ' ' Plural(numAlters,  'Alter')
++                                   ', ' numEquals  ' ' 'Equal'
++                                   ')'
+            delta[0]          =     n
+            delta             =     Vector(delta)                                            :F(RETURN)
+            delta             =     IDENT(s, 'action') RSORT(delta, .delta_action)
+            delta             =     IDENT(s, 'name')   SORT(delta, .delta_name)
+            delta             =     IDENT(s)           SORT(delta, .delta_name)
+            n                 =     0
+CompareRpt5 n                 =     n + 1
+            deltaAction       =     delta_action(delta[n])                                   :F(RETURN)
+            deltaType         =     delta_type(delta[n])
+            deltaName         =     delta_name(delta[n])
+            deltaAttrs        =     delta_attrs(delta[n])
+            deltaExtType      =     deltaTypeTbl[deltaType]
+            deltaLine         =     RPAD(deltaAction, 6) ' ' RPAD(deltaExtType, 4) ' ' deltaName
+            deltaLine         =     DIFFER(deltaAttrs) deltaLine ' (' deltaAttrs ')'
+            OUTPUT            =     EQ(p, TRUE) DUPL('-', 60) ' ' deltaLine
+            OUTPUT            =     EQ(p, FALSE) EQ(x, FALSE) deltaLine
+            EQ(x, TRUE)                                                                      :S(CompareRpt9)
+            EQ(p, TRUE)                                                                      :S(CompareRpt7)F(CompareRpt5)
+CompareRpt7 IDENT(deltaAction, 'Alter')                                                      :F(CompareRpt5)
+            DIFFER(sect1)                                                                    :F(CompareRpt5)
+            DIFFER(sect2)                                                                    :F(CompareRpt5)
+            CompPhys(deltaName, sect1, sect2)                                                :(CompareRpt5)
+CompareRpt9 DIFFER(sect1)                                                                    :F(CompareRpt5)
+            DIFFER(sect2)                                                                    :F(CompareRpt5)
+            DoPhys(delta[n], sect1, sect2)                                                   :(CompareRpt5)
+CompareEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('Expunge(bomBase,deltas)'
++              'bom,bom1File,bom2File,bomLine,bomInput,bomName,bomOutput,delta'
++           )                                                                                :(ExpungeEnd)
+Expunge     DIFFER(deltas)                                                                   :F(RETURN)
+            IsType(deltas, 'table')                                                          :F(error)
+            bom1File          =     bomBase '.bom'
+            bom2File          =     bomPfx bomBase '-sort.bom'
+            INPUT(.bomInput, 3, bom2File)                                                    :F(error)
+            OUTPUT(.bomOutput, 4, bom1File)                                                  :F(error)
+Expunge10   bomLine           =     bomInput                                                 :F(Expunge20)
+            bomLine           bomPattern                                                     :F(error)
+            bomName           =     bom_name(bom)
+            delta             =     deltas[bomName]
+            bomOutput         =     IDENT(delta) bomLine                                     :S(Expunge10)
+            bomOutput         =     IDENT(delta_action(delta), 'Alter') bomLine              :(Expunge10)
+Expunge20   ENDFILE(4)
+            ENDFILE(3)                                                                       :(RETURN)
+ExpungeEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            debug             =     0
+            c                 =     TRUE
+            l                 =     TRUE
+            p                 =     FALSE
+            r                 =     FALSE
+            u                 =     FALSE
+            w                 =     FALSE
+            x                 =     FALSE
+            type1             =
+            type2             =
+            typed             =
+            EXIT(3, 'bom.exe')
+            Utility()
+            bomPfx            =     'bom-' LPAD(getpid(), 5, 0) '-'
+            argPos            =     HOST(3) - 1
+arg1        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :F(arg4)
+            arg               POS(0) '-' 'c' . *assign(.c, *FALSE) RPOS(0)                   :S(arg1)
+            arg               POS(0) '-' 'l' . *assign(.l, *FALSE) RPOS(0)                   :S(arg1)
+            arg               POS(0) '-' 'p' . *assign(.p, *TRUE) RPOS(0)                    :S(arg1)
+            arg               POS(0) '-' 'r' . *assign(.r, *TRUE) RPOS(0)                    :S(arg1)
+            arg               POS(0) '-' 'u' . *assign(.u, *TRUE) RPOS(0)                    :S(arg1)
+            arg               POS(0) '-' 'w' . *assign(.w, *TRUE) RPOS(0)                    :S(arg1)
+            arg               POS(0) '-' 'x' . *assign(.x, *TRUE) RPOS(0)                    :S(arg1)
+            arg               POS(0) '-' 'b' . opt RPOS(0)                                   :S(arg2)
+            arg               POS(0) '-' 'd' . opt RPOS(0)                                   :S(arg2)
+            arg               POS(0) '-' 'e' . opt RPOS(0)                                   :S(arg2)
+            arg               POS(0) '-' '1' . opt RPOS(0)                                   :S(arg2)
+            arg               POS(0) '-' '2' . opt RPOS(0)                                   :S(arg2)
+            arg               POS(0) '-' 's' . opt RPOS(0)                                   :S(arg3)F(usage)
+arg2        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :F(usage)
+            arg               POS(0) '-'                                                     :S(usage)
+            arg               POS(0) RPOS(0)                                                 :S(usage)
+            arg               POS(0) REM . $opt RPOS(0)                                      :(arg1)
+arg3        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :F(usage)
+            arg               POS(0) '-'                                                     :S(usage)
+            arg               POS(0) icase('action') . *assign(opt, *'action') RPOS(0)       :S(arg1)
+            arg               POS(0) icase('name')   . *assign(opt, *'name') RPOS(0)         :S(arg1)F(usage)
+arg4        (EQ(u, TRUE) EQ(r, TRUE))                                                        :S(usage)
+            (DIFFER(b) DIFFER($'1'))                                                         :S(usage)
+            (DIFFER(b) DIFFER($'2'))                                                         :S(usage)
+            DIFFER(b)                                                                        :F(arg6)
+            ini               =     IniRead('bom.ini')
+            ini               =     IDENT(ini) TABLE()
+            b                 '.' 'bom' RPOS(0) =                                            :F(usage)
+            (DIFFER(e) Expunge(ReadBase(b), ReadDelta(e)))                                   :S(fini)
+            DIFFER(d)                                                                        :F(usage)
+            typed             =     DIFFER(ini[d]) 'sect'
+            d                 POS(0) *IDENT(typed) *pathDrive (*pathDir | epsilon) RPOS(0) . *assign(.typed, *'dir')
+            DIFFER(typed)                                                                    :F(usage)
+            typed             =     IDENT(typed, 'dir') 'sect'                               :F(arg5)
+            ini['#d']         =     TABLE()
+            ini['#d']['NumberOfDirectories'] = 1
+            ini['#d']['Dir0'] =     d
+            d                 =     '#d'
+arg5        WriteBase(b, ReadBase(ReadDir(d, 'b')))                                          :(fini)
+arg6        (DIFFER($'1') DIFFER($'2'))                                                      :F(usage)
+            ini               =     IniRead('bom.ini')
+            ini               =     IDENT(ini) TABLE()
+            $'1'              '.' 'bom' . type1 RPOS(0) =
+            $'2'              '.' 'bom' . type2 RPOS(0) =
+            type1             =     IDENT(type1) DIFFER(ini[$'1']) 'sect'
+            type2             =     IDENT(type2) DIFFER(ini[$'2']) 'sect'
+            $'1'              POS(0) *IDENT(type1) *pathDrive (*pathDir | epsilon) RPOS(0) . *assign(.type1, *'dir')
+            $'2'              POS(0) *IDENT(type2) *pathDrive (*pathDir | epsilon) RPOS(0) . *assign(.type2, *'dir')
+            DIFFER(type1)                                                                    :F(usage)
+            DIFFER(type2)                                                                    :F(usage)
+            type1             =     IDENT(type1, 'dir') 'sect'                               :F(arg7)
+            ini['#1']         =     TABLE()
+            ini['#1']['NumberOfDirectories'] = 1
+            ini['#1']['Dir0'] =     $'1'
+            $'1'              =     '#1'
+arg7        type2             =     IDENT(type2, 'dir') 'sect'                               :F(arg8)
+            ini['#2']         =     TABLE()
+            ini['#2']['NumberOfDirectories'] = 1
+            ini['#2']['Dir0'] =     $'2'
+            $'2'              =     '#2'
+arg8        bom1Base          =     IDENT(type1, 'sect') ReadBase(ReadDir($'1', 1))
+            bom1Base          =     IDENT(type1, 'bom')  ReadBase($'1')
+            bom2Base          =     IDENT(type2, 'sect') ReadBase(ReadDir($'2', 2))
+            bom2Base          =     IDENT(type2, 'bom')  ReadBase($'2')
+            sect1             =     (DIFFER(type1, 'bom') $'1', null)
+            sect2             =     (DIFFER(type2, 'bom') $'2', null)
+            Compare(bom1Base, bom2Base, sect1, sect2)                                        :F(error)
+            (EQ(r, TRUE) WriteBase(bom1Base, bom2Base))                                      :S(fini)
+            (EQ(u, TRUE) UpdateBase(bom1Base, bom2Base))                                     :(fini)
+fini        system('@-rm', bomPfx '*.bom')
+            system('@-rm', bomPfx '*.txt')                                                   :(END)
+usage       OUTPUT            =     'usage: bom [-w] [-p] [-c] [-u | -r] -1 {<dir> | <bom>} -2 {<dir> | <bom>}'
+            OUTPUT            =     '       bom -b <bom> {-d <dir> | -e <flt>}'              :(END)
+*-INCLUDE 'debug.sno'
+END

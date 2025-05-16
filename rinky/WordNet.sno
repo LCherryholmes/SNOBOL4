@@ -1,0 +1,452 @@
+START
+-INCLUDE    'global.inc'
+-INCLUDE    'assign.inc'
+-INCLUDE    'XDump.inc'
+-INCLUDE    'Qize.inc'
+*---------- ------------------------------------------------------------------------------------------------------------
+            pos2item            =   TABLE()
+            pos2item['n']       =   'noun'
+            pos2item['v']       =   'verb'
+            pos2item['a']       =   'adj'
+            pos2item['r']       =   'adv'
+            pos2item['s']       =   'adj'
+*---------- ------------------------------------------------------------------------------------------------------------
+            to_keynot           =   TABLE()
+            to_keynot['n']      =   1
+            to_keynot['v']      =   2
+            to_keynot['a']      =   3
+            to_keynot['r']      =   4
+            to_keynot['s']      =   5
+*---------- ------------------------------------------------------------------------------------------------------------
+            item2pos            =   TABLE()
+            item2pos['noun']    =   'n'
+            item2pos['verb']    =   'v'
+            item2pos['adj']     =   'a'
+            item2pos['adv']     =   'r'
+            item2pos['rev']     =   'x'
+*---------- ------------------------------------------------------------------------------------------------------------
+            synsetType          =   ARRAY('1:5')
+            synsetType[1]       =   'n'
+            synsetType[2]       =   'v'
+            synsetType[3]       =   'a'
+            synsetType[4]       =   'r'
+            synsetType[5]       =   's'
+*---------- ------------------------------------------------------------------------------------------------------------
+            DATA('Symbol(ptr_no,description)')
+            t_symbols               =   TABLE(5)
+            t_symbols['n']          =   TABLE()
+            t_symbols['n']['!']     =   Symbol(1, 'Antonym')
+            t_symbols['n']['@']     =   Symbol(2, 'Hypernym')
+            t_symbols['n']['@i']    =   Symbol(3, 'Instance Hypernym')
+            t_symbols['n']['~']     =   Symbol(4, 'Hyponym')
+            t_symbols['n']['~i']    =   Symbol(5, 'Instance Hyponym')
+            t_symbols['n']['#m']    =   Symbol(6, 'Member holonym')
+            t_symbols['n']['#s']    =   Symbol(7, 'Substance holonym')
+            t_symbols['n']['#p']    =   Symbol(8, 'Part holonym')
+            t_symbols['n']['%m']    =   Symbol(9, 'Member meronym')
+            t_symbols['n']['%s']    =   Symbol(10, 'Substance meronym')
+            t_symbols['n']['%p']    =   Symbol(11, 'Part meronym')
+            t_symbols['n']['=']     =   Symbol(12, 'Attribute')
+            t_symbols['v']          =   TABLE()
+            t_symbols['v']['!']     =   Symbol(13, 'Antonym')
+            t_symbols['v']['@']     =   Symbol(14, 'Hypernym')
+            t_symbols['v']['~']     =   Symbol(15, 'Hyponym')
+            t_symbols['v']['*']     =   Symbol(16, 'Entailment')
+            t_symbols['v']['>']     =   Symbol(17, 'Cause')
+            t_symbols['v']['^']     =   Symbol(18, 'Also see')
+            t_symbols['v']['$']     =   Symbol(19, 'Verb Group')
+            t_symbols['a']          =   TABLE()
+            t_symbols['a']['!']     =   Symbol(20, 'Antonym')
+            t_symbols['a']['&']     =   Symbol(21, 'Similar to')
+            t_symbols['a']['<']     =   Symbol(22, 'Participle of verb')
+            t_symbols['a'][bSlash]  =   Symbol(23, 'Pertainym (pertains to noun)')
+            t_symbols['a']['=']     =   Symbol(24, 'Attribute')
+            t_symbols['a']['^']     =   Symbol(25, 'Also see')
+            t_symbols['r']          =   TABLE()
+            t_symbols['r']['!']     =   Symbol(26, 'Antonym')
+            t_symbols['r'][bSlash]  =   Symbol(27, 'Derived from adjective')
+            t_symbols['?']          =   TABLE()
+            t_symbols['?']['+']     =   Symbol(28, 'Derivationally related form')
+            t_symbols['?'][';c']    =   Symbol(29, 'Domain of synset - TOPIC')
+            t_symbols['?']['-c']    =   Symbol(30, 'Member of this domain - TOPIC')
+            t_symbols['?'][';r']    =   Symbol(31, 'Domain of synset - REGION')
+            t_symbols['?']['-r']    =   Symbol(32, 'Member of this domain - REGION')
+            t_symbols['?'][';u']    =   Symbol(33, 'Domain of synset - USAGE')
+            t_symbols['?']['-u']    =   Symbol(34, 'Member of this domain - USAGE')
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('Hex2Dec(hex)h1,h2,hx')                                  :(Hex2DecEnd)
+Hex2Dec     hx              =   '0123456789abcdef'
+            hex             POS(0) ANY(hx) . h1 ANY(hx) . h2 RPOS(0)        :F(Error)
+            hx              @h1 h1
+            hx              @h2 h2
+            Hex2Dec         =   h1 * 16 + h2                                :(RETURN)
+Hex2DecEnd
+*---------- --------------- --- -----------------------------------------------------------
+            wnInt           =   SPAN('0123456789')
+            wnHex           =   SPAN('0123456789abcdef')
+            wnWord          =   BREAK(' (')
+            wnMod           =   '(' BREAK(')') . mod ')' | epsilon . mod
+            wn_comment      =   '  ' *wnInt ' ' RTAB(0)
+*---------- ------------------------------------------------------------------------------------------------------------
+            DATA('DataPtr(symbol,synset_offset,pos,source,target)')
+            DATA('DataWord(wrd,mod,lex_id)')
+            DATA('DataFrame(f_num,w_num)')
+            DATA('DataDict(synsetno,synsetid,lex_filenum,ss_type,word,ptrs,frames,definition,samples)')
+*---------- ------------------------------------------------------------------------------------------------------------
+            wn_data = epsilon       $ w $ p $ f $ s $ *assign(.key, 'synset_offset')
++           *wnInt                  . synset_offset $ synset_offset
++           ' ' *wnInt              . lex_filenum
++           ' ' ANY('nvars')        . ss_type . *assign(.type, (IDENT(ss_type, 's') 'a', ss_type))
++           ' ' *wnHex              . w_cnt . *assign(.w_cnt, Hex2Dec(w_cnt))
++                                   . *assign(.word, (GT(w_cnt, 0) ARRAY('1:' +w_cnt), NULL))
++           ARBNO(
++               ' ' *wnWord         . wrd . *assign(.wrd, REPLACE(wrd, '_', ' '))
++                   *wnMod
++               ' ' *wnHex          . lex_id
++                                   . *assign(.word[w = w + 1], DataWord(wrd, mod, lex_id))
++                                   . *assign(.words, *(IDENT(words) TABLE(32768)))
++                                   . *assign(.words[wrd], *(wordno = IDENT(words[wrd]) wordno + 1))
++                                   . *assign(.wordnos, *(IDENT(wordnos) TABLE(4)))
++                                   . *assign(.wordnos[type], *(IDENT(wordnos[type]) TABLE(32768)))
++                                   . *assign(.wordnos[type][synsetno], *(IDENT(wordnos[type][synsetno]) ARRAY('1:' +w_cnt)))
++                                   . *assign(.wordnos[type][synsetno][w], words[wrd])
++           )
++           ' ' *wnInt . p_cnt      . *assign(.ptrs, (GT(p_cnt, 0) ARRAY('1:' +p_cnt), NULL))
++           ARBNO(
++               ' ' BREAK(' ')      . ptr_symbol
++               ' ' *wnInt          . ptr_synset_offset
++               ' ' ANY('nvar')     . ptr_pos    . *assign(.ptr_item, pos2item[ptr_pos])
++               ' ' LEN(2)          . ptr_source . *assign(.ptr_source, Hex2Dec(ptr_source))
++                   LEN(2)          . ptr_target . *assign(.ptr_target, Hex2Dec(ptr_target))
++                                   . *assign(.ptrs[p = p + 1], DataPtr(ptr_symbol, +ptr_synset_offset, ptr_pos, +ptr_source, +ptr_target))
++           )
++           (   ' ' *wnInt . f_cnt  . *assign(.frames, (GT(f_cnt, 0) ARRAY('0:' +f_cnt - 1), NULL))
++                                   . *assign(.f, -1)
++               ARBNO(
++                   ' + ' *wnInt    . f_num
++                   ' ' *wnHex      . w_num . *assign(.w_num, Hex2Dec(w_num))
++                                   . *assign(.frames[f = f + 1], DataFrame(+f_num, +w_num))
++               )
++           |   epsilon
++           )
++           ' |'                    . *assign(.samples, TABLE())
++                                   . *assign(.s, -1)
++                                   . *assign(.definition, NULL)
++           ARBNO(
++               FENCE(SPAN(' ') | epsilon)
++               FENCE(
++                   ('"' BREAK('"') '"') . sample
++                   (   (SPAN(' ') | epsilon)
++                       ('-' | epsilon)
++                       ('-' | epsilon)
++                       (SPAN(' ') | epsilon)
++                       FENCE(BREAK(';') | RTAB(2)) . reference . *assign(.sample, sample ' - ' reference)
++                   |   epsilon
++                   )                 . *assign(.samples[s = s + 1], sample)
++               |   BREAK(';')  . def . *assign(.definition, (IDENT(definition), definition '; ') def)
++               |   RTAB(2)     . def . *assign(.definition, (IDENT(definition), definition '; ') def)
++               )
++               FENCE(';' | ';' RPOS(2) | '; ' RPOS(2) | RPOS(2))
++           )
++           '  ' . *assign(.synsetid, type LPAD(synset_offset, 8, '0'))
++                . *assign(.data[type][+synset_offset], DataDict(synsetno, synsetid, +lex_filenum, ss_type, word, ptrs, frames, definition, samples))
++                . *assign(.synsetno, synsetno + 1)
+*---------- -------------------------------------------------------------------------------
+            DATA('IndexDict(lemma,pos,p_cnt,p_symbols,offsets)')
+*---------- ------------------------------------------------------------------------------------------------------------
+            wn_index = epsilon      $ p $ s $ *assign(.key, 'lemma')
++           BREAK(' ')              $ lemma
++                                   . lemma      . *assign(.lemma, REPLACE(lemma, '_', ' '))
++           ' ' ANY('nvar')         . pos        . *assign(.index_item, pos2item[pos])
++           ' ' *wnInt              . synset_cnt . *assign(.offsets, ARRAY('1:' +synset_cnt))
++           ' ' *wnInt              . p_cnt      . *assign(.p_symbols, (GT(p_cnt, 0) ARRAY('1:' +p_cnt), NULL))
++           ARBNO(' ' BREAK(' ')    . ptr_symbol . *assign(.p_symbols[p = p + 1], ptr_symbol))
++           ' ' *wnInt              . sense_cnt
++           ' ' *wnInt              . tagsense_cnt
++           ARBNO(' ' *wnInt        . synset_offset . *assign(.offsets[s = s + 1], +synset_offset))
++           '  ' . *assign(.index[pos][lemma], IndexDict(lemma, pos, +p_cnt, p_symbols, offsets))
+*---------- -------------------------------------------------------------------------------
+            DATA('SenseDict(sense_number,tag_cnt)')
+*---------- --------------- --- ------------------------------------------- ---------------
+            wn_sense_key    =   BREAK('%')      . lemma
++                               '%' *wnInt      . ss_type . *assign(.ss_type, synsetType[+ss_type])
++                               ':' *wnInt      . lex_filenum
++                               ':' *wnInt      . lex_id
++                               ':' BREAK(':')  . head_word
++                               ':' (*wnInt | epsilon) . head_id
+*---------- --------------- --- ------------------------------------------- ---------------
+            wn_cntlist      =   epsilon         $ *assign(.key, 'sense_key')
++                               *wn_sense_key   . sense_key $ sense_key
++                               ' ' *wnInt      . sense_number
++                               ' ' *wnInt      . tag_cnt . *assign(.cntlist['x'][sense_key], +tag_cnt)
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('DictRead(ftype,item)dict,line,pos')                     :(DictReadEnd)
+DictRead    pos             =   item2pos[item]
+            $ftype          =   IDENT($ftype) TABLE(4)
+            ($ftype)[pos]   =   TABLE(16384)
+            TERMINAL        =   ftype '.' item
+            INPUT(.dict, 21, folder '/' ftype '.' item '[-m10 -l16384]')    :F(Error)
+DictRead1   line            =   dict                                        :F(DictRead9)
+            line            POS(0) *wn_comment RPOS(0)                      :S(DictRead1)
+            line            POS(0) $('wn_' ftype) RPOS(0)                   :S(DictRead1)F(DictReadErr)
+DictRead9   ENDFILE(21)                                                     :(RETURN)
+DictReadErr TERMINAL        =   'Error: ' $key
+            TERMINAL        =   line                                        :(END)
+DictReadEnd
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('WordList(item,offset)w,wrd,word')                       :(WordListEnd)
+WordList    word            =   word(data[item2pos[item]][offset])
+            w               =   0
+WordList3   w               =   w + 1
+            wrd             =   word[w]                                     :F(RETURN)
+            WordList        =   EQ(w, 1) wrd
+            WordList        =   GT(w, 1) WordList ', ' wrd                  :(WordList3)
+WordListEnd
+*---------- --------------- --- ------------------------------------------- --------------------------------------------
+            DEFINE('sense_key(wrd,ss_type,lex_filenum,lex_id)')             :(sense_key_end)
+sense_key   sense_key       =   REPLACE(wrd, ' ', '_')
++                               '%' to_keynot[ss_type]
++                               ':' LPAD(lex_filenum, 2, '0')
++                               ':' LPAD(lex_id, 2, '0')
++                               '::'                                        :(RETURN)
+sense_key_end
+*---------- ----------------------- --- --------------------------------------------------------------------------------
+            ins                     =   TABLE()
+            ins['words']            =   *(wordno ", '" SqlSQize(wrd) "'")
+            ins['adj_mods']         =   *("'" synsetid "', " words[wrd] ", '" SqlSQize(mod) "'")
+            ins['syn_sets']         =   *("'" synsetid "', '" SqlSQize(definition) "', " lex_filenum)
+            ins['samples']          =   *("'" synsetid "', " s ", '" SqlSQize(sample) "'")
+            ins['senses']           =   *(wordno ", '" synsetid "', " +tagcnt)
+            ins['sem_verb_frames']  =   *("'" synsetid "', " f_num)
+            ins['lex_verb_frames']  =   *("'" synsetid "', " wordno ", " f_num)
+            ins['sem_rels']         =   *("'" synsetid "', '" ptr_synsetid "', " ptr_no)
+            ins['lex_rels']         =   *(wordno ", '" synsetid "', " ptr_wordno ", '" ptr_synsetid "', " ptr_no)
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('Insert(T)expr,insert,values')                           :(InsertEnd)
+Insert      DIFFER(T)                                                       :F(Insert9)
+            insert          =   'INSERT INTO WN_' T ' VALUES'
+            insert          =   IDENT(T, current) '     ,'
+            current         =   DIFFER(T, current) T
+Insert1     expr            =   ins[T]
+            values          =   DIFFER(expr) '(' EVAL(expr) ')'             :F(Error)
+            OUTPUT          =   insert ' ' values
+            modulo          =   REMDR(modulo = modulo + 1, 100)
+            OUTPUT          =   EQ(modulo) 'GO'
+            current         =   EQ(modulo)                                  :(RETURN)
+Insert9     OUTPUT          =   NE(modulo) 'GO'
+            modulo          =   NE(modulo) 0                                :(RETURN)
+InsertEnd
+*---------- --------------- --- ------------------------------------------- --------------------------------------------
+            DEFINE('DB_words()w,wordno,wrd,wrds')                           :(DB_words_end)
+DB_words    wrds            =   CONVERT(words, 'ARRAY')                     :F(Error)
+            w               =   0
+DB_words1   w               =   w + 1
+            wrd             =   wrds[w, 1]                                  :F(DB_words9)
+            wordno          =   wrds[w, 2]
+            Insert('words')                                                 :(DB_words1)
+DB_words9   Insert()                                                        :(RETURN)
+DB_words_end
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('DB_core(T)'
++               'definition,f,frame,frames,lex_filenum,lex_id,mod,'
++               'pos,pos_list,s,sample,samples,ss_type,synsetid,synsetno,'
++               'synsets,synset_data,synset_offset,type,'
++               'w,word,wordno,wrd,y')                                      :(DB_core_end)
+DB_core     pos_list        =   'nvar'
+DB_core1    pos_list        POS(0) LEN(1) . pos =                           :F(DB_core9)
+            synsets         =   CONVERT(data[pos], 'ARRAY')                 :F(Error)
+            y               =   0
+DB_core2    y               =   y + 1
+            synset_offset   =   synsets[y, 1]                               :F(DB_core1)
+            synset_data     =   synsets[y, 2]
+            synsetno        =   synsetno(synset_data)
+            synsetid        =   synsetid(synset_data)
+            lex_filenum     =   lex_filenum(synset_data)
+            ss_type         =   ss_type(synset_data)
+            type            =   (IDENT(ss_type, 's') 'a', ss_type)
+            word            =   word(synset_data)
+            frames          =   frames(synset_data)
+            definition      =   definition(synset_data)
+            samples         =   samples(synset_data)                        :($('DB_' T))
+DB_syn_sets Insert('syn_sets')                                              :(DB_core2)
+DB_samples  s               =   -1
+DB_core3    s               =   s + 1
+            sample          =   DIFFER(samples[s]) samples[s]               :F(DB_core2)
+            Insert('samples')                                               :(DB_core3)
+DB_senses
+DB_adj_mods w               =   0
+DB_core4    w               =   w + 1
+            wrd             =   wrd(word[w])                                :F(DB_core2)
+            mod             =   mod(word[w])
+            lex_id          =   lex_id(word[w])
+            wordno          =   wordnos[type][synsetno][w]
+            sense_key       =   sense_key(wrd, ss_type, lex_filenum, lex_id)
+            tagcnt          =   cntlist['x'][sense_key]
+            Insert(IDENT(T, 'senses') 'senses')
+            Insert(IDENT(T, 'adj_mods') DIFFER(mod) 'adj_mods')             :(DB_core4)
+DB_sem_verb_frames
+DB_lex_verb_frames
+            f               =   -1
+DB_core5    f               =   DIFFER(frames) f + 1                        :F(DB_core2)
+            frame           =   frames[f]                                   :F(DB_core2)
+            f_num           =   f_num(frame)
+            w_num           =   w_num(frame)
+            wordno          =   GT(w_num) wordnos[type][synsetno][w_num]
+            Insert(IDENT(T, 'sem_verb_frames') EQ(w_num) 'sem_verb_frames')
+            Insert(IDENT(T, 'lex_verb_frames') GT(w_num) 'lex_verb_frames') :(DB_core5)
+DB_core9    Insert()                                                        :(RETURN)
+DB_core_end
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('DB_rels(T)'
++               'pos,pos_list,p,ptr,ptrs,ptr_no,ptr_pos,ptr_source,'
++               'ptr_symbol,ptr_synsetno,ptr_synset_data,'
++               'ptr_synset_offset,ptr_target,ptr_wordno,ss_type,symbol,'
++               'synsetid,synsetno,synsets,synset_data,synset_offset,type,'
++               'wordno,y')                                                 :(DB_rels_end)
+DB_rels     pos_list        =   'nvar'
+DB_rels1    pos_list        POS(0) LEN(1) . pos =                           :F(DB_rels9)
+            synsets         =   CONVERT(data[pos], 'ARRAY')                 :F(Error)
+            y               =   0
+DB_rels2    y               =   y + 1
+            synset_offset   =   synsets[y, 1]                               :F(DB_rels1)
+            synset_data     =   synsets[y, 2]
+            synsetno        =   synsetno(synset_data)
+            synsetid        =   synsetid(synset_data)
+            ss_type         =   ss_type(synset_data)
+            type            =   (IDENT(ss_type, 's') 'a', ss_type)
+            ptrs            =   ptrs(synset_data)
+            done            =   TABLE()
+            p               =   0
+DB_rels7    p               =   DIFFER(ptrs) p + 1                          :F(DB_rels2)
+            ptr             =   ptrs[p]                                     :F(DB_rels2)
+            ptr_symbol      =   symbol(ptr)
+            ptr_synset_offset = synset_offset(ptr)
+            ptr_pos         =   pos(ptr)
+            ptr_source      =   source(ptr)
+            ptr_target      =   target(ptr)
+            ptr_synset_data =   data[ptr_pos][ptr_synset_offset]
+            ptr_synsetno    =   synsetno(ptr_synset_data)
+            ptr_synsetid    =   synsetid(ptr_synset_data)
+            ptr_wordno      =   GT(ptr_source) wordnos[ptr_pos][ptr_synsetno][ptr_target]
+            wordno          =   GT(ptr_source) wordnos[type][synsetno][ptr_source]
+            symbol          =   t_symbols['?'][ptr_symbol]
+            symbol          =   IDENT(symbol) t_symbols[type][ptr_symbol]
+            ptr_no          =   DIFFER(symbol) ptr_no(symbol)               :F(Error)
+            unique          =   ptr_synset_offset ptr_symbol ptr_source ptr_target
+            done[unique]    =   IDENT(done[unique]) 1                       :F(DB_rels7)
+            Insert(IDENT(T, 'sem_rels') EQ(ptr_source) 'sem_rels')
+            Insert(IDENT(T, 'lex_rels') GT(ptr_source) 'lex_rels')          :(DB_rels7)
+DB_rels9    Insert()                                                        :(RETURN)
+DB_rels_end
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('Database()')                                            :(DatabaseEnd)
+Database    TERMINAL        =   'Generating SQL database ...'
+            OUTPUT          =   'SET NOCOUNT ON'
+            DB_words()
+            DB_core('syn_sets')
+            DB_core('samples')
+            DB_core('senses')
+            DB_core('adj_mods')
+            DB_core('sem_verb_frames')
+            DB_core('lex_verb_frames')
+            DB_rels('sem_rels')
+            DB_rels('lex_rels')
+            OUTPUT          =   'SET NOCOUNT OFF'                           :(RETURN)
+DatabaseEnd
+*---------- --------------- --- ------------------------------------------- ---------------
+            DEFINE('Thesaurus()')                                           :(ThesaurusEnd)
+Thesaurus   t_repls         =   TABLE(32768)
+            list            =   perform_list
+Thesaurus00 list            POS(0) BREAK('/') . item '/' =                  :F(Thesaurus90)
+*           IDENT(item, 'verb')                                             :F(Thesaurus00)
+            TERMINAL        =   '*** Thesaurus: ' item
+            t_index         =   index[item]
+            a_index         =   CONVERT(t_index, 'ARRAY')
+            i               =   0
+Thesaurus10 i               =   i + 1
+            lemma           =   a_index[i, 1]                               :F(Thesaurus00)
+            indexDict       =   a_index[i, 2]
+            lemma           POS(0) NOTANY('.0123456789')                    :F(Thesaurus10)
+            pos             =   pos(indexDict)
+            pos_item        =   DIFFER(pos2item[pos]) pos2item[pos]         :F(error)
+            p_cnt           =   p_cnt(indexDict)
+            p_symbols       =   p_symbols(indexDict)
+            offsets         =   offsets(indexDict)
+            t_repls[lemma]  =   IDENT(t_repls[lemma]) TABLE()               :F(Thesaurus10)
+            t_subs          =   t_repls[lemma]
+            s               =   0
+Thesaurus20 s               =   s + 1
+            offset          =   offsets[s]                                  :F(Thesaurus10)
+            words           =   word(data[item2pos[item]][offset])
+*           OUTPUT          =   '    ' WordList(item, offset)
+            w               =   0
+Thesaurus25 w               =   w + 1
+            wrd             =   word[w]                                     :F(Thesaurus27)
+            t_subs[wrd]     =   DIFFER(wrd, lemma) t_subs[wrd] + 1          :(Thesaurus25)
+Thesaurus27 IDENT(item, 'adj')                                              :F(Thesaurus20)
+            ptrs            =   ptrs(data[item2pos[item]][offset])
+            p               =   DIFFER(ptrs) 0                              :F(Thesaurus20)
+Thesaurus30 p               =   p + 1
+            ptr             =   ptrs[p]                                     :F(Thesaurus20)
+            symbol          =   symbol(ptr)
+            IDENT(symbol, '&')                                              :F(Thesaurus30)
+            synset_offset   =   synset_offset(ptr)
+            ptr_pos         =   pos(ptr)
+            ptr_item        =   pos2item[ptr_pos]
+            word_list       =   WordList(ptr_item, synset_offset)
+            source          =   source(ptr)
+            target          =   target(ptr)
+            description     =   t_symbols[item][symbol]
+*           OUTPUT          =   EQ(source, 0) EQ(target, 0)
+*--+                            '        ' symbol
+*--+                            ' ' description
+*--+                            ' ' ptr_item '(' word_list ')'              :S(Thesaurus30)
+            source_words    =   words(data[item2pos[item]][offset])
+            target_words    =   words(data[ptr_pos][synset_offset])
+            w               =   0
+Thesaurus35 w               =   w + 1
+            wrd             =   target_words[w]                             :F(Thesaurus30)
+            t_subs[wrd]     =   DIFFER(wrd, lemma) t_subs[wrd] + 1         :(Thesaurus35)
+*           OUTPUT          =   '        ' symbol
+*--+                            ' ' source_words[source]
+*--+                            ' ' description
+*--+                            ' ' target_words[target]
+*--+                            ' (' ptr_item ')'                           :(Thesaurus30)
+Thesaurus90 OUTPUT          =   '<XML ID="Microsoft Search Thesaurus">'
+            OUTPUT          =   '    <thesaurus xmlns="x-schema:tsSchema.xml">'
+            OUTPUT          =   '        <diacritics_sensitive>0</diacritics_sensitive>'
+            a_repls         =   SORT(t_repls)
+            m               =   0
+Thesaurus93 m               =   m + 1
+            lemma           =   REPLACE(a_repls[m, 1], '_', ' ')            :F(Thesaurus99)
+            t_subs          =   a_repls[m, 2]
+            a_subs          =   DIFFER(t_subs) SORT(t_subs)                 :F(Thesaurus93)
+            n               =   0
+Thesaurus95 n               =   n + 1
+            wrd             =   a_subs[n, 1]                                :F(Thesaurus97)
+            wrd             =   REPLACE(wrd, '_', ' ')
+            OUTPUT          =   '        <replacement>' EQ(n, 1)
+            OUTPUT          =   '            <pat>' lemma '</pat>' EQ(n, 1)
+            OUTPUT          =   '            <sub>' wrd '</sub>'            :(Thesaurus95)
+Thesaurus97 OUTPUT          =   '        </replacement>'                    :(Thesaurus93)
+Thesaurus99 OUTPUT          =   '    </thesaurus>'
+            OUTPUT          =   '</XML>'                                    :(RETURN)
+ThesaurusEnd
+*---------- --------------- --- ------------------------------- ---------------
+            &MAXLNGTH       =   4194304
+            folder          =   'C:/SNOBOL4/WordNet 3.0/dict'
+            perform_list    =   'noun/verb/adj/adv/'
+            synsetno        =   0
+            wordno          =   -1
+            DictRead('data', 'noun')
+            DictRead('data', 'verb')
+            DictRead('data', 'adj')
+            DictRead('data', 'adv')
+*           DictRead('index', 'noun')
+*           DictRead('index', 'verb')
+*           DictRead('index', 'adj')
+*           DictRead('index', 'adv')
+            DictRead('cntlist', 'rev')
+            Database()
+*-INCLUDE 'debug.sno'
+END

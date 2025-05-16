@@ -1,0 +1,65 @@
+*-------------------------------------------------------------------------------
+START
+-INCLUDE 'Qize.inc'
+*------ ----------- --- --------------------------------------------------------
+        sDir        =   'C:/Moby'
+        sInFile     =   sDir '/Moby Thesaurus/mobythes.aur'
+        sOutFile    =   sDir '/Moby INSERT Thesaurus.sql'
+        sInsWord    =   'INSERT INTO Moby_words VALUES'
+        sInsSet     =   'INSERT INTO Moby_senses VALUES'
+*------ ----------- --- ------------------------------- ------------------------
+        TERMINAL    =   'Reading Words ...'
+        tPs         =   TABLE(131072)
+        INPUT(.aur, 3, sInFile '[-l65536]')             :F(Error)
+L10     sLine       =   aur                             :F(L19)
+L15     sLine       POS(0) RPOS(0)                      :S(L10)
+        sLine       POS(0) BREAK(',') . sP ',' =        :S(L17)
+        sLine       POS(0) RTAB(0) . sP =               :S(L17)F(LErr)
+L17     iMaxLen     =   GT(SIZE(sP), iMaxLen) SIZE(sP)
+        tPs[sP]     =   DIFFER(sP) tPs[sP] + 1          :(L15)
+L19     ENDFILE(3)
+        TERMINAL    =   'Max length is ' iMaxLen '.'
+*------ ----------- --- ------------------------------- ------------------------
+        TERMINAL    =   'Building "Moby_words" TABLE ...'
+        OUTPUT(.sql, 4, sOutFile)                       :F(Error)
+        sql         =   DUPL('-', 120)
+        sql         =   'SET NOCOUNT ON'
+        aPs         =   SORT(tPs)                       :F(Error)
+        i           =   0
+L20     sP          =   aPs[i = i + 1, 1]               :F(L29)
+        tPs[sP]     =   i
+        sValues     =   "(" i ", '" SqlSQize(sP) "')"
+        iModulo     =   REMDR(i - 1, 100)
+        sql         =   EQ(iModulo,  0) sInsWord
+        sql         =   EQ(iModulo,  0) '  ' sValues    :S(L20)
+        sql         =   NE(iModulo,  0) ', ' sValues
+        sql         =   EQ(iModulo, 99) 'GO'            :(L20)
+L29     sql         =   NE(iModulo, 99) 'GO'
+*------ ----------- --- ------------------------------- ------------------------
+        TERMINAL    =   'Building "Moby_senses" TABLE ...'
+        INPUT(.aur, 3, sInFile '[-l65536]')             :F(Error)
+        sql         =   DUPL('-', 120)
+        iCount      =   -1
+        iLine       =   0
+L30     sLine       =   aur                             :F(L39)
+        iLine       =   iLine + 1
+        tNos        =   TABLE()
+L35     sLine       POS(0) RPOS(0)                      :S(L30)
+        sLine       POS(0) BREAK(',') . sP ',' =        :S(L37)
+        sLine       POS(0) RTAB(0) . sP =               :S(L37)F(LErr)
+L37     sP          POS(0) RPOS(0)                      :S(L35)
+        iNo         =   tPs[sP]
+        tNos[iNo]   =   IDENT(tNos[iNo]) 1              :F(L35)
+        sValues     =   '(' iNo ', ' iLine ')'
+        iModulo     =   REMDR(iCount = iCount + 1, 100)
+        sql         =   EQ(iModulo,  0) sInsSet
+        sql         =   EQ(iModulo,  0) '  ' sValues    :S(L35)
+        sql         =   NE(iModulo,  0) ', ' sValues
+        sql         =   EQ(iModulo, 99) 'GO'            :(L35)
+L39     sql         =   NE(iModulo, 99) 'GO'
+        sql         =   'SET NOCOUNT OFF'
+        ENDFILE(3)
+        ENDFILE(4)                                      :(END)
+*------ ----------- --- ------------------------------- ------------------------
+LErr    OUTPUT      =   "Error: '" sP "'"               :(END)
+END

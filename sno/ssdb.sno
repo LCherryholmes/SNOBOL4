@@ -1,0 +1,376 @@
+*----------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+-INCLUDE    'ini.inc'
+-INCLUDE    'ss.inc'
+-INCLUDE    'build.inc'
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbCmnt(ssNm)ssdb,ssLNm,ssdbTbl,ver,verTbl')                            :(SSdbCmntEnd)
+SSdbCmnt    ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssLNm             =     lwr(ssNm)
+            verTbl            =     DIFFER(ssdbTbl[ssLNm]) ssdbTbl[ssLNm]                    :f(SSdbCmnt9)
+            ver               =     DIFFER(verTbl[0]) verTbl[0]                              :f(xerr)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(xerr)
+            OUTPUT            =     ssdb_comment(ssdb)                                       :(RETURN)
+SSdbCmnt9   OUTPUT            =     'File "' ssNm '" not found.'                             :(FRETURN)
+SSdbCmntEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbFiles()'
++              'curDateTime,i,iniTbl,nm,nmArr,nmTbl,preDateTime,ssdb,ssdbAction,'
++              'ssdbArr,ssdbDate,ssdbNm,ssdbTbl,ver,verMax,verTbl'
++           )                                                                                :(SSdbFilesEnd)
+SSdbFiles   iniTbl            =     IniRead('ssdb.ini')
+            iniTbl            =     IDENT(iniTbl) TABLE()
+            iniTbl[river]     =     IDENT(iniTbl[river]) TABLE()
+            preDateTime       =     iniTbl[river]['PreviousDateTime']
+            curDateTime       =     iniTbl[river]['CurrentDateTime']
+            ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssdbArr           =     DIFFER(ssdbTbl) SORT(ssdbTbl, 1)                         :f(SSdbFiles3)
+            i                 =     0
+SSdbFiles1  i                 =     i + 1
+            nm                =     ssdbArr[i, 1]                                            :f(SSdbFiles3)
+            verTbl            =     ssdbArr[i, 2]
+            verMax            =     verTbl[0]
+            ver               =     0
+SSdbFiles2  ver               =     LT(ver, verMax) ver + 1                                  :f(SSdbFiles1)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(SSdbFiles2)
+            ssdbNm            =     ssdb_nm(ssdb)
+            ssdbDate          =     ssdb_date(ssdb) ':00'
+*           ssdbAction        =     ssdb_action(ssdb)
+*           DIFFER(ssdbAction, 'branch')                                                     :f(SSdbFiles2)
+            (LGT(ssdbDate, preDateTime) LLE(ssdbDate, curDateTime))                          :f(SSdbFiles2)
+            nmTbl             =     IDENT(nmTbl) TABLE()
+            nmTbl[ssdbNm]     =     nmTbl[ssdbNm] + 1                                        :(SSdbFiles2)
+SSdbFiles3  nmArr             =     DIFFER(nmTbl) SORT(nmTbl, 1)                             :f(RETURN)
+            i                 =     0
+SSdbFiles4  i                 =     i + 1
+            ssdbNm            =     nmArr[i, 1]                                              :f(RETURN)
+            OUTPUT            =     ssdbNm                                                   :(SSdbFiles4)
+SSdbFilesEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbList()'
++              'curDateTime,i,iniTbl,nm,preDateTime,ssdb,ssdbAction,ssdbArr,'
++              'ssdbDate,ssdbNm,ssdbTbl,ssdbUserId,ver,verMax,verTbl'
++           )                                                                                :(SSdbListEnd)
+SSdbList    iniTbl            =     IniRead('ssdb.ini')
+            iniTbl            =     IDENT(iniTbl) TABLE()
+            iniTbl[river]     =     IDENT(iniTbl[river]) TABLE()
+            preDateTime       =     iniTbl[river]['PreviousDateTime']
+            curDateTime       =     iniTbl[river]['CurrentDateTime']
+            ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssdbArr           =     DIFFER(ssdbTbl) SORT(ssdbTbl, 1)                         :f(xerr)
+            i                 =     0
+SSdbList1   i                 =     i + 1
+            nm                =     ssdbArr[i, 1]                                            :f(RETURN)
+            verTbl            =     ssdbArr[i, 2]
+            verMax            =     verTbl[0]
+            ver               =     0
+SSdbList2   ver               =     LT(ver, verMax) ver + 1                                  :f(SSdbList1)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(SSdbList2)
+            ssdbNm            =     ssdb_nm(ssdb)
+            ssdbDate          =     ssdb_date(ssdb) ':00'
+            ssdbUserId        =     ssdb_userid(ssdb)
+            ssdbAction        =     ssdb_action(ssdb)
+            (LGT(ssdbDate, preDateTime) LLE(ssdbDate, curDateTime))                          :f(SSdbList2)
+            OUTPUT            =     ssdbDate
++                                   ' ' RPAD(ssdbUserId, 10)
++                                   ' ' RPAD(ssdbAction, 8)
++                                   ' ' ssdbNm                                               :(SSdbList2)
+SSdbListEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbRange(date)'
++              'number,date_form,month0,day0,year0,hour0,minute0,meridian0,month1,'
++              'day1,year1,hour1,minute1,meridian1,preDateTime,curDateTime,ssdbTbl,'
++              'ssdbArr,i,nm,verTbl,verMax,ver,ssdb,ssdbNm,ssdbDate,nmTbl,nmArr,'
++              'ssdbUserId,ssdbAction,second0,second1'
++           )                                                                                :(SSdbRangeEnd)
+SSdbRange   number            =     ANY('0123456789')
+            date_form         =     POS(0)
++                                   ( number number number number ) . year0
++                                   '/' ( number number ) . month0
++                                   '/' ( number number ) . day0
++                                   ' ' ( number number ) . hour0
++                                   ':' ( number number ) . minute0
++                                   ':' ( number number ) . second0 '~'
++                                   ( number number number number ) . year1
++                                   '/' ( number number ) . month1
++                                   '/' ( number number ) . day1
++                                   ' ' ( number number ) . hour1
++                                   ':' ( number number ) . minute1
++                                   ':' ( number number ) . second1
++                                   RPOS(0)
+            date              date_form                                                      :f(SSdbRange6)
+            preDateTime       =     year0 '/' month0 '/' day0 ' ' hour0 ':' minute0 ':00'
+            curDateTime       =     year1 '/' month1 '/' day1 ' ' hour1 ':' minute1 ':00'
+            ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssdbArr           =     DIFFER(ssdbTbl) SORT(ssdbTbl, 1)                         :f(xerr)
+            i                 =     0
+            (EQ(f, 1) EQ(l, 0))                                                              :s(SSdbRange4)
+SSdbRange0  i                 =     i + 1
+            nm                =     ssdbArr[i, 1]                                            :f(SSdbRange2)
+            verTbl            =     ssdbArr[i, 2]
+            verMax            =     verTbl[0]
+            ver               =     0
+SSdbRange1  ver               =     LT(ver, verMax) ver + 1                                  :f(SSdbRange0)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(SSdbRange1)
+            ssdbNm            =     ssdb_nm(ssdb)
+            ssdbDate          =     ssdb_date(ssdb) ':00'
+*           ssdbAction        =     ssdb_action(ssdb)
+*           DIFFER(ssdbAction, 'branch')                                                     :f(SSdbRange1)
+            (LGT(ssdbDate, preDateTime) LLE(ssdbDate, curDateTime))                          :f(SSdbRange1)
+            nmTbl             =     IDENT(nmTbl) TABLE()
+            nmTbl[ssdbNm]     =     nmTbl[ssdbNm] + 1                                        :(SSdbRange1)
+SSdbRange2  nmArr             =     DIFFER(nmTbl) SORT(nmTbl, 1)                             :f(RETURN)
+            i                 =     0
+SSdbRange3  i                 =     i + 1
+            ssdbNm            =     nmArr[i, 1]                                              :f(RETURN)
+            OUTPUT            =     ssdbNm                                                   :(SSdbRange3)
+SSdbRange4  i                 =     i + 1
+            nm                =     ssdbArr[i, 1]                                            :f(RETURN)
+            verTbl            =     ssdbArr[i, 2]
+            verMax            =     verTbl[0]
+            ver               =     0
+SSdbRange5  ver               =     LT(ver, verMax) ver + 1                                  :f(SSdbRange4)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(SSdbRange5)
+            ssdbNm            =     ssdb_nm(ssdb)
+            ssdbDate          =     ssdb_date(ssdb) ':00'
+            ssdbUserId        =     ssdb_userid(ssdb)
+            ssdbAction        =     ssdb_action(ssdb)
+            (LGT(ssdbDate, preDateTime) LLE(ssdbDate, curDateTime))                          :f(SSdbRange5)
+            OUTPUT            =     ssdbDate
++                                   ' ' RPAD(ssdbUserId, 10)
++                                   ' ' RPAD(ssdbAction, 8)
++                                   ' ' ssdbNm                                               :(SSdbRange5)
+SSdbRange6  OUTPUT            =     'Date format is not correct yyyy/mm/dd hh:mm:ss... ' date  :(freturn)
+SSdbRangeEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbRead(ssNm,ssProj)'
++              'db,ssdbAction,ssdbComment,ssdbDate,ssdbInfo,ssdbInput,ssdbLNm,'
++              'ssdbNm,ssdbUserId,ssdbVer,ssHstFile'
++           )
+            DATA('ssdb(ssdb_nm,ssdb_date,ssdb_userid,ssdb_action,ssdb_comment)')             :(SSdbReadEnd)
+SSdbRead    ssHstFile         =     'sshist-' ssNm '-' river '-hst.txt'
+            db                =     TABLE()
+            INPUT(.ssdbInput, 3, ssHstFile)                                                  :f(ioerr)
+SSdbRead1   ssdbInfo          =     ssdbInput                                                :f(SSdbRead3)
+            ssdbInfo          POS(0) LEN(16)  . ssdbDate
++                             ' '    LEN(120) . ssdbNm
++                             ' '    LEN(3)   . ssdbVer
++                             ' '    LEN(10)  . ssdbUserId
++                             ' '    LEN(8)   . ssdbAction
++                             ' '    REM      . ssdbComment                                  :f(SSdbRead9)
+            ssdbNm            =     TRIM(ssdbNm)
+            ssdbLNm           =     lwr(ssdbNm)
+            ssdbVer           POS(0) SPAN(' ') =
+            ssdbVer           =     DIFFER(ssdbVer) +ssdbVer                                 :f(SSdbRead1)
+            ssdbUserId        =     TRIM(ssdbUserId)
+            ssdbAction        =     TRIM(ssdbAction)
+            db[ssdbLNm]       =     IDENT(db[ssdbLNm]) TABLE()
+            db[ssdbLNm][0]    =     GT(ssdbVer, db[ssdbLNm][0]) ssdbVer
+            db[ssdbLNm][ssdbVer] =  ssdb(ssdbNm, ssdbDate, ssdbUserId, ssdbAction, ssdbComment)
+                                                                                             :(SSdbRead1)
+SSdbRead3   ENDFILE(3)
+            SSdbRead          =     db                                                       :(RETURN)
+SSdbRead9   OUTPUT            =     'Error (dbread): ' ssdbInfo                              :(END)
+SSdbReadEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbUpdate(ssNm,ssProj,datetime)hst,srt,ssHistArgs,ssHstFile,ssSrtFile,sshist')
+                                                                                             :(SSdbUpdateEnd)
+SSdbUpdate  OUTPUT            =     datetime() '   ' 'Updating SS History for ' ssNm ' "' ssProj '".'
+            ssHstFile         =     'sshist-' ssNm '-' river '-hst.txt'
+            ssSrtFile         =     'sshist-' ssNm '-' river '-srt.txt'
+            ssHistArgs        =     ssNm ' "' ssProj '"'
+            ssCmd             =     exe['sshist'] ' ' ssHistArgs
+            OUTPUT(.hst, 3, ssHstFile)                                                       :f(ioerr)
+            INPUT(.sshist, 4, '!!' ssCmd)                                                    :f(cmderr)
+SSdbUpdate2 hst               =     sshist                                                   :s(SSdbUpdate2)
+            ENDFILE(4)
+            ENDFILE(3)
+            ssCmd             =     exe['sort'] ' -r -o "' ssSrtFile '"'
+            INPUT(.hst, 3, ssHstFile)                                                        :f(ioerr)
+            OUTPUT(.srt, 4, '!!' ssCmd)                                                      :f(cmderr)
+SSdbUpdate6 srt               =     hst                                                      :s(SSdbUpdate6)
+            ENDFILE(4)
+            ENDFILE(3)
+            system('mv', '-f "' ssSrtFile '" "' ssHstFile '"')                               :(RETURN)
+SSdbUpdateEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbUpdt()currentTime,iniTbl')                                           :(SSdbUpdtEnd)
+SSdbUpdt    iniTbl            =     IniRead('ssdb.ini')
+            iniTbl            =     IDENT(iniTbl) TABLE()
+            iniTbl[river]     =     IDENT(iniTbl[river]) TABLE()
+            DIFFER(iniTbl[river]['LastUpdatedTime'])                                         :f(SSdbUpdt2)
+            LGT(u, iniTbl[river]['LastUpdatedTime'])                                         :f(RETURN)
+SSdbUpdt2   currentTime       =     datetime()
+            SSdbUpdate(bldSSdb, bldSSRootProj)
+            OUTPUT            =     datetime() '   ' 'Finished SS database processing.'
+            iniTbl[river]['PreviousDateTime'] = iniTbl[river]['CurrentDateTime']
+            iniTbl[river]['CurrentDateTime']  = u
+            iniTbl[river]['LastUpdatedTime']  = currentTime
+            IniWrite('ssdb.ini', iniTbl)                                                     :(RETURN)
+SSdbUpdtEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbVant()'
++              'curDateTime,ejct,i,info,iniTbl,j,nm,missTbl,preDateTime,rptArr,rptTbl,'
++              'ssdb,ssdbAction,ssdbArr,ssdbComment,ssdbDate,ssdbTbl,uid,'
++              'unknTbl,value,vantArr,vantTbl,ver,verMax,verTbl,vid,vidArr,vidTbl'
++           )
+            ssdbNumPat        =     SPAN('0123456789') $ vid *INTEGER(vid) *GT(vid, 6298) *LT(vid, 10000000)
+            ssdbVantPat       =     (  POS(0)
++                                   |  (  ('V' | 'v')
++                                         (icase('antive') ('(s)' | 's' (':' | epsilon) | '#' | epsilon) | epsilon)
++                                         ((SPAN(' ') '-') | epsilon)
++                                      )
++                                   |  ('C' | ('V' | 'v') '.' | icase('VE') | icase('RQ') | icase('VD') | '#')
++                                   )
++                                   epsilon . *assign(.vidTbl, *TABLE())
++                                   *ssdbVantNsPat
+            ssdbVantNsPat     =     *ssdbVantNPat
++                                   (  (SPAN(' ') | epsilon)
++                                      (ANY('&,') | 'and' | epsilon)
++                                      *ssdbVantNsPat
++                                   |  epsilon
++                                   )
+            ssdbVantNPat      =     (SPAN(' ') | epsilon)
++                                   ('V' | 'v' | epsilon)
++                                   ('#' | epsilon)
++                                   (SPAN(' ') | epsilon)
++                                   SPAN('0123456789') . vid
++                                   epsilon . *assign(.vidTbl[vid], *1)
+                                                                                             :(SSdbVantEnd)
+SSdbVant    iniTbl            =     IniRead('ssdb.ini')
+            iniTbl            =     IDENT(iniTbl) TABLE()
+            iniTbl[river]     =     IDENT(iniTbl[river]) TABLE()
+            preDateTime       =     iniTbl[river]['PreviousDateTime']
+            curDateTime       =     iniTbl[river]['CurrentDateTime']
+            ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssdbArr           =     DIFFER(ssdbTbl) SORT(ssdbTbl, 1)                         :f(xerr)
+            i                 =     0
+SSdbVant01  i                 =     i + 1
+            verTbl            =     ssdbArr[i, 2]                                            :f(SSdbVant20)
+            verMax            =     verTbl[0]
+            ver               =     0
+SSdbVant02  ver               =     LT(ver, verMax) ver + 1                                  :f(SSdbVant01)
+            ssdb              =     DIFFER(verTbl[ver]) verTbl[ver]                          :f(SSdbVant02)
+            nm                =     ssdb_nm(ssdb)
+            ssdbDate          =     ssdb_date(ssdb) ':00'
+            uid               =     ssdb_userid(ssdb)
+            ssdbComment       =     ssdb_comment(ssdb)
+            (LGT(ssdbDate, preDateTime) LLE(ssdbDate, curDateTime))                          :f(SSdbVant02)
+            ssdbComment       POS(0) (SPAN(' ') | epsilon) RPOS(0)                           :s(SSdbVant10)
+            ssdbComment       ssdbVantPat =                                                  :s(SSdbVant15)
+            ssdbComment       ssdbNumPat                                                     :s(SSdbVant05)f(SSdbVant10)
+SSdbVant05  unknTbl           =     IDENT(unknTbl) TABLE()
+            unknTbl[nm]       =     unknTbl[nm] ssdb_comment(ssdb) nl                        :(SSdbVant02)
+SSdbVant10  missTbl           =     IDENT(missTbl) TABLE()
+            missTbl[uid]      =     missTbl[uid] nm nl                                       :(SSdbVant02)
+SSdbVant15  vidArr            =     DIFFER(vidTbl) SORT(vidTbl, 1)                           :f(xerr)
+            j                 =     0
+SSdbVant17  j                 =     j + 1
+            vid               =     vidArr[j, 1]                                             :f(SSdbVant19)
+            vid               POS(0) ssdbNumPat RPOS(0)                                      :f(SSdbVant17)
+            vantTbl           =     IDENT(vantTbl) TABLE()
+            vantTbl[+vid]     =     vantTbl[+vid] nm nl                                      :(SSdbVant17)
+SSdbVant19  ssdbComment       ssdbNumPat                                                     :s(SSdbVant05)f(SSdbVant02)
+SSdbVant20  OUTPUT            =     "Vantive Summary Report:"
+            vantArr           =     DIFFER(vantTbl) SORT(vantTbl, 1)                         :f(SSdbVant31)
+            info              =
+            i                 =     0
+SSdbVant25  i                 =     i + 1
+            nm                =     vantArr[i, 1]                                            :f(SSdbVant30)
+            value             =     vantArr[i, 2]
+            ejct              =     REMDR(i - 1, 5)
+            OUTPUT            =     '     ' EQ(ejct, 0) info
+            info              =     EQ(ejct, 0) LPAD(nm, 8)
+            info              =     NE(ejct, 0) info ' ' LPAD(nm, 8)                         :(SSdbVant25)
+SSdbVant30  OUTPUT            =     '     ' info
+SSdbVant31  OUTPUT            =
+            i                 =     0
+SSdbVant35  i                 =     LT(i, 3) i + 1                                           :f(RETURN)
+            OUTPUT            =     EQ(i, 1) "Vantive Detail Report:"
+            OUTPUT            =     EQ(i, 2) "Source Safe files which users entered comment without vantive:"
+            OUTPUT            =     EQ(i, 3) "Source Safe files with unrecognized comment:"
+            OUTPUT            =
+            rptTbl            =     EQ(i, 1) vantTbl
+            rptTbl            =     EQ(i, 2) missTbl
+            rptTbl            =     EQ(i, 3) unknTbl
+            rptArr            =     DIFFER(rptTbl) SORT(rptTbl, 1)                           :f(SSdbVant35)
+            j                 =     0
+SSdbVant40  j                 =     j + 1
+            nm                =     rptArr[j, 1]                                             :f(SSdbVant50)
+            value             =     rptArr[j, 2]
+SSdbVant45  value             POS(0) BREAK(nl) . info nl =                                   :f(SSdbVant40)
+            OUTPUT            =     '     ' IDENT(nm, info) info                             :s(SSdbVant45)
+            OUTPUT            =     '     ' EQ(i, 1) LPAD(nm, 10) ': ' info                  :s(SSdbVant45)
+            OUTPUT            =     '     ' EQ(i, 2) RPAD(nm ':', 9) ' ' info                :s(SSdbVant45)
+            OUTPUT            =     '     ' EQ(i, 3) RPAD(nm ':', 64) ' ' info               :(SSdbVant45)
+SSdbVant50  OUTPUT            =                                                              :(SSdbVant35)
+SSdbVantEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DEFINE('SSdbVer(filename,version)ssdbTbl,ssLNm,verTbl,ver,ssdb')                 :(SSdbVerEnd)
+SSdbVer     ssdbTbl           =     SSdbRead(bldSSdb, bldSSRootProj)
+            ssLNm             =     bldSSRootProj '/' lwr(filename)
+            verTbl            =     DIFFER(ssdbTbl[ssLNm]) ssdbTbl[ssLNm]                    :f(SSdbVer9)
+            ver               =     (IDENT(version) DIFFER(verTbl[0])) verTbl[0]
+            ver               =     DIFFER(version) +version
+            ssdb              =     DIFFER(version) verTbl[ver]
+            OUTPUT            =     DIFFER(version) ssdb_comment(ssdb)                       :s(RETURN)
+            OUTPUT            =     ver                                                      :(RETURN)
+SSdbVer9    OUTPUT            =     'File "' filename '" not found.'                         :(FRETURN)
+SSdbVerEnd
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+here        c                 =
+            f                 =     0
+            l                 =     0
+            r                 =
+            v                 =     0
+            w                 =
+            u                 =
+            d                 =
+            EXIT(3, 'ssdb.exe')
+            Utility()
+            argPos            =     HOST(3)
+            river             =     HOST(2, argPos)                                          :f(usage)
+            bld               =     DIFFER(build[river]) build[river]                        :f(usage)
+            bldSSdb           =     bld_ss_db(bld)
+            bldSSRootProj     =     bld_ss_root_proj(bld)
+arg1        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :f(arg3)
+            arg               POS(0) '-' 'f' . *assign(.f, *1) RPOS(0)                       :s(arg1)
+            arg               POS(0) '-' 'l' . *assign(.l, *1) RPOS(0)                       :s(arg1)
+            arg               POS(0) '-' 'v' . *assign(.v, *1) RPOS(0)                       :s(arg1)
+            arg               POS(0) '-' 'c' . opt RPOS(0)                                   :s(arg2)
+            arg               POS(0) '-' 'd' . opt RPOS(0)                                   :s(arg2)
+            arg               POS(0) '-' 'r' . opt RPOS(0)                                   :s(arg2)
+            arg               POS(0) '-' 'u' . opt RPOS(0)                                   :s(arg2)
+            arg               POS(0) '-' 'w' . opt RPOS(0)                                   :s(arg2)
+arg2        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :f(usage)
+            arg               POS(0) '-'                                                     :s(usage)
+            arg               POS(0) RPOS(0)                                                 :s(usage)
+            arg               POS(0) ARB . $opt RPOS(0)                                      :(arg1)
+arg3        (DIFFER(c) EQ(f, 0) EQ(l, 0) IDENT(u) EQ(v, 0) IDENT(w))                         :s(mainCmnt)
+            (EQ(f, 1) DIFFER(d))                                                             :s(mainRange)
+            (EQ(l, 1) DIFFER(d))                                                             :s(mainRange)
+            (EQ(f, 1)  IDENT(c) EQ(l, 0) IDENT(u) EQ(v, 0) IDENT(w))                         :s(mainFile)
+            (EQ(l, 1)  IDENT(c) EQ(f, 0) IDENT(u) EQ(v, 0) IDENT(w))                         :s(mainList)
+            (DIFFER(u) IDENT(c) EQ(f, 0) EQ(l, 0) EQ(v, 0) IDENT(w))                         :s(mainUpdt)
+            (EQ(v, 1)  IDENT(c) EQ(f, 0) EQ(l, 0) IDENT(u) IDENT(w))                         :s(mainVant)
+            (DIFFER(c) DIFFER(w))                                                            :s(mainVer0)
+            (IDENT(c) DIFFER(r))                                                             :s(mainVer1)
+                                                                                             :(usage)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+mainCmnt    SSdbCmnt(c)                                                                      :(END)
+mainRange   SSdbRange(d)                                                                     :(END)
+mainFile    SSdbFiles()                                                                      :(END)
+mainList    SSdbList()                                                                       :(END)
+mainUpdt    SSdbUpdt()                                                                       :(END)
+mainVant    SSdbVant()                                                                       :(END)
+mainVer0    SSdbVer(c,w)                                                                     :(END)
+mainVer1    SSdbVer(r)                                                                       :(END)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+usage       OUTPUT            =     'usage: ssdb <river> { -u <date> | -v | -f | -l | -c <file> }' :(END)
+ioerr       OUTPUT            =     'i/o error: ' ssHstFile                                        :(END)
+cmderr      OUTPUT            =     'command error: ' ssCmd                                        :(END)
+*-INCLUDE 'debug.sno'
+END

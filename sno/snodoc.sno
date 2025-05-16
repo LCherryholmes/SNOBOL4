@@ -1,0 +1,19 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            Utility()
+            findResult        =     system('@-find', '. ( -name "*.sno" -o -name "*.inc" ) -print')
+main05      findResult        POS(0) BREAK(nl) . findFile nl =                         :f(main30)
+            INPUT(.snoInput, 3, findFile)                                              :f(ioerr)
+main10      snoLine           =     snoInput                                           :f(main25)
+            snoLine           POS(0) "* BEGIN('" BREAK("'") . docFile "')"             :f(main10)
+            OUTPUT(.docOutput, 4, docFile)                                             :f(ioerr)
+main15      snoLine           =     snoInput                                           :f(xerr)
+            snoLine           POS(0) "* END()"                                         :s(main20)
+            snoLine           POS(0) "* " =
+            docOutput         =     snoLine                                            :(main15)
+main20      ENDFILE(4)                                                                 :(main10)
+main25      ENDFILE(3)                                                                 :(main05)
+main30                                                                                 :(END)
+END

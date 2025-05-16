@@ -1,0 +1,16 @@
+            EOL                                 =  nl
+            PLUS                                =  '+'
+            MINUS                               =  '-'
+            MULTIPLY                            =  '*'
+            DIVIDE                              =  '/'
+            EXP                                 =  '**'
+            CONSTANT                            =  *FLOAT | *FLOAT !(ANY('eE') !(ANY('-+')) *INTEGER)
+            FLOAT                               =  *INTEGER | *INTEGER !('.' *INTEGER) | '.' *INTEGER
+            INTEGER                             =  %*DIGIT
+            DIGIT                               =  ANY('0123456789')
+            one_line                            =  *sum *EOL | *EOL | $' ' RPOS(0)
+            sum                                 =  *term !%((*PLUS | *MINUS) *term)
+            term                                =  *exp !%((*MULTIPLY | *DIVIDE) *exp)
+            exp                                 =  *unary !%(*EXP *exp)
+            unary                               =  *MINUS *element | *element
+            element                             =  *CONSTANT | $'(' *sum $')'

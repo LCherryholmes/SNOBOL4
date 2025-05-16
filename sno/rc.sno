@@ -1,0 +1,950 @@
+*-------------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE  'build.inc'
+          &TRIM          =    1
+          &MAXLNGTH      =    524288
+          &FULLSCAN      =    1
+          &DUMP          =    1
+          dodebug        =    0
+
+          digit          =    '0123456789'
+          xdigit         =    '0123456789ABCDEFabcdef'
+          uc             =    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+          lc             =    'abcdefghijklmnopqrstuvwxyz'
+
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('MAKEINTRESOURCE(MAKEINTRESOURCE)')
+          DEFINE('MAKELONG(A,B)')
+          DEFINE('RGB(R,G,B)')
+          DEFINE('sizeof(sizeof)')                                      :(mfunction_end)
+MAKEINTRESOURCE                                                         :(RETURN)
+MAKELONG         MAKELONG = (65536 * B) + A                             :(RETURN)
+RGB              RGB      = (65536 * B) + (256 * G) + R                 :(RETURN)
+sizeof                                                                  :(RETURN)
+mfunction_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('xdigest(xdigest)xdigits')                             :(xdigest_end)
+xdigest   xdigest        '0x'
++                        SPAN(xdigit) . xdigits
++                        ('L' | '')
++                        =    base10(upr(xdigits), 16)                  :S(xdigest)
+xdigest_1 xdigest        '\' nl = ' '                                   :S(xdigest_1)
+xdigest_2 xdigest        '|' = '+'                                      :S(xdigest_2)
+xdigest_3 xdigest        NOTANY(' ') . x1 '+' = x1  ' ' '+'             :S(xdigest_3)
+xdigest_4 xdigest        '+' NOTANY(' ') . x1 = '+' ' ' x1              :S(xdigest_4)
+                                                                        :(RETURN)
+xdigest_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('asgn(var,val)')                                       :(asgn_end)
+asgn      asgn           =    .dummy
+          var            =    upr(var)
+asgn_0    val            '\' nl = ' '                                   :S(asgn_0)
+asgn_1    val            ' ' SPAN(' ') = ' '                            :S(asgn_1)
+          $var           =    EVAL(xdigest(val))                        :F(asgn_2)
+          val            POS(0) '"'                                     :S(NRETURN)
+          gen(  rpad('"' filename '"', 18)
++               ' ' rpad('"' inclname '"', 18)
++               ' ' lpad($var, 11)
++               ' ' rpad(var, 48)
++               ' ' val nl
++            )
+                                                                        :(NRETURN)
+asgn_2    OUTPUT         =    'Failed EVAL(' val ')'                    :(NRETURN)
+asgn_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('base10(n,b)t')
+          baseb_alpha    =    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'    :(base10_end)
+base10    n              LEN(1) . t  =                                  :F(RETURN)
+          baseb_alpha    BREAK(*t) @t                                   :F(error)
+          base10         =    (base10 * b) + t                          :(base10)
+base10_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('cstring(str)chr')                                     :(cstring_end)
+cstring   cstring        =
+cstring0  IDENT(str)                                                    :S(RETURN)
+          str            POS(0) '"' =                                   :S(cstring1)
+          str            POS(0) '\' =                                   :S(cstring2)
+          str            POS(0) LEN(1) . chr =                          :S(cstring3)F(error)
+cstring1  cstring        =    cstring '\"'                              :(cstring0)
+cstring2  cstring        =    cstring '\\'                              :(cstring0)
+cstring3  cstring        =    cstring chr                               :(cstring0)
+cstring_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('debug(lvl,str)')                                      :(debug_end)
+debug     debug          =    .dummy
+          IDENT(dodebug)                                                :S(NRETURN)
+          GT(lvl,dodebug)                                               :S(NRETURN)
+          OUTPUT         =    str                                       :(NRETURN)
+debug_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('xdialog(var)filenames')
+          dialogs        =    TABLE()                                   :(xdialog_end)
+xdialog   xdialog        =    .dummy
+          dialogs[$var]  var '(' ARB . filenames ')'
++                        =    var '(' filenames
++                             ', "' filename '":"' inclname '")'        :S(NRETURN)
+          dialogs[$var]  =    dialogs[$var]
++                             var '("' filename '":"' inclname '")'     :(NRETURN)
+xdialog_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('xstring(var)filenames')
+          strings        =    TABLE()                                   :(xstring_end)
+xstring   xstring        =    .dummy
+          strings[$var]  var '(' ARB . filenames ')'
++                        =    var '(' filenames
++                             ', "' filename '":"' inclname '")'        :S(NRETURN)
+          strings[$var]  =    strings[$var]
++                             var '("' filename '":"' inclname '")'     :(NRETURN)
+xstring_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('enter(var,val)')                                      :(enter_end)
+enter     enter          =    .dummy
+          dict           =    $dictionary
+          IDENT(val,'LOAD')   IDENT(dict[var])                          :S(enter1)F(enter2)
+enter1
+*         OUTPUT         =    '*** ' var
+enter2    dict[var]      =    1                                         :(NRETURN)
+enter_end
+*-------- ------------------------------------------------------------- -----------------
+-INCLUDE 'Gen.inc'
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('gendict()dict,dictarr,i')                             :(gendict_end)
+gendict   gendict        =    .dummy
+          dict           =    $dictionary
+          dictarr        =    SORT(CONVERT(dict, 'ARRAY'))              :F(NRETURN)
+          i              =    1
+gendic1   gen('Var ' dictarr[i, 1] ';' nl)                              :F(gendic2)
+          i              =    i + 1                                     :S(gendic1)
+gendic2   gen(nl)                                                       :(NRETURN)
+gendict_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('keyword(x)')
+          keyid          =    ANY(uc lc '_') (SPAN(uc lc '_' digit) | '') :(keyword_end)
+keyword   keyword        =    .dummy
+          x                   POS(0)
++                             (  'break'
++                             |  'case'
++                             |  'continue'
++                             |  'default'
++                             |  'do'
++                             |  'else'
++                             |  'exec'
++                             |  'for'
++                             |  'goto'
++                             |  'if'
++                             |  'return'
++                             |  'sizeof'
++                             |  'switch'
++                             |  'while'
++                             |  'BEGIN'
++                             |  'END'
++                             )
++                             RPOS(0)                                   :S(FRETURN)
+          x              POS(0) *keyid RPOS(0)                          :S(NRETURN)F(FRETURN)
+                                                                        :(NRETURN)
+keyword_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('max(max,x)')                                          :(max_end)
+max       max            =    LT(max, x) x                              :(RETURN)
+max_end
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('min(min,x)')                                          :(min_end)
+min       min            =    GT(min, x) x                              :(RETURN)
+min_end
+*-------- ------------------------------------------------------------- -----------------
+-INCLUDE 'case.inc'
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('push(x)')
+          DEFINE('pop(var)')
+          DEFINE('top()')
+          DATA('link(next,value)')                                      :(stack_end)
+push      stack          =    link(stack, x)
+*         OUTPUT         =    'push(' x ')'
+          push           =    .value(stack)                             :(NRETURN)
+pop       IDENT(stack)                                                  :S(FRETURN)
+          DIFFER(var)                                                   :S(pop_1)
+          pop            =    value(stack)
+*         OUTPUT         =    'pop() = ' pop
+          stack          =    next(stack)                               :(RETURN)
+pop_1     pop            =    .dummy
+          var            =    upr(var)
+          $var           =    value(stack)
+*         OUTPUT         =    'pop() = ' $var
+          stack          =    next(stack)                               :(NRETURN)
+top       IDENT(stack)                                                  :S(FRETURN)
+          top            =    .value(stack)
+*         OUTPUT         =    'top() = ' top
+                                                                        :(NRETURN)
+stack_end
+*-------- ------------------------------------------------------------- -----------------
+          &ALPHABET      POS(9)  LEN(1) . tab
+          &ALPHABET      POS(10) LEN(1) . nl
+
+          space          =    '' $ *debug(4, "%space")
++                        (
++                             SPAN(' ' tab nl)
++                        |    ('//' BREAK(nl) nl)
++                        |    ('/*' ARB '*/')
++                        )
++                        $ tz $ *debug(4, "space " tz)
+
+          mspace         =    SPAN(' ' tab)                  $ tz $ *debug(4, "mspace " tz)
++                        |    ('\' nl)                       $ tz $ *debug(4, "mspace " tz)
++                        |    ('//' BREAK(nl))               $ tz $ *debug(4, "mspace " tz)
++                        |    ('/*' ARB '*/')                $ tz $ *debug(4, "mspace " tz)
+
+          comment        =
++                             ('//' BREAK(nl) nl)            $ tz $ *debug(4, "comment " tz)
+
+          spaces         =    *space (*spaces | '')
+          mspaces        =    *mspace (*mspaces | '')
+          comments       =    *comment (*comments | '')
+
+          $' '           =    ARBNO(space)
+          $'  '          =    (*mspaces | '')
+
+          ident          =    '' $ *debug(4, "%ident")
++                        (
++                             SPAN(uc lc '_' digit) $ id $ *keyword(id) . id
++                        )
++                        $ tz $ *debug(4, "ident " tz)
+
+          string         =    '' $ *debug(4, "%string")
++                        (
++                             ('"' ARBNO(BREAK('"' nl) '""' | BREAK('"' nl)) '"') $ sconst . sconst
++                        )
++                        $ tz $ *debug(4, "string " tz)
+
+          integer        =
++                        (
++                             '0x'       SPAN(digit 'AaBbCcDdEeFf') ('L' | '')
++                        |    ('-' | '') SPAN(digit)                ('L' | '')
++                        ) . iconst
++                        $ tz $ *debug(4, "integer " tz)
+
+          C_CONST        =    ("'" LEN(1) "'")      . cconst
++                        $ tz $ *debug(4, "C_CONST " tz)
+
+          V_CONST        =    ("'" ARBNO("''" | NOTANY("'" nl)) "'") . vconst
++                        $ tz $ *debug(4, "V_CONST " tz)
+
+          constant       =    '' $ *debug(4, "%constant")
++                        (    C_CONST
++                        |    *integer
++                        |    *string
++                        )
++                        $ tz $ *debug(4, "constant " tz)
+
+          $'!'           =    $'  ' '!'                 $ tz $ *debug(4, tz)
+          $'!='          =    $'  ' '!='                $ tz $ *debug(4, tz)
+          $'^'           =    $'  ' '^'                 $ tz $ *debug(4, tz)
+          $'%'           =    $'  ' '%'                 $ tz $ *debug(4, tz)
+          $'%='          =    $'  ' '%='                $ tz $ *debug(4, tz)
+          $'&&'          =    $'  ' '&&'                $ tz $ *debug(4, tz)
+          $'&'           =    $'  ' '&'                 $ tz $ *debug(4, tz)
+          $'('           =    $'  ' '('                 $ tz $ *debug(4, tz)
+          $'(+)'         =    $'  ' '(+)'               $ tz $ *debug(4, tz)
+          $')'           =    $'  ' ')'                 $ tz $ *debug(4, tz)
+          $'*'           =    $'  ' '*'                 $ tz $ *debug(4, tz)
+          $'*='          =    $'  ' '*='                $ tz $ *debug(4, tz)
+          $'+'           =    $'  ' '+'                 $ tz $ *debug(4, tz)
+          $'++'          =    $'  ' '++'                $ tz $ *debug(4, tz)
+          $'+='          =    $'  ' '+='                $ tz $ *debug(4, tz)
+          $','           =    $'  ' ','                 $ tz $ *debug(4, tz)
+          $'-'           =    $'  ' '-'                 $ tz $ *debug(4, tz)
+          $'--'          =    $'  ' '--'                $ tz $ *debug(4, tz)
+          $'-='          =    $'  ' '-='                $ tz $ *debug(4, tz)
+          $'.'           =    $'  ' '.'                 $ tz $ *debug(4, tz)
+          $'/'           =    $'  ' '/'                 $ tz $ *debug(4, tz)
+          $'/='          =    $'  ' '/='                $ tz $ *debug(4, tz)
+          $':'           =    $'  ' ':'                 $ tz $ *debug(4, tz)
+          $';'           =    $'  ' ';'                 $ tz $ *debug(4, tz)
+          $'<'           =    $'  ' '<'                 $ tz $ *debug(4, tz)
+          $'<='          =    $'  ' '<='                $ tz $ *debug(4, tz)
+          $'<<'          =    $'  ' '<<'                $ tz $ *debug(4, tz)
+          $'##'          =    $'  ' '##'                $ tz $ *debug(4, tz)
+          $'='           =    $'  ' '='                 $ tz $ *debug(4, tz)
+          $'=='          =    $'  ' '=='                $ tz $ *debug(4, tz)
+          $'>'           =    $'  ' '>'                 $ tz $ *debug(4, tz)
+          $'>='          =    $'  ' '>='                $ tz $ *debug(4, tz)
+          $'['           =    $'  ' '['                 $ tz $ *debug(4, tz)
+          $']'           =    $'  ' ']'                 $ tz $ *debug(4, tz)
+          $'|'           =    $'  ' '|'                 $ tz $ *debug(4, tz)
+          $'||'          =    $'  ' '||'                $ tz $ *debug(4, tz)
+          $'~'           =    $'  ' '~'                 $ tz $ *debug(4, tz)
+
+          $'{'           =    $' ' '{'                  $ tz $ *debug(4, tz)
+          $'}'           =    $' ' '}'                  $ tz $ *debug(4, tz)
+
+          ACCELERATORS   =    'ACCELERATORS'            $ tz $ *debug(4, tz)
+          BEGIN          =    'BEGIN'                   $ tz $ *debug(4, tz)
+          BITMAP         =    'BITMAP'                  $ tz $ *debug(4, tz)
+          CAPTION        =    'CAPTION'                 $ tz $ *debug(4, tz)
+          CURSOR         =    'CURSOR'                  $ tz $ *debug(4, tz)
+          DESIGNINFO     =    'DESIGNINFO'              $ tz $ *debug(4, tz)
+          DIALOG         =    'DIALOG'                  $ tz $ *debug(4, tz)
+          DIALOGEX       =    'DIALOGEX'                $ tz $ *debug(4, tz)
+          DISCARDABLE    =    'DISCARDABLE'             $ tz $ *debug(4, tz)
+          DLGINIT        =    'DLGINIT'                 $ tz $ *debug(4, tz)
+          END            =    'END'                     $ tz $ *debug(4, tz)
+          EXSTYLE        =    'EXSTYLE'                 $ tz $ *debug(4, tz)
+          FILEFLAGS      =    'FILEFLAGS'               $ tz $ *debug(4, tz)
+          FILEFLAGSMASK  =    'FILEFLAGSMASK'           $ tz $ *debug(4, tz)
+          FILEOS         =    'FILEOS'                  $ tz $ *debug(4, tz)
+          FILESUBTYPE    =    'FILESUBTYPE'             $ tz $ *debug(4, tz)
+          FILETYPE       =    'FILETYPE'                $ tz $ *debug(4, tz)
+          FILEVERSION    =    'FILEVERSION'             $ tz $ *debug(4, tz)
+          FONT           =    'FONT'                    $ tz $ *debug(4, tz)
+          ICON           =    'ICON'                    $ tz $ *debug(4, tz)
+          LANGUAGE       =    'LANGUAGE'                $ tz $ *debug(4, tz)
+          LOADONCALL     =    'LOADONCALL'              $ tz $ *debug(4, tz)
+          MENU           =    'MENU'                    $ tz $ *debug(4, tz)
+          MOVEABLE       =    'MOVEABLE'                $ tz $ *debug(4, tz)
+          PRELOAD        =    'PRELOAD'                 $ tz $ *debug(4, tz)
+          PRODUCTVERSION =    'PRODUCTVERSION'          $ tz $ *debug(4, tz)
+          PURE           =    'PURE'                    $ tz $ *debug(4, tz)
+          RT_HGRID       =    'RT_HGRID'                $ tz $ *debug(4, tz)
+          STRINGTABLE    =    'STRINGTABLE'             $ tz $ *debug(4, tz)
+          STYLE          =    'STYLE'                   $ tz $ *debug(4, tz)
+          TEXTINCLUDE    =    'TEXTINCLUDE'             $ tz $ *debug(4, tz)
+          TOOLBAR        =    'TOOLBAR'                 $ tz $ *debug(4, tz)
+          TYPELIB        =    'TYPELIB'                 $ tz $ *debug(4, tz)
+          VERSIONINFO    =    'VERSIONINFO'             $ tz $ *debug(4, tz)
+          extern         =    'extern'                  $ tz $ *debug(4, tz)
+          struct         =    'struct'                  $ tz $ *debug(4, tz)
+          typedef        =    'typedef'                 $ tz $ *debug(4, tz)
+
+*   ----------------------------------------------------------------------------------------------------
+*         RC grammar
+*   ----------------------------------------------------------------------------------------------------
+
+          compiland      =    POS(0)
++                             ARBNO($' ' *stmt)
++                             $' ' RPOS(0)
+
+          stmt           =    '' $ *debug(1, "%stmt")
++                        (    *define_stmt
++                        |    *error_stmt
++                        |    *include_stmt
++                        |    *pragma_stmt
++                        |    *undef_stmt
++                        |    *stmt_300
++                        |    *accelr8rs_stmt
++                        |    *bitmap_stmt
++                        |    *cursor_stmt
++                        |    *design_stmt
++                        |    *dialog_stmt
++                        |    *dlginit_stmt
++                        |    *icon_stmt
++                        |    *language_stmt
++                        |    *menu_stmt
++                        |    *rt_hgrid_stmt
++                        |    *stringtbl_stmt
++                        |    *textincl_stmt
++                        |    *toolbar_stmt
++                        |    *typelib_stmt
++                        |    *version_stmt
++                        |    *if_block
++                        |    *c_stmt
++                        ) FENCE
++                        $ tz $ *debug(1, "stmt " tz)
+
+
+          define_stmt    =    '' $ *debug(1, "%define_stmt")
++                        (
++                             '#' $'  ' 'define' $'  '
++                             (  *ident '('            $')' BREAK(nl)
++                             |  *ident '(' *args_list $')' BREAK(nl)
++                             |  *ident . *push()
++                                (  $'  ' *expr . x  auto . *asgn(pop(), x)
++                                |  ''               auto . *asgn(pop(), '')
++                                )
++                             )
++                             $'  ' nl
++                        )
++                        $ tz $ *debug(1, "define_stmt " tz)
+
+          error_stmt     =    '' $ *debug(1, "%error_stmt")
++                        (
++                             '#' $'  ' 'error' $'  ' BREAK(nl) nl
++                        )
++                        $ tz $ *debug(1, "error_stmt " tz)
+
+          include_stmt   =    '' $ *debug(1, "%include_stmt")
++                        (
++                             '#' $'  ' 'include'
++                             $'  '
++                             (  '"' ARB . incfile '"'
++                             |  '<' ARB . incfile '>'
++                             )
++                             $'  ' nl                auto . *incl(incfile)
++                        )
++                        $ tz $ *debug(1, "include_stmt " tz)
+
+          pragma_stmt    =    '' $ *debug(1, "%pragma_stmt")
++                        (
++                             '#' $'  ' 'pragma' $'  ' BREAK(nl) nl
++                        )
++                        $ tz $ *debug(1, "pragma_stmt " tz)
+
+          undef_stmt     =    '' $ *debug(1, "%undef_stmt")
++                        (
++                             '#' $'  ' 'undef' $'  ' BREAK(nl) nl
++                        )
++                        $ tz $ *debug(1, "undef_stmt " tz)
+
+          if_stmt        =    '' $ *debug(1, "%if_stmt")
++                        (
++                             '#' $'  ' 'if'     $'  ' *expr  $'  ' nl
++                        |    '#' $'  ' 'ifdef'  $'  ' *ident $'  ' nl
++                        |    '#' $'  ' 'ifndef' $'  ' *ident $'  ' nl
++                        )
++                        $ tz $ *debug(1, "if_stmt " tz)
+
+          elif_stmt      =    '' $ *debug(1, "%elif_stmt")
++                        (
++                             '#' $'  ' 'elif' $'  ' *expr $' ' nl
++                        )
++                        $ tz $ *debug(1, "elif_stmt " tz)
+
+          else_stmt      =    '' $ *debug(1, "%else_stmt")
++                        (
++                             '#' $'  ' 'else' $'  ' nl
++                        )
++                        $ tz $ *debug(1, "else_stmt " tz)
+
+          endif_stmt     =    '' $ *debug(1, "%endif_stmt")
++                        (
++                             '#' $'  ' 'endif' $'  ' nl
++                        )
++                        $ tz $ *debug(1, "endif_stmt " tz)
+
+          elif_block     =    '' $ *debug(1, "%elif_block")
++                        (
++                             *elif_stmt
++                             ARBNO(*stmt)
++                        )
++                        $ tz $ *debug(1, "elif_block " tz)
+
+          else_block     =    '' $ *debug(1, "%else_block")
++                        (
++                             *else_stmt
++                             ARBNO(*stmt)
++                        )
++                        $ tz $ *debug(1, "else_block " tz)
+
+          if_block       =    '' $ *debug(1, "%if_block")
++                        (
++                             *if_stmt
++                             ARBNO(*stmt)
++                             ARBNO($' ' *elif_block)
++                             ARBNO($' ' *else_block)
++                             ($' ' *endif_stmt | RPOS(0) FENCE  '' $ *gen('Error: Missing ENDIF' nl) FAIL)
++                        )
++                        $ tz $ *debug(1, "if_block " tz)
+
+
+          stmt_300       =    '' $ *debug(1, "%stmt_300")
++                        (
++                             *ident
++                             $' ' '300'
++                             ($' ' MOVEABLE | '')
++                             ($' ' PURE | '')
++                             ($' ' DISCARDABLE | '')
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "stmt_300 " tz)
+
+          accelr8rs_stmt =    '' $ *debug(1, "%accelr8rs_stmt")
++                        (
++                             *ident
++                             $' ' ACCELERATORS
++                             ($' ' PRELOAD | '')
++                             ($' ' MOVEABLE | '')
++                             ($' ' PURE | '')
++                             ($' ' DISCARDABLE | '')
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "accelr8rs_stmt " tz)
+
+          bitmap_stmt    =    '' $ *debug(1, "%bitmap_stmt")
++                        (
++                             (*ident | *integer)
++                             ('+' *integer '+' *integer | '')
++                             $' ' BITMAP
++                             ($' ' MOVEABLE | '')
++                             ($' ' PURE | '')
++                             ($' ' DISCARDABLE | '')
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "bitmap_stmt " tz)
+
+          c_stmt         =    '' $ *debug(1, "%c_stmt")
++                        (    extern $' ' '"C"' $'{'
++                        |    extern $' ' '"C"'
++                        |    extern                 ARBNO(*stuff) $' ' ';'
++                        |    struct                 ARBNO(*stuff) $' ' ';'
++                        |    typedef                ARBNO(*stuff) $' ' ';'
++                        |    '_CRTIMP'              ARBNO(*stuff) $' ' ';'
++                        |    'LPSTR'                ARBNO(*stuff) $' ' ';'
++                        |    *ident $' ' '__cdecl'  ARBNO(*stuff) $' ' ';'
++                        |    *ident $' ' 'APIENTRY' ARBNO(*stuff) $' ' ';'
++                        |    '}'
++                        )
++                        $ tz $ *debug(1, "c_stmt " tz)
+
+          cursor_stmt    =    '' $ *debug(1, "%cursor_stmt")
++                        (
++                             *ident
++                             $' ' CURSOR
++                             ($' ' DISCARDABLE | '')
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "cursor_stmt " tz)
+
+          design_stmt    =    '' $ *debug(1, "%design_stmt")
++                        (
++                             *ident
++                             $' ' DESIGNINFO
++                             ($' ' DISCARDABLE | '')
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "design_stmt " tz)
+
+          dialog_stmt    =    '' $ *debug(1, "%dialog_stmt")
++                        (
++                             *ident                      auto . *gen(  rpad('"' filename '"', 18)
++                                                                       ' ' rpad('"' inclname '"', 18)
++                                                                       ' ' lpad($id, 11)
++                                                                       ' // DIALOG(' id ')' nl
++                                                                    )
++                                                         auto . *xdialog(id)
++                             $' '
++                             (  DIALOGEX
++                             |  DIALOG
++                                ($' ' PRELOAD | '')
++                                ($' ' MOVEABLE | '')
++                                ($' ' DISCARDABLE | '')
++                             )
++                             $' ' *integer
++                             $' ' ',' $' ' *integer
++                             $' ' ',' $' ' *integer
++                             $' ' ',' $' ' *integer
++                             ARBNO(*dialog_clause)
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "dialog_stmt " tz)
+
+          dialog_clause  =    '' $ *debug(1, "%dialog_clause")
++                             $' '
++                        (    *if_stmt
++                        |    *else_stmt
++                        |    *elif_stmt
++                        |    *endif_stmt
++                        |    STYLE    $' ' *ident ARBNO($' ' '|' $' ' (*ident | *integer))
++                        |    EXSTYLE  $' ' *ident ARBNO($' ' '|' $' ' *ident)
++                        |    CAPTION  $' ' *string
++                        |    FONT     $' ' *integer
++                                      $' ' ',' $' ' *string
++                                      (  $' ' ',' $' ' *integer
++                                         $' ' ',' $' ' *integer
++                                         $' ' ',' $' ' *integer
++                                      |  ''
++                                      )
++                        |    *ident $' ' DIALOG BREAK(nl)
++                        )
++                        $ tz $ *debug(1, "dialog_clause " tz)
+
+          dlginit_stmt   =    '' $ *debug(1, "%dlginit_stmt")
++                        (
++                             (*ident | *integer '+' *integer)
++                             $' ' DLGINIT
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "dlginit_stmt " tz)
+
+          icon_stmt      =    '' $ *debug(1, "%icon_stmt")
++                        (
++                             *ident
++                             $' ' ICON
++                             ($' ' DISCARDABLE | '')
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "icon_stmt " tz)
+
+          language_stmt  =    '' $ *debug(1, "%language_stmt")
++                        (
++                             LANGUAGE $'  ' BREAK(nl) nl
++                        )
++                        $ tz $ *debug(1, "language_stmt " tz)
+
+          menu_stmt      =    '' $ *debug(1, "%menu_stmt")
++                        (
++                             *ident
++                             $' ' MENU
++                             ($' ' PRELOAD | '')
++                             ($' ' DISCARDABLE | '')
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "menu_stmt " tz)
+
+          rt_hgrid_stmt  =    '' $ *debug(1, "%rt_hgrid_stmt")
++                        (
++                             *ident
++                             $' ' RT_HGRID
++                             ($' ' MOVEABLE | '')
++                             ($' ' PURE | '')
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "rt_hgrid_stmt " tz)
+
+          stringtbl_stmt =    '' $ *debug(1, "%stringtbl_stmt")
++                        (
++                             STRINGTABLE
++                             ($' ' PRELOAD | '')
++                             ($' ' LOADONCALL | '')
++                             ($' ' DISCARDABLE | '')
++                             (  $' ' BEGIN ARBNO(*string_clause) $' ' END
++                             |       $'{'  ARBNO(*string_clause)      $'}'
++                             )
++                        )
++                        $ tz $ *debug(1, "stringtbl_stmt " tz)
+
+          string_clause  =    '' $ *debug(1, "%string_clause")
++                             $' '
++                        (    *if_stmt
++                        |    *else_stmt
++                        |    *elif_stmt
++                        |    *endif_stmt
++                        |    *ident                      auto . *gen(  rpad('"' filename '"', 18)
++                                                                       ' ' rpad('"' inclname '"', 18)
++                                                                       ' ' lpad($id, 11)
++                                                                       ' // STRING(' id ')' nl
++                                                                    )
++                                                         auto . *xstring(id)
++                             ($' ' ',' | '')
++                             $' ' *string
++                             ($' ' ';' | '')
++                        )
++                        $ tz $ *debug(1, "string_clause " tz)
+
+          textincl_stmt  =    '' $ *debug(1, "%textincl_stmt")
++                        (
++                             *integer
++                             $' ' TEXTINCLUDE
++                             $' ' *ident
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "textincl_stmt " tz)
+
+          toolbar_stmt   =    '' $ *debug(1, "%toolbar_stmt")
++                        (
++                             *ident ('+' *integer '+' *integer | '')
++                             $' ' TOOLBAR
++                             ($' ' DISCARDABLE | '')
++                             $' ' *integer
++                             $' ' ',' $' ' *integer
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "toolbar_stmt " tz)
+
+          typelib_stmt   =    '' $ *debug(1, "%typelib_stmt")
++                        (
++                             *integer
++                             $' ' TYPELIB
++                             $' ' *string
++                        )
++                        $ tz $ *debug(1, "typelib_stmt " tz)
+
+          version_stmt   =    '' $ *debug(1, "%version_stmt")
++                        (
++                             *ident
++                             $' ' VERSIONINFO
++                             $' ' FILEVERSION     $' '  (*integer | *ident) ARBNO(',' *integer)
++                             $' ' PRODUCTVERSION  $' '  (*integer | *ident) ARBNO(',' *integer)
++                             $' ' FILEFLAGSMASK   $' '  (*integer | *ident)
++                             (  $' ' FILEFLAGS    $' '  (*integer | *ident)
++                             |  $' ' '#ifdef'     $'  ' *ident
++                                $' ' FILEFLAGS    $' '  (*integer | *ident ARBNO('|' *ident))
++                                $' ' '#else'
++                                $' ' FILEFLAGS    $' '  (*integer | *ident ARBNO('|' *ident))
++                                $' ' '#endif'
++                             )
++                             $' ' FILEOS          $' '  (*integer | *ident)
++                             $' ' FILETYPE        $' '  (*integer | *ident)
++                             $' ' FILESUBTYPE     $' '  (*integer | *ident)
++                             $' ' *begin_block
++                        )
++                        $ tz $ *debug(1, "version_stmt " tz)
+
+          begin_block    =    '' $ *debug(1, "%begin_block")
++                        (    BEGIN                     $' ' END
++                        |    BEGIN ARBNO(*stuff | ';') $' ' END
++                        |    $'{'                           $'}'
++                        |    $'{'  ARBNO(*stuff | ';')      $'}'
++                        )
++                        $ tz $ *debug(1, "begin_block " tz)
+
+          stuff          =    '' $ *debug(1, "%stuff")
++                             $' '
++                        (    ','
++                        |    '('
++                        |    ')'
++                        |    '['
++                        |    ']'
++                        |    '|'
++                        |    '&'
++                        |    '-'
++                        |    '+'
++                        |    '>='
++                        |    '*'
++                        |    *ident
++                        |    *string
++                        |    *integer
++                        |    '#ifdef'
++                        |    '#else'
++                        |    '#endif'
++                        |    '#include'
++                        |    '#define'
++                        |    '#undef'
++                        |    BEGIN                     $' ' END
++                        |    BEGIN ARBNO(*stuff | ';') $' ' END
++                        |    $'{'                           $'}'
++                        |    $'{'  ARBNO(*stuff | ';')      $'}'
++                        ) FENCE
++                        $ tz $ *debug(1, "stuff " tz)
+
+          opt_expr       =    '' | *expr
+
+          expr_list      =    *expr ('' | $',' *expr_list)
+          args_list      =    *expr ('' | $',' *args_list)
+
+          expr           =    *expr1
+
+          expr1          =    '' $ *debug(3, "%expr1")
++                        (
++                             *expr2
++                             (  ''
++                             |  $'||' *expr1
++                             |  $'|'  *expr1
++                             |  $'&&' *expr1
++                             |  $'&'  *expr1
++                             )
++                        )
++                        $ tz $ *debug(3, "expr1 " tz)
+
+          expr2          =    '' $ *debug(3, "%expr2")
++                        (
++                             *expr3
++                             (  ''
++                             |  $'==' *expr2
++                             |  $'!=' *expr2
++                             |  $'<'  *expr2
++                             |  $'>'  *expr2
++                             |  $'<=' *expr2
++                             |  $'>=' *expr2
++                             )
++                        )
++                        $ tz $ *debug(3, "expr2 " tz)
+
+          expr3          =    '' $ *debug(3, "%expr3")
++                        (
++                             *expr4
++                             (  ''
++                             |  $'+'  *expr3
++                             |  $'-'  *expr3
++                             |  $'*'  *expr3
++                             |  $'/'  *expr3
++                             |  $'%'  *expr3
++                             |  $'<<' *expr3
++                             |  $'##' *expr3
++                             |  $','  *expr3
++                             )
++                        )
++                        $ tz $ *debug(3, "expr3 " tz)
+
+          expr4          =    '' $ *debug(3, "%expr4")
++                        (
++                             $'  ' *ident
++                             (  $'='
++                             |  $'+='
++                             |  $'-='
++                             |  $'*='
++                             |  $'/='
++                             |  $'%='
++                             )
++                        |    *expr5
++                        )
++                        $ tz $ *debug(3, "expr4 " tz)
+
+          expr5          =    '' $ *debug(3, "%expr5")
++                        (
++                             *expr6
++                        |    *expr6 $'++'
++                        |    *expr6 $'--'
++                        |    $'*' *expr5
++                        |    $'+' *expr5
++                        |    $'-' *expr5
++                        |    $'!' *expr5
++                        )
++                        $ tz $ *debug(3, "expr5 " tz)
+
+          expr6          =    '' $ *debug(3, "%expr6")
++                        (
++                             $'  ' *constant
++                        |    $'  ' 'defined' $'(' $'  ' *ident $')'
++                        |    $'  ' 'sizeof'  $'(' $'  ' *ident $')'
++                        |    $'  ' *ident
++                        |    $'  ' *ident $'(' *expr_list $')'
++                        |    $'(' *expr $')'
++                        )
++                        $ tz $ *debug(3, "expr6 " tz)
+
+          incl_list      =    ''
+          excl_list      =    'cderr.h;'
++                             'commdlg.h;'
++                             'ctl3d.h;'
++                             'dde.h;'
++                             'ddeml.h;'
++                             'excpt.h;'
++                             'imm.h;'
++                             'lzexpand.h;'
++                             'mcx.h;'
++                             'mmsystem.h;'
++                             'mswsock.h;'
++                             'nb30.h;'
++                             'ole.h;'
++                             'ole2.h;'
++                             'rpc.h;'
++                             'shellapi.h;'
++                             'stdarg.h;'
++                             'winbase.h;'
++                             'wincon.h;'
++                             'wincrypt.h;'
++                             'windef.h;'
++                             'wingdi.h;'
++                             'winnetwk.h;'
++                             'winnls.h;'
++                             'winperf.h;'
++                             'winreg.h;'
++                             'winsock.h;'
++                             'winsock2.h;'
++                             'winspool.h;'
++                             'winsvc.h;'
++                             'winuser.h;'
++                             'winver.h;'
++
++                             'windows.h;'
++                             'sbihctl.h;'
++                             'sbictl.h;'
++                             'sbictlx.h;'
++                             'winresrc.h;'
+
+*-------- ------------------------------------------------------------- -----------------
+          DEFINE('incl(incl_path)rc,inclname')
+          bs             =    '\'
+          include        =    '//flash/e/cm33/include'
+          meta_include   =    '//flash/e/cm33/meta/include'
+          meta_cursors   =    '//flash/e/cm33/meta/cursors'
+          bitmaps        =    '//flash/e/cm33/common/resources'
+          objtoolkit     =    '//flash/e/cm33/ThirdParty/ObjStudio/OT603/include'
+          studio_vc      =    'd:/Microsoft Visual Studio/VC98/include'
+          studio_vc_mfc  =    'd:/Microsoft Visual Studio/VC98/mfc/include'
+                                                                        :(incl_end)
+incl      incl           =    .dummy
+          incl_path      bs (*ident '.' *ident) . inclname RPOS(0)      :S(incl__)
+          incl_path      '/' (*ident '.' *ident) . inclname RPOS(0)     :S(incl__)
+          inclname       =    incl_path
+incl__    excl_list      (POS(0) | ';') lwr(inclname) ';'               :S(incl_4)
+          incl_list      (POS(0) | ';') lwr(inclname) ';'               :F(incl_0)
+          OUTPUT         =    rpad('#again', 18)   ' "' incl_path '"'   :(NRETURN)
+incl_0    OUTPUT         =    rpad('#include', 18) ' "' incl_path '" ...'
+          incl_list      =    incl_list lwr(inclname) ';'
+          INPUT(.INPUT, 5, dirname       '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, include       '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, meta_include  '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, meta_cursors  '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, bitmaps       '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, objtoolkit    '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, studio_vc     '/' incl_path '[-l2048]')      :S(incl_1)
+          INPUT(.INPUT, 5, studio_vc_mfc '/' incl_path '[-l2048]')      :S(incl_1)F(ioerror_1)
+
+incl_1    line           =    INPUT                                     :F(incl_2)
+          rc             =    rc line nl                                :(incl_1)
+incl_2    ENDFILE(5)
+
+incl_3    rc             POS(0) RPOS(0)                                 :S(incl_5)
+          rc             POS(0) SPAN(' ' tab nl)   =                    :S(incl_3)
+          rc             POS(0) '//' BREAK(nl) nl  =                    :S(incl_3)
+          rc             POS(0) '/*' ARB '*/'      =                    :S(incl_3)
+          rc             POS(0) *define_stmt       =                    :S(incl_3)
+          rc             POS(0) *if_stmt           =                    :S(incl_3)
+          rc             POS(0) *else_stmt         =                    :S(incl_3)
+          rc             POS(0) *elif_stmt         =                    :S(incl_3)
+          rc             POS(0) *endif_stmt        =                    :S(incl_3)
+          rc             POS(0) *include_stmt      =                    :S(incl_3)
+          rc             POS(0) *undef_stmt        =                    :S(incl_3)
+          rc             POS(0) *pragma_stmt       =                    :S(incl_3)
+          rc             POS(0) *error_stmt        =                    :S(incl_3)
+          rc             POS(0) *stmt_300          =                    :S(incl_3)
+          rc             POS(0) *accelr8rs_stmt    =                    :S(incl_3)
+          rc             POS(0) *bitmap_stmt       =                    :S(incl_3)
+          rc             POS(0) *cursor_stmt       =                    :S(incl_3)
+          rc             POS(0) *design_stmt       =                    :S(incl_3)
+          rc             POS(0) *dialog_stmt       =                    :S(incl_3)
+          rc             POS(0) *dlginit_stmt      =                    :S(incl_3)
+          rc             POS(0) *icon_stmt         =                    :S(incl_3)
+          rc             POS(0) *language_stmt     =                    :S(incl_3)
+          rc             POS(0) *menu_stmt         =                    :S(incl_3)
+          rc             POS(0) *rt_hgrid_stmt     =                    :S(incl_3)
+          rc             POS(0) *stringtbl_stmt    =                    :S(incl_3)
+          rc             POS(0) *textincl_stmt     =                    :S(incl_3)
+          rc             POS(0) *toolbar_stmt      =                    :S(incl_3)
+          rc             POS(0) *typelib_stmt      =                    :S(incl_3)
+          rc             POS(0) *version_stmt      =                    :S(incl_3)
+          rc             POS(0) *c_stmt            =                    :S(incl_3)
+          OUTPUT         =    rpad('#failed', 18)  ' "' incl_path '"'
+          OUTPUT         =    "Error: " rc                              :(NRETURN)
+incl_4    OUTPUT         =    rpad('#exclude', 18) ' "' incl_path '"'   :(NRETURN)
+incl_5    OUTPUT         =    rpad('#end', 18)     ' "' incl_path '"'   :(NRETURN)
+incl_end
+*   ----------------------------------------------------------------------------------------------------
+          pathName       =    'rc.txt'
+          INPUT(.LIST, 8, pathName)                                     :F(ioerror)
+loop0     pathName       =    LIST                                      :F(report)
+          DIFFER(pathName)                                              :F(report)
+          pathName       POS(0)
++                        ARB . dirname '/'
++                        (*ident '.rc') . filename
++                        RPOS(0)
+          incl(filename)                                                :(loop0)
+
+report    OUTPUT         =
+          OUTPUT         =    'Dialogs:'
+          OUTPUT         =
+          arr_dialogs    =    SORT(dialogs)
+          i              =    0
+report_1  i              =    i + 1
+          inum           =    arr_dialogs[i, 1]                         :F(report_3)
+          item           =    arr_dialogs[i, 2]
+report_2  item           POS(0) (*ident '(' ARB ')') . info =           :F(report_1)
+          OUTPUT         =    lpad(inum, 11) ' ' info
+          inum           =                                              :(report_2)
+
+report_3  OUTPUT         =
+          OUTPUT         =    'Strings:'
+          OUTPUT         =
+          arr_strings    =    SORT(strings)
+          i              =    0
+report_4  i              =    i + 1
+          inum           =    arr_strings[i, 1]                         :F(fini)
+          item           =    arr_strings[i, 2]
+report_5  item           POS(0) (*ident '(' ARB ')') . info =           :F(report_4)
+          OUTPUT         =    lpad(inum, 11) ' ' info
+          inum           =                                              :(report_5)
+
+fini      ENDFILE(8)                                                    :(END)
+error     OUTPUT         =    "Error: " rc                              :(fini)
+ioerror   OUTPUT         =    "I/O Error: " pathName                    :(fini)
+ioerror_1 OUTPUT         =    "I/O Error: " incl_path                   :(NRETURN)
+END

@@ -1,0 +1,194 @@
+*---------- ----------- --- ---------------------------------------------------
+START       xAppl       =   'Extractor'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            urlReferer  =   'LonCherryholmes.BlogSpot.com'
+            cookies     =   xAppl 'Cookies.txt'
+            doParseTree =   0
+            xTrace      =   0
+*------------------------------------------------------------------------------
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'ShiftReduce.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'datetime.inc'
+HTML
+-INCLUDE 'HTML.inc'
+*------------------------------------------------------------------------------
+-INCLUDE 'sqlncli.inc'
+-INCLUDE 'curl.inc'
+-INCLUDE 'findname.inc'
+*---------- ----------- --- ---------------------------------------------------
+            number      =   SPAN('0123456789')
+            real        =   SPAN('0123456789') '.' SPAN('0123456789')
+            yyyy        =   number $ n *EQ(SIZE(n), 4)
+            mm          =   number $ n *EQ(SIZE(n), 2)
+            dd          =   number $ n *EQ(SIZE(n), 2)
+            month       =   'jan' | 'feb' | 'mar' | 'apr' | 'may' | 'jun'
++                       |   'jul' | 'aug' | 'sep' | 'oct' | 'nov' | 'dec'
+            Month       =   'January' | 'February' | 'March' | 'April'
++                       |   'May' | 'June' | 'July' | 'August'
++                       |   'September' | 'October' | 'November' | 'December'
+*---------- ----------- --- ---------------------------------------------------
+            apURL       =   ARRAY('1:1')
+            apAvg       =   ARRAY('1:1')
+            apReview    =   ARRAY('1:1')
+*========== =========== === ============================================================================================
+            apURL[1]    =   POS(0) 'http://www.amazon.com/' BREAK('/') . amazon_name '/product-reviews/' LEN(10) . amazon_id RPOS(0)
+*---------- ----------- --- ---------------------------------------------------
+            apAvg[1]    =   epsilon $ t8Max
++                           $'<DIV>'
++                               $'<B>'                                          'Average Customer Review'
++                               $'</B>'
++                           $'</DIV>'
++                           $'<DIV' STYLE $'=' STRING $'>'
++                               $'<SPAN' CLASS $'=' STRING
++                                        STYLE $'=' STRING $'>'
++                                   $'<SPAN' CLASS $'=' STRING
++                                            NAME $'=' STRING
++                                            REF $'=' STRING $'>'
++                                       $'<A' HREF $'=' STRING $'>'
++                                           $'<SPAN' CLASS $'=' STRING
++                                                    TITLE $'=' STRING $'>'
++                                               $'<SPAN>'                       real . xAverageStars ' out of ' number . xAllStars ' stars'
++                                               $'</SPAN>'
++                                           $'</SPAN>'
++                                       $'</A>'
++                                       '&nbsp;'
++                                   $'</SPAN>'
++                                   '('
++                                   $'<A' HREF $'=' STRING $'>'                 number . xReviews ' customer reviews'
++                                   $'</A>'
++                                   ')'
++                               $'</SPAN>'
++                           $'</DIV>'
+*---------- ----------- --- ---------------------------------------------------
+            apReview[1] =   epsilon $ t8Max $ xTrailer
++                           $'<DIV>'
++                               $'<DIV' STYLE $'=' STRING $'>'
++                                   $'<DIV' CLASS $'=' STRING
++                                           STYLE $'=' STRING $'>'              number . xPeople ' of ' number . xAllPeople ' people found the following review helpful'
++                                   $'</DIV>'
++                               $'</DIV>'
++                               $'<DIV>'
++                                   $'<SPAN>'
++                                       $'<SPAN' CLASS $'=' STRING
++                                                TITLE $'=' STRING $'>'
++                                           $'<SPAN>'                           real . xStars ' out of ' number . xAllStars ' stars'
++                                           $'</SPAN>'
++                                       $'</SPAN>'
++                                   $'</SPAN>'
++                                   $'<B>' BREAK('<') . xTitle $'</B>'
++                                   $'<BR' $'/>'
++                                   BREAK('<') . xText
++                                   !($'<BR' $'/>' $'<BR' $'/>' BREAK('<') . xTrailer)
++                                   $'<DIV>'
++                                       $'<A' HREF $'=' STRING
++                                             TITLE $'=' STRING $'>'
++                                           $'<B>' BREAK('<') $'</B>'
++                                       $'</A>'
++                                  $'</DIV>'
++                               $'</DIV>'
++                               $'<DIV' CLASS $'=' STRING
++                                       STYLE $'=' STRING $'>' $' '             'Published on ' (Month ' ' number ', ' yyyy) . xPublished ' by ' BREAK('<') . xAuthor
++                               $'</DIV>'
++                           $'</DIV>'
+*========== =========== === ============================================================================================
+*           apURL[2]    =   POS(0) 'http://www.newsobserver.com/' yyyy '/' mm '/' dd '/' number '/' BREAK('.') '.html' RPOS(0)
+*           apURL[3]    =   POS(0) 'http://www2.nbc17.com/news/' yyyy '/' month '/' dd '/' BREAK('/') '/' RPOS(0)
+*           apURL[4]    =   POS(0) 'http://www2.nbc17.com/sports/' yyyy '/' month '/' dd '/' BREAK('/') '/' RPOS(0)
+*           apURL[5]    =   POS(0) 'http://www2.nbc17.com/lifestyles/' yyyy '/' month '/' dd '/' BREAK('/') '/' RPOS(0)
+*           apURL[6]    =   POS(0) 'http://forums.redflagdeals.com/' BREAK('/') '/' RPOS(0)
+*           apURL[7]    =   POS(0) 'http://priuschat.com/forums/' BREAK('/') '/' BREAK('.') '.html' RPOS(0)
+*           apURL[8]    =   POS(0) 'http://priuschat.com/shop/product_reviews_info.php/products_id/' number '/reviews_id/' number RPOS(0)
+*           apURL[9]    =   POS(0) 'http://reviews.walmart.com/' number '/' number '/' BREAK('/') '/reviews.htm' RPOS(0)
+*========== =========== === =================================================== ========================================
+                                                                                :(L100)
+L010        CoInitialize()                                                      :F(error)
+            curl        =   curl_easy_init()                                    :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            xServer     =   'subs.company.pro'
+            xFailover   =   'subf.company.pro'
+            xDB         =   '5ivesAlive'
+            xUser       =   'prod'
+            xPassword   =   'prod123'
+            SQL_Connect(xServer, xDB, xUser, xPassword, xAppl, xFailOver)       :S(L020S)F(L020F)
+L020F       TERMINAL    =   'SQL CONNECT Failure.'                              :(E010)
+L020S       TERMINAL    =   'SQL CONNECT Success.'
+            SQL         =   "   SELECT DISTINCT Items_BingWeb.Url" nl
++                           "     FROM Items_BingWeb" nl
++                           "     JOIN Topics" nl
++                           "       ON Topics.id$ = Items_BingWeb.topic_id$" nl
++                           "    WHERE Topics.domain IS NOT NULL" nl
++                           "      AND Items_BingWeb.Url LIKE '%review%'" nl
++                           " GROUP BY Items_BingWeb.Url" nl
++                           " ORDER BY Items_BingWeb.Url ASC" nl
+            hstmt       =   SQL_AllocStmt()                                     :F(E010)
+            SQL_A_ExecDirect(hstmt, SQL)                                        :S(L030S)F(L030F)
+L030F       TERMINAL    =   'SQL EXECUTE Failure.'                              :(E010)
+L030S       TERMINAL    =   'SQL EXECUTE Success.'
+L040        SQL_Fetch(hstmt)                                                    :F(L060)
+            url         =   SQL_GetData(hstmt, 1)                               :F(E010)
+            iURL        =   0
+L050        iURL        =   iURL + 1
+            pURL        =   apURL[iURL]                                         :F(L040)
+            url         ?   pURL                                                :F(L050)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(LErr)
+            html        =   curl_easy_getdata()                                 :F(LErr)
+            LineMap(html, .t8Map)
+            OUTPUT      =   amazon_id
+            Write(xAppl '-' amazon_id '.html', html)                            :(L050)
+L060        SQL_FreeStmt(hstmt)                                                 :F(E010)
+            SQL_Disconnect()                                                    :S(END)F(E010)
+*---------- Testing ... -------------------------------------------------------
+L100        iIter       =   0
+L105        iIter       =   LT(iIter, 2) iIter + 1                              :F(END)
+            State       =   FindFirst('C:/SNOBOL4/*.html')                      :F(error)
+L110        filename    =   FindInfo(State, 'N')                                :F(error)
+            html        =   Read('C:/SNOBOL4/' filename, .t8Map)                :F(error)
+*           OUTPUT      =   DUPL('-', 80) ' ' SIZE(html) ' ' filename
+            EQ(iIter, 1)                                                        :F(L111)
+            html        ?   apAvg[1]                                            :F(L115)
+            OUTPUT      =   xReviews ' review(s) '
++                           xAverageStars ' average star(s)'
++                           ' out of ' xAllStars                                :(L115)
+L111        EQ(iIter, 2)                                                        :F(L115)
+L113        html        ?   apReview[1] =                                       :F(L115)
+            xText       ?   POS(0) $' ' =
+            xTrailer    ?   POS(0) $' ' =
+            xText       ?   $' ' RPOS(0) =
+            OUTPUT      =   amazon_name nl
++                           xPeople ' people of '
++                           xAllPeople ' found useful '
++                           xStars ' stars out of ' xAllStars nl
++                           'Title: ' xTitle nl
++                           'Review: ' xText
++                           'Trailer: ' xTrailer nl
++                           'Published: ' xPublished nl
++                           'Author: ' xAuthor                                  :(L113)
+L115        FindNext(State)                                                     :S(L110)F(L120)
+L120        FindClose(State)                                                    :(L105)
+*---------- ----------- --- ---------------------------------------------------
+E010        TERMINAL    =   SQL_GetLastError()                                  :(END)
+*---------- ----------- --- ---------------------------------------------------
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,72 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2{Listener}.sno
+-INCLUDE '5ivesAlive.inc'
+*========== =========== === =================================================== ====================
+            {definitions}
+*---------- ----------- --- --------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            Args(xListener)                                                     :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                :F(debuggo)
+*---------- ----------- --- ---------------------------------------------------
+START       {special_tokens}
+*---------- ----------- --- --------------------------------------------------- --------------------
+            {lexical_tokens}
+*---------- ----------- --- --------------------------------------------------- --------------------
+            Tags        =   {Tags}
+L01         Tags        ?   {TagPattern} =                                      :F(L03)
+            {tag_definitions}                                                   :(L01)
+*---------- ----------- --- --------------------------------------------------- --------------------
+L03         {parser_definitions}
+*---------- ----------- --- --------------------------------------------------- --------------------
+            {trace_definitions}
+*========== =========== === =================================================== ====================
+L05         {preamble}
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   0
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+            {polling_body}
+*---------- FOR all entities ... ----------------------------------------------
+            {entities_entry}
+            iE          =   0
+L20         iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(L90)
+*---------- WHILE maxed out ... -----------------------------------------------
+            iCount      =   1500
+            iTweets     =   -1500
+TS30        iTweets     =   LE(iCount, 1500) iTweets + iCount                   :F(TSErr2)
+            iCount      =   EQ(iCount, 1500) 0                                  :F(TS80)
+            EQ(IsCancelled(), FALSE)                                            :F(TS90)
+*---------- FOR every page ... ------------------------------------------------
+            {paging_entry}
+            xHasMore  =   TRUE
+            iPage     =   ...
+L40         iPage     =   EQ(xHasMore, TRUE) iPage + 1                          :F(L80)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+TS43        iTry        =   0
+TS44        iTry        =   LT(iTry, 10) iTry + 1                               :F(TSErr)
+            EQ(IsCancelled(), FALSE)                                            :F(TS90)
+            {trying_body}                                                       :F(TS44)
+            {trying_exit}
+*---------- FOR every chunk/entry ... -----------------------------------------
+L50         {chunking_entry}
+            iCount      =   0
+            iC          =   0
+L53         iC          =   LT(iC, xC) iC + 1                                   :F(L60)
+            {chunking_body}
+            iCount      =   iCount + 1                                          :S(L53)
+*---------- END FOR every chunk/entry -----------------------------------------
+L60         {chunking_exit}
+            xHasMore    =   LT(xC, pageSize) FALSE                              :(L40)
+*---------- END FOR every page ------------------------------------------------
+L80         {paging_exit}                                                       :(L20)
+*---------- END FOR every entity ----------------------------------------------
+L90         {entities_exit}                                                     :(L10)
+*---------- ----------- --- ---------------------------------------------------
+            {failure_actions}                                                   :(LEnd)
+*---------- ----------- --- ---------------------------------------------------
+LEnd        {end_actions}                                                       :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

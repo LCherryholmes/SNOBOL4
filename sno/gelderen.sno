@@ -1,0 +1,211 @@
+START
+ doDebug = 0
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'ShiftReduce.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'Cide.inc'
+-INCLUDE 'WordNet.inc'
+-INCLUDE 'english.inc'
+L00 S       =   ARRAY('1:10,1:100')
+    S[1, 1]  =  'I run to the store.'
+    S[1, 9]  =  'Drunk gets ten months in cello case.'
+    S[1, 10] =  'Eye drops off shelf.'
+    S[1, 11] =  'British left waffles on Falkland Islands.'
+    S[1, 12] =  'Teacher strikes idle kids.'
+    S[1, 13] =  'I just saw someone carrying a monkey and an elephant go into the circus.'
+    S[1, 14] =  'The man is tall.'
+    S[1, 15] =  'Is the man tall?'
+    S[1, 16] =  'The man who is in the garden is tall.'
+    S[1, 17] =  'Is the man who in the garden is tall?'
+    S[1, 18] =  'Is the man who is in the garden tall?'
+    S[1, 19] =  'Arrived the bus on time?'
+    S[1, 20] =  'Who did Jane meet?'
+    S[1, 21] =  'Who did you believe that Jane met?'
+    S[1, 22] =  'Who did you believe the story that Jane met?'
+    S[1, 23] =  'I want for to go.'
+    S[1, 24] =  'You know as he left.'
+    S[1, 25] =  "She don't learn you nothing."
+    S[1, 26] =  "Was you ever bit by a bee?"
+    S[1, 29] =  "I didn't mean nothin' by it."
+    S[1, 30] =  "I didn't intend to imply anything with that remark."
+    S[2, 1]  =  "The actions by the government came too late."
+    S[2, 2]  =  "The hurricane caused the destruction of the villages."
+    S[2, 3]  =  "Jenny's neighbor always knows the answer."
+    S[2, 4]  =  "That writer has modernized postmodernism."
+    S[2, 5]  =  "The government acted too late."
+    S[2, 6]  =  "The hurricane destroyed the villages."
+    S[2, 7]  =  "The book is red and blue."
+    S[2, 8]  =  "The book seemed nice to me."
+    S[2, 10] =  "Police police police outing."
+    S[2, 11] =  "That expensive book sold out quickly."
+    S[2, 12] =  "An adjective modifies a noun."
+    S[2, 13] =  "The book is nice."
+    S[2, 14] =  "A nice book is on the table."
+    S[2, 15] =  "This Hopi bowl is very precious."
+    S[2, 16] =  "He drove very quickly."
+    S[2, 17] =  "That fast car must be a police car."
+    S[2, 18] =  "That car drives fast."
+    S[2, 19] =  "That person looked hard."
+    S[2, 23] =  "With their books about linguistics, they went to school."
+    S[2, 25] =  "They upped the price."
+    S[2, 26] =  "The door of that car."
+    S[2, 27] =  "Their dog ate my food."
+    S[2, 28] =  "Bor's food was eaten by Pim."
+    S[2, 29] =  "The candy is not mine, but it is yours."
+    S[2, 30] =  "That candy is not my candy, but it is your candy."
+    S[2, 31] =  "Their irritating dog ate my delicious food."
+    S[2, 32] =  "Irritating their dog ate delicious food."
+    S[2, 34] =  "The challenges are many/few."
+    S[2, 35] =  "I have a book in my hand."
+    S[2, 36] =  "I have worked here for 5 years."
+    S[2, 37] =  "Santa may be working Thanksgiving Day."
+    S[2, 38] =  "I must a book."
+    S[2, 39] =  "Rigobertha and Pablo went to Madrid and Barcelona."
+    S[2, 40] =  "Rigobertha and Pablo left because Sunny was about to arrive."
+    S[3, 3]  =  "The unpleasant unicorn from Malacandra loves dogfood."
+    S[3, 7]  =  "The person who wore that ugly hat is the queen."
+    S[3, 9]  =  "John washed the dishes and Maija did so as well."
+    S[3, 11] =  "I was happy and so was she."
+    S[3, 12] =  "He behaved nicely, and she behaved so."
+    S[3, 14] =  "She saw the man with glasses."
+    S[3, 16] =  "I once shot an elephant in my pajamas."
+    S[3, 17] =  "How he got in my pajamas I'll never know."
+    S[3, 18] =  "Outside of a dog, a book is a man's best friend."
+    S[3, 19] =  "Inside it's too hard to read."
+    S[3, 20] =  "She went in and out the house."
+    S[3, 21] =  "The dog went under and over the fence."
+    S[3, 22] =  "I read books and listened to music."
+    S[3, 23] =  "I read a book and to Janet."
+    S[3, 24] =  "Books and magazines sell easily."
+    S[3, 26] =  "I read books yesterday and magazines."
+    S[3, 27] =  "She ran to the store."
+    S[3, 28] =  "Ran to the store."
+    S[3, 29] =  "Will she run to the store?"
+    S[3, 30] =  "To the store she ran."
+    S[3, 31] =  "Ran to the store the woman."
+    S[4, 1]  =  "The moon has just risen in the sky."
+    S[4, 2]  =  "Has the moon just risen in the sky?"
+    S[4, 3] =  "The moons have just risen in the sky."
+    S[4, 4] =  "The moon has just risen in the sky, hasn't it?"
+    S[4, 5] =  "There are five unicorns in the parking lot."
+    S[4, 6] =  "Five unicorns are in the garden."
+    S[4, 7] =  "Harry Potter played a game."
+    S[4, 8] =  "I read the letter from Hogwarts."
+    S[4, 10] =  "The letter from Hogwarts was read by me."
+    S[4, 11] =  "He was seen by me."
+    S[4, 12] =  "I gave Santa a letter."
+    S[4, 13] =  "I made Harry some soup."
+    S[4, 14] =  "Santa was given a letter by me."
+    S[4, 15] =  "I gave a letter to Santa."
+    S[4, 16] =  "I made some soup for Harry."
+    S[4, 17] =  "Santa was given a letter to."
+    S[4, 18] =  "He is pleasant."
+    S[4, 19] =  "He is a nice person."
+    S[4, 20] =  "He is in the garden."
+    S[4, 21] =  "This silk feels nice."
+    S[4, 22] =  "He felt his pulse."
+    S[4, 23] =  "She painted the house purple."
+    S[4, 24] =  "Jane considers Pride and Prejudice a classic."
+    S[4, 25] =  "She put the cup on the table."
+    S[4, 26] =  "They found him a good chairperson."
+    S[4, 27] =  "They found him to be a good chairperson."
+    S[4, 28] =  "They found for him a good chairperson."
+    S[4, 29] =  "Jane considers Pride and Prejudice to be a classic."
+    S[4, 30] =  "He sneezed and sneezed."
+    S[4, 31] =  "He slept during the meeting."
+    S[4, 32] =  "He hit the ball."
+    S[4, 33] =  "I played him a tune."
+    S[4, 34] =  "I laughed."
+    S[4, 37] =  "She gave him books."
+    S[5, 1]  =  "She wrote the story quickly."
+    S[5, 2]  =  "Unfortunately she lied."
+    S[5, 3]  =  "Happily, I painted those pictures."
+    S[5, 4]  =  "She ate that food in the dark."
+    S[5, 5]  =  "Javelinas roam the desert in the evening."
+    S[5, 6]  =  "Unfortunately, he drove the car to work that morning without his glasses because the bus had broken down."
+    S[5, 7]  =  "They abided by the contract."
+    S[5, 8]  =  "He referred to that article."
+    S[5, 9]  =  "He abides."
+    S[5, 10] =  "He refers all the time."
+    S[5, 11] =  "The contract was abided by."
+    S[5, 12] =  "That article wasn't referred to by him."
+    S[5, 13] =  "He referred to that article."
+    S[5, 14] =  "They called up the president."
+    S[5, 15] =  "They covered up the scandal."
+    S[5, 16] =  "Helen turned in her homework."
+    S[5, 17] =  "She put down the nasty people."
+    S[5, 18] =  "She switched on the light."
+    S[5, 19] =  "They called up the president."
+    S[5, 20] =  "They called him up."
+    S[5, 21] =  "They covered it up."
+    S[5, 22] =  "She turned it in with many mistakes."
+    S[5, 23] =  "She put them down."
+    S[5, 24] =  "She switched it on"
+    S[5, 25] =  "They abided it by."
+    S[5, 26] =  "She put down --- the customers."
+    S[5, 27] =  "She put --- down the customers."
+    S[5, 28] =  "She put down the customers and the owner."
+    S[5, 29] =  "She put down the customers and down the owner."
+    S[5, 30] =  "It was the customers she put down."
+    S[5, 31] =  "It was down the customers she put."
+    S[5, 32] =  "His career is taking off."
+    S[5, 33] =  "They finally gave in."
+    S[5, 34] =  "Even though I turned in early last night, I slept in."
+    S[5, 35] =  "Orrmm will not put up [with that noise]."
+    S[5, 36] =  "Benji came up [with a new solution to Fermat's Theorem]."
+    S[5, 37] =  "With that noise, Orrmm will not put up."
+    S[5, 38] =  "Emma was seen."
+    S[5, 39] =  "Walter was given a book."
+    S[5, 40] =  "The article was referred to."
+    S[5, 41] =  "The scandal was covered up immediately."
+    S[5, 42] =  "The meeting was slept during."
+    S[5, 43] =  "The chair was elected him."
+    S[5, 44] =  "He slept during the meeting."
+    S[5, 45] =  "He slept."
+    S[5, 46] =  "I went to the library."
+    S[5, 47] =  "I swam in the pool."
+    S[5, 48] =  "The library was gone to."
+    S[5, 49] =  "The pool was swum in."
+    S[5, 50] =  "He walked on the grass."
+    S[5, 51] =  "Washington slept in this bed."
+    S[5, 52] =  "The grass was walked on."
+    S[5, 53] =  "This bed was slept in."
+    S[5, 54] =  "She painted the house purple."
+    S[5, 55] =  "Jane considers Pride and Prejudice a classic."
+    S[5, 56] =  "She put the cup on the table."
+    S[5, 57] =  "I saw a man from Mars."
+    S[5, 58] =  "I saw a man in the garden."
+    S[5, 59] =  "I saw him."
+    S[5, 60] =  "She put it."
+    S[5, 61] =  "Jane considers it."
+
+L01 SetLevel(0)
+    i       =   0
+L10 i       =   LT(i, 10) i + 1                 :F(END)
+    j       =   0
+L20 s       =   S[i, j = j + 1]                 :F(L10)
+    DIFFER(s)                                   :F(L20)
+
+    ldict   =   TABLE()
+    s       ?   POS(0) *eS $'.' RPOS(0)         :S(L25)F(L27)
+L25 OUTPUT  =   i '.' j ':'
+    TDump(Pop())                                :(L20)
+L27 OUTPUT  =   i '.' j ': ' DQize(s)           :(L20)
+E01 OUTPUT  =   'Failure!'
+*-INCLUDE 'debug.sno'
+END

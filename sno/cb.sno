@@ -1,0 +1,177 @@
+*---------------------------------------------------------------------------------------------------------------
+* C/C++ Manipulator
+* Author: Lon Cherryholmes
+* First Created: February 16, 2005
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'ss.inc'
+-INCLUDE 'system.inc'
+-INCLUDE 'utility.inc'
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+            INTEGER_LITERAL     =   *DECIMAL_LITERAL FENCE(ANY('Ll') | '')
++                               |   *HEX_LITERAL FENCE(ANY('Ll') | '')
++                               |   *OCTAL_LITERAL FENCE(ANY('Ll') | '')
+            DECIMAL_LITERAL     =   ANY('123456789') FENCE(SPAN('0123456789') | '')
+            HEX_LITERAL         =   '0' ANY('Xx') SPAN('0123456789ABCDEFabcdef')
+            OCTAL_LITERAL       =   '0' FENCE(SPAN('01234567') | '')
+            EXPONENT            =   ANY('Ee') (ANY('+-') | '') SPAN('0123456789')
+            REAL_LITERAL        =   SPAN('0123456789')
++                                   '.'
++                                   FENCE(SPAN('0123456789') | '')
++                                   FENCE(EXPONENT | '')
++                                   (ANY('FfDd') | '')
++                               |   '.' SPAN('0123456789') (EXPONENT | '') (ANY('FfDd') | '')
++                               |   SPAN('0123456789') EXPONENT (ANY('FfDd') | '')
++                               |   SPAN('0123456789') (EXPONENT | '') ANY('FfDd')
+            CHARACTER           =   (   *NOTANY(bch bSlash nl cr)
++                                   |   bSlash
++                                       (   ANY('antbrfv' bSlash "'" '"')
++                                       |   ANY('01234567') (ANY('01234567') | '')
++                                       |   ANY('0123') ANY('01234567') ANY('01234567')
++                                       |   'x'
++                                           SPAN('0123456789ABCDEFabcdef')
++                                           FENCE(SPAN('0123456789ABCDEFabcdef') | '')
++                                       )
++                                   )
+            CHARACTER_LITERAL   =   "'" $ bch *CHARACTER "'"
+            STRING_LITERAL      =   '"' $ bch ARBNO(*CHARACTER) '"'
+            IDENTIFIER          =   ANY(&UCASE '_' &LCASE) FENCE(SPAN(digits &UCASE '_' &LCASE) | '')
+            SYMBOL              =   SPAN('#?!%&*[]+,-./:<=>^|~')
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+            white               =   SPAN(' ' ht nl vt ff cr) | bSlash nl
+            cComment            =   '/*' BREAKX('*') '*/'
+            cppComment          =   '//' BREAK(nl)
+            whitespace          =   (white | cComment | cppComment) FENCE(*whitespace | '')
+            $' '                =   FENCE(whitespace | '')
+            $'  '               =   FENCE(white | '')
+            $'('                =   $' ' '('
+            $')'                =   $' ' ')'
+            $'{'                =   $' ' '{'
+            $'}'                =   $' ' '}'
+            $';'                =   $' ' ';'
+            $' ('               =   *(EQ(doComments, TRUE) $' ', $'  ') '('
+            $' )'               =   *(EQ(doComments, TRUE) $' ', $'  ') ')'
+            $' {'               =   *(EQ(doComments, TRUE) $' ', $'  ') '{'
+            $' }'               =   *(EQ(doComments, TRUE) $' ', $'  ') '}'
+            $' ;'               =   *(EQ(doComments, TRUE) $' ', $'  ') ';'
+            catch               =   IDENTIFIER $ tx *LEQ('catch', tx)
+            do                  =   IDENTIFIER $ tx *LEQ('do', tx)
+            else                =   IDENTIFIER $ tx *LEQ('else', tx)
+            for                 =   IDENTIFIER $ tx *LEQ('for', tx)
+            if                  =   IDENTIFIER $ tx *LEQ('if', tx)
+            switch              =   IDENTIFIER $ tx *LEQ('switch', tx)
+            try                 =   IDENTIFIER $ tx *LEQ('try', tx)
+            while               =   IDENTIFIER $ tx *LEQ('while', tx)
+            identifier          =   IDENTIFIER $ tx *notmatch('/catch/do/else/for/if/switch/try/while/', '/' tx '/')
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+            symX                =   identifier
++                               |   REAL_LITERAL
++                               |   INTEGER_LITERAL
++                               |   CHARACTER_LITERAL
++                               |   STRING_LITERAL
++                               |   SYMBOL
+            symB                =   symX | '(' | ')' | ';' | catch | do | else | for | if | switch | try | while
+            balX                =   $' ' symX | $'(' *arbX $')'
+            balB                =   $' ' symB | $'{' *arbB $'}'
+            arbX                =   ARBNO(balX)
+            arbB                =   ARBNO(balB) $' '
+
+            catchStmt           =   catch $' (' $'  ' *arbX . catchX $' )' $' {' *arbB . catchB $'}'
+            doStmt              =   do  $' {' *arbB . doB $'}' $' ' while $' (' $'  ' *arbX . doX $' )'
+            forStmt             =   for $' ('
++                                   $'  ' *arbX . forX1 $' ;'
++                                   $'  ' *arbX . forX2 $' ;'
++                                   $'  ' *arbX . forX3 $' )'
++                                   $' {' *arbB . forB $'}'
+            ifClause            =   if $' (' $'  ' *arbX . ifX $' )'
+            elseStmt            =   else $' {' *arbB . elseB $'}'
+            ifStmt              =   ifClause  $' {' *arbB . ifB $'}'
+            ifElseStmt          =   ifClause  $' {' *arbB . ifB $'}' $'  ' elseStmt
+            switchStmt          =   switch $' (' $'  ' *arbX . switchX $' )' $' {' *arbB . switchB $'}'
+            tryCatchStmt        =   try    $' {' *arbB . tryB $'}' $'  ' catchStmt
+            whileStmt           =   while  $' (' $'  ' *arbX . whileX  $' )' $' {' *arbB . whileB $'}'
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+            DEFINE('C(cpp)'
++               'catchB,catchX,doB,doX,elseB,forB,forX1,forX2,forX3,'
++               'ifB,ifX,switchB,switchX,thx,tryB,whileB,whileX'
++           )                                                                   :(CEnd)
+C           cpp                 POS(0) RPOS(0)                                  :S(RETURN)
+            cpp                 POS(0) white . thx =                            :S(C10)
+            cpp                 POS(0) cComment . thx  =                        :S(C10)
+            cpp                 POS(0) cppComment . thx =                       :S(C10)
+            cpp                 POS(0) tryCatchStmt . thx =                     :S(C15)
+            cpp                 POS(0) doStmt . thx =                           :S(C20)
+            cpp                 POS(0) forStmt . thx =                          :S(C30)
+            cpp                 POS(0) ifElseStmt . thx =                       :S(C40)
+            cpp                 POS(0) ifStmt . thx =                           :S(C50)
+            cpp                 POS(0) ifClause . thx =                         :S(C60)
+            cpp                 POS(0) elseStmt . thx =                         :S(C70)
+            cpp                 POS(0) catchStmt . thx =                        :S(C75)
+            cpp                 POS(0) switchStmt . thx =                       :S(C80)
+            cpp                 POS(0) whileStmt . thx =                        :S(C90)
+            cpp                 POS(0) '#if' . thx =                            :S(C10)
+            cpp                 POS(0) ('#include ' BREAK(nl)) . thx =          :S(C10)
+            cpp                 POS(0) symB . thx =                             :S(C10)
+            cpp                 POS(0) '{' . thx =                              :S(C10)
+            cpp                 POS(0) '}' . thx =                              :S(C10)
+            OUTPUT              =   'Error: "' SUBSTR(cpp, 1, 40) '"'
+            C                   =   C cpp                                       :(RETURN)
+C10         C                   =   C thx                                       :(C)
+C15         C                   =   C 'try {' C(tryB)
++                                   '} catch (' catchX ') {' C(catchB) '}'      :(C)
+C20         C                   =   C 'do {' C(doB) '} while (' doX ')'         :(C)
+C30         C                   =   C 'for ('
++                                   forX1 ';'
++                                   (DIFFER(forX2) ' ' forX2, '') ';'
++                                   (DIFFER(forX3) ' ' forX3, '') ') {'
++                                   C(forB) '}'                                 :(C)
+C40         C                   =   C 'if (' ifX ') {' C(ifB)
++                                   '} else {' C(elseB) '}'                     :(C)
+C50         C                   =   C 'if (' ifX ') {' C(ifB) '}'               :(C)
+C60         C                   =   C 'if (' ifX ')'                            :(C)
+C70         C                   =   C 'else {' C(elseB) '}'                     :(C)
+C75         C                   =   C 'catch (' catchX ') {' C(catchB) '}'      :(C)
+C80         C                   =   C 'switch (' switchX ') {' C(switchB) '}'   :(C)
+C90         C                   =   C 'while (' whileX ') {' C(whileB) '}'      :(C)
+            OUTPUT              =   'ERROR: ' thx ': ' SUBSTR(cpp, 1, 40)       :(C)
+CEnd
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+            EXIT(3, 'cb.exe')
+            Utility()
+            OUTPUT(.auditLog, 6, 'cb-audit-log.txt')                            :F(ioerr)
+            doComments          =   FALSE
+            findDir             =   '.'
+            findDir             =   'C:/SQLLit~1/dev'
+            findCmd             =   exe['find'] ' ' findDir ' -name "*.cpp"'
+            INPUT(.findInput, 3, '!!' findCmd)                                  :F(ioerr)
+main10      findFile            =   findInput                                   :F(main60)
+*           findFile            '/SLSAPI/SLSEngine.cpp' RPOS(0)                 :F(main10)
+            OUTPUT              =   DUPL('=', 40) ' ' findFile                  :(main17)
+            OUTPUT(.cppOutput, 5, findFile '-new')                              :F(ioerr)
+            expandOut           =   system('@-expand', '-t4 "' findFile '"')
+main15      expandOut           POS(0) BREAK(nl) . cppOutput nl =               :S(main15)
+            ENDFILE(5)
+            system('@-mv', '"' findFile '-new" "' findFile '"')
+main17      INPUT(.cppInput, 4, findFile)                                       :F(ioerr)
+            OUTPUT(.cppOutput, 5, findFile '-new')                              :F(ioerr)
+            cpp                 =
+main20      cpp                 =   cpp cppInput nl                             :S(main20)
+            C                   =   C(cpp)
+main40      C                   POS(0) BREAK(nl) . cppOutput nl =               :S(main40)
+            ENDFILE(5)
+            ENDFILE(4)
+            ssDiff              =   system('@-diff', '"' findFile '" "' findFile '-new"')
+            DIFFER(ssDiff)                                                      :F(main10)
+main50      ssDiff              POS(0) BREAK(nl) . OUTPUT nl =                  :S(main50)
+            ssFile              =   findFile
+            ssFile              POS(0) findDir =                                :F(error)
+            ssFile              POS(0) '/' = '$/SQL LiteSpeed/dev/'
+            SScheckout('@-SourceSafe', ssFile, '-gck -gf -i-y')
+            system('@-mv', '"' findFile '-new" "' findFile '"')                 :(main10)
+main60      ENDFILE(3)                                                          :(END)
+*---------- ------------------- --- ------------------------------------------- --------------------------------
+END

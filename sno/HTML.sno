@@ -1,0 +1,242 @@
+START
+*=======================================================================================================================
+        doDebug         =   0
+        doDebugRepeats  =   TRUE
+        doParseTree     =   FALSE
+        doFence         =   TRUE
+*=======================================================================================================================
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'HTML.inc'
+*       ----------- --- ----------------------------------- ------------
+        DEFINE('PS()i,s')                                   :(PSEnd)
+PS      i           =   0
+PS1     i           =   LT(i, D) i + 1                      :F(RETURN)
+        s           =   t(T[i]) '(' n(T[i]) ',' SIZE(v(T[i])) ')'
+        PS          =   IDENT(PS) s                         :S(PS1)
+        PS          =   PS ' ' s                            :(PS1)
+PSEnd
+*       ----------- --- ----------------------------------- ------------
+        DEFINE('HTML(Path)'
++           'D,T,NUMBER,STRING,ident,Attr,XAttr,Tag,Pairs,'
++           'BRTag,ScriptBegTag,ScriptEndTag,ColTag,MetaTag,LinkTag,'
++           'SelfTag,BeginTag,EndTag,BeginCmt,EndCmt,Content,Spread,Mark,'
++           'Input,Line,LineNo,Text,'
++           'A,xA,xT,xValue'
++       )                                                   :(HTMLEnd)
+HTML    MaxD        =   0
+        D           =   0
+        T           =   ARRAY('0:32')
+        $'  '       =   SPAN(' ' nl)
+        $' '        =   ($'  ' | epsilon)
+        NUMBER      =   SPAN(digits) . xValue
++                   |   '"' SPAN(digits) . xValue '"'
++                   |   "'" SPAN(digits) . xValue "'"
+        STRING      =   '"' ARBNO(NOTANY('"' bSlash) BREAK('"' bSlash) | bSlash ANY('"' bSlash)) . xValue '"'
++                   |   "'" ARBNO(NOTANY("'" bSlash) BREAK("'" bSlash) | bSlash ANY("'" bSlash)) . xValue "'"
+        ident       =   ANY(&UCASE &LCASE) FENCE(SPAN(digits '-' &UCASE '_' &LCASE) | epsilon)
+        Attr        =   ident
+        XAttr       =   (ident ':' ident)
+        Tag         =   FENCE(*ident ':' *ident | *ident)
+        Pairs       =   epsilon $ A . *assign(.A, TABLE())
++                       ARBNO(
++                           $'  ' (*XAttr | *Attr) . xA
++                           ( $' ' '=' $' '
++                             (NUMBER | STRING) . *assign(.A[xA], xValue)
++                           | epsilon
++                           )
++                       )
+        BRTag       =   '<' ('BR' | 'br') . xT '>'
+        ScriptBegTag =  '<' ('SCRIPT' | 'script') . xT '>'
+        ScriptEndTag =  '</' ('SCRIPT' | 'script') . xT '>'
+        ColTag      =   '<' ('COL' | 'col')     . xT (*Pairs $' ' | epsilon) '>'
+        ImgTag      =   '<' ('IMG' | 'img')     . xT (*Pairs $' ' | epsilon) '>'
+        InputTag    =   '<' ('INPUT' | 'input') . xT (*Pairs $' ' | epsilon) '>'
+        MetaTag     =   '<' ('META' | 'meta')   . xT (*Pairs $' ' | epsilon) '>'
+        LinkTag     =   '<' ('LINK' | 'link')   . xT (*Pairs $' ' | epsilon) ('/>' | '>')
+        SelfTag     =   '<' *Tag . xT (*Pairs $' ' | epsilon) '/>'
+        BeginTag    =   '<' *Tag . xT (*Pairs $' ' | epsilon) '>'
+        EndTag      =   '</' *Tag . xT '>'
+        BeginCmt    =   '<!--'
+        EndCmt      =   '-->'
+        Content     =   NOTANY('<') BREAK('<')
+        Spread      =   LEN(1) RTAB(0)
+        Mark        =   '<!DOCTYPE ' ('HTML' | 'html') (' PUBLIC' '"' BREAK('"') '"' | epsilon) '>'
+        T[0]        =   tree('$')
+*       ----------- --- ----------------------------------- ------------
+        INPUT(.Input, 4, Path '[-m10 -l65536]')             :F(HTMLE2)
+HTML15  Line        =   Input                               :F(HTML90)
+        Line        ?   cr RPOS(0) =
+        LineNo      =   1
+        Line        ?   POS(0) *Mark RPOS(0)                :F(HTMLE4)
+HTML20  Line        =   Input                               :F(HTML90)
+        Line        ?   cr RPOS(0) =
+        LineNo      =   LineNo + 1
+        fileLineNo  =   fileLineNo + 1
+        fileBytes   =   fileBytes + SIZE(Line) + 2
+*       ----------- --- ----------------------------------- ------------
+HTML30  Line        ?   POS(0) RPOS(0)                      :S(HTML20)
+        Line        ?   POS(0) BRTag =                      :S(HTML40)
+        Line        ?   POS(0) ColTag =                     :S(HTML40)
+        Line        ?   POS(0) ImgTag =                     :S(HTML40)
+        Line        ?   POS(0) InputTag =                   :S(HTML40)
+        Line        ?   POS(0) MetaTag =                    :S(HTML40)
+        Line        ?   POS(0) LinkTag =                    :S(HTML40)
+        Line        ?   POS(0) ScriptBegTag =               :S(HTML80)
+        Line        ?   POS(0) ScriptEndTag =               :S(HTML60)
+        Line        ?   POS(0) SelfTag =                    :S(HTML40)
+        Line        ?   POS(0) BeginTag =                   :S(HTML50)
+        Line        ?   POS(0) EndTag =                     :S(HTML60)
+        Line        ?   POS(0) BeginCmt =                   :S(HTML70)
+        Line        ?   POS(0) SPAN(' ' tab nl) =           :S(HTML33)
+        Line        ?   POS(0) Content . Text =             :S(HTML35)
+        Line        ?   POS(0) Spread . Text =              :S(HTML37)F(Yikes)
+HTML33  v(T[D])     =   v(T[D]) ' '                         :(HTML30)
+HTML35  v(T[D])     =   v(T[D]) Text                        :(HTML30)
+HTML37  v(T[D])     =   v(T[D]) Text nl                     :(HTML30)
+*       ----------- --- ----------------------------------- ------------
+HTML40  v(T[D])     =   v(T[D]) '${' (n(T[D]) + 1) '}'
+        D           =   D + 1
+        MaxD        =   GT(D, MaxD) D
+        T[D]        =   tree(xT,,,, A)
+        OUTPUT      =   PS()
+        Append(T[D - 1], T[D])
+        T[D]        =
+        D           =   D - 1
+        OUTPUT      =   PS()                                :(HTML30)
+*       ----------- --- ----------------------------------- ------------
+HTML50  v(T[D])     =   v(T[D]) '${' (n(T[D]) + 1) '}'
+        D           =   D + 1
+        MaxD        =   GT(D, MaxD) D
+        T[D]        =   tree(xT,,,, A)
+        OUTPUT      =   PS()                                :(HTML30)
+*       ----------- --- ----------------------------------- ------------
+HTML60  IDENT(t(T[D]), xT)                                  :S(HTML63)
+        NULL        ?   *IDENT(xT, 'div')
++                       *IDENT(t(T[D]), 'span')             :S(HTML61)
+        NULL        ?   *IDENT(xT, 'span')
++                       ( *IDENT(t(T[D]), 'p')
++                       | *IDENT(t(T[D]), 'div')
++                       )                                   :S(HTML30)F(HTMLE3)
+HTML61  v(T[D])     ?   POS(0) ARBNO('${' SPAN(digits) '}') RPOS(0) =
+*       v(T[D])     ?   POS(0) ARBNO((SPAN(' ' tab nl) | epsilon) '${' SPAN(digits) '}') (SPAN(' ' tab nl) | epsilon) RPOS(0) =
+        Append(T[D - 1], T[D])
+        T[D]        =
+        D           =   D - 1
+        OUTPUT      =   PS()                                :(HTML60)
+HTML63  v(T[D])     ?   POS(0) ARBNO('${' SPAN(digits) '}') RPOS(0) =
+*       v(T[D])     ?   POS(0) ARBNO((SPAN(' ' tab nl) | epsilon) '${' SPAN(digits) '}') (SPAN(' ' tab nl) | epsilon) RPOS(0) =
+        Append(T[D - 1], T[D])
+        T[D]        =
+        D           =   D - 1
+        OUTPUT      =   PS()                                :(HTML30)
+*       ----------- --- ----------------------------------- ------------
+HTML70  Line        ?   POS(0) BREAKX('-') EndCmt =         :S(HTML30)
+        Line        =   Input                               :F(Yikes)
+        Line        ?   cr RPOS(0) =
+        LineNo      =   LineNo + 1
+        fileLineNo  =   fileLineNo + 1
+        fileBytes   =   fileBytes + SIZE(Line) + 2          :(HTML70)
+*       ----------- --- ----------------------------------- ------------
+HTML80  Line        ?   POS(0) BREAKX('<') ScriptEndTag =   :S(HTML30)
+        Line        =   Input                               :F(Yikes)
+        Line        ?   cr RPOS(0) =
+        LineNo      =   LineNo + 1
+        fileLineNo  =   fileLineNo + 1
+        fileBytes   =   fileBytes + SIZE(Line) + 2          :(HTML80)
+*       ----------- --- ----------------------------------- ------------
+HTML90  HTML        =   T[0]
+        ENDFILE(4)                                          :(RETURN)
+HTMLE2  OUTPUT      =   "Error: " Path                      :(END)
+HTMLE3  OUTPUT      =   "Error(" LineNo "): " t(T[D]) " X " xT :(END)
+        XDump(T, 'T')                                       :(END)
+HTMLE4  OUTPUT      =   "Error(" LineNo "): " Line          :(END)
+HTMLEnd
+*=======================================================================================================================
+*------ ----------- --- ----------------------------------- ------------
+        DEFINE('TEval(x)i')                                 :(TEvalEnd)
+TEval   TEval       =   DIFFER(v(x)) v(x)                   :F(TEval5)
+TEval3  i           =   LT(i, n(x)) i + 1                   :F(RETURN)
+        TEval       ?   '${' i '}' = TEval(c(x)[i])         :(TEval3)
+TEval5  i           =   LT(i, n(x)) i + 1                   :F(RETURN)
+        TEval       =   TEval(c(x)[i])                      :(TEval5)
+TEvalEnd
+*------ ----------- --- ----------------------------------- ------------
+        DEFINE('Nums(x)v')                                  :(NumsEnd)
+Nums    IDENT(t(x), 'num')                                  :F(RETURN)
+        DIFFER(d(x))                                        :F(RETURN)
+        DIFFER(d(x)['value'])                               :F(RETURN)
+        v           =   d(x)['value']
+        v           ?   num_value                           :S(RETURN)
+        Q           =   IDENT(Q) TABLE()
+        Q[v]        =   Q[v] + 1
+        OUTPUT      =   Qize(v)                             :(RETURN)
+NumsEnd
+*------ ----------- --- ----------------------------------- ------------
+        DEFINE('Search(x,t)i')                              :(SearchEnd)
+Search  IDENT(t(x), t)                                      :F(Search5)
+        TDump(x,, 2)                                        :(RETURN)
+Search5 i           =   0
+Search7 i           =   LT(i, n(x)) i + 1                   :F(RETURN)
+        Search(c(x)[i], t)                                  :(Search7)
+SearchEnd
+*=======================================================================
+L00     &MAXLNGTH   =   2097152 ;* 1048576 ;* 524288
+*------ ----------- --- ----------------------------------- ------------
+*       findDirPath =   '"' "C:/LegalEarth/O'Conner's Forms - Converted to Cleaned HTML" '"'
+        findDirPath =   '"' "C:/LegalEarth/Merriam-Webster" '"'
+        findWild    =   '"' "*.html" '"'
+        findCmd     =   "C:/mksnt/find " findDirPath " -type f -name " findWild
+        fileParams  =   '[-m10 -l65536]'
+        fileDirPat  =   (ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/')))
+        fileNamePat =   ARBNO(NOTANY('/'))
+        filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+        fileNo      =   0
+        fileNoMin   =   1
+        fileNoMax   =   1
+        fileLineNo  =   0
+        fileBytes   =   0
+        OUTPUT      =   CHAR(239) CHAR(187) CHAR(191) ;* 0xEF, 0xBB, 0xBF
+*       TERMINAL    =   Slice(DUPL('X', 433), 111, 123)
+*       ----------- --- ----------------------------------- ------------
+        INPUT(.findInput, 3, "!!" findCmd)                  :F(E1)
+L10     filePath    =   findInput                           :F(L90)
+        filePath    ?   filePattern                         :F(Yikes)
+        fileName    ?   ANY('Aa') '.' RPOS(0)               :S(L10)
+        fileNo      =   fileNo + 1
+        GE(fileNo, fileNoMin)                               :F(L10)
+        LE(fileNo, fileNoMax)                               :F(L90)
+        &TRACE      =   1048576
+        OUTPUT      =   DUPL('-', 32) ' Reading ' filePath
+        html        =   Read(filePath, .t8Map)
+*       html        ?   POS(0) *htmDOCTYPE                ;*:F(Yikes)
+*       html        ?   POS(0) *htmRecognizer RPOS(0)     ;*:F(Yikes)
+        T = HTML(filePath)
+        OUTPUT      =   DUPL('-', 32) ' Processing ' fileName
+*       GenSetCont()
+        TDump(T)
+*       XDump(T)
+                                                            :(L10)
+L90     ENDFILE(3)
+        OUTPUT      =   'Processed ' fileLineNo ' lines.'
+        OUTPUT      =   'Processed ' fileBytes ' bytes.'
+        OUTPUT      =   'Maximum depth ' MaxD
+                                                            :(END)
+*       ----------- --- ----------------------------------- ------------
+E1      TERMINAL    =   "Error: " findCmd                   :(END)
+*-INCLUDE 'debug.sno'
+END

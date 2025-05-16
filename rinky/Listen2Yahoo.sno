@@ -1,0 +1,296 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Yahoo.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all topics ... ------------------------------------------------
+*---------- FOR every search alternative ... ----------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =========== === ======================================================= ====================
+            xListener       =   'Listen2Yahoo'
+            userAgent       =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies         =   xListener 'Cookies.txt'
+            doParseTree     =   FALSE
+            urlReferer      =   'LonCherryholmes.BlogSpot.com'
+            ysAppID         =   'JKOIS9HV34Fgdu8VD..14gU1znY3J8Tnr7SKPO2BNZ39D8rxF6Ain8_8hK7DcCw-' ;* Product: Blogzilla
+            ysFlickr        =   'SELECT * FROM flickr.photos.search WHERE text="Cat"'
+            ysSocial        =   'SELECT * FROM social.search WHERE text="Cat"'
+            ysMyBlogLog     =   'SELECT * FROM mybloglog.search WHERE text="Cat"'
+            ysNews          =   *('http://news.search.yahoo.com/news/rss?p=' qxQuery)
+            ysImage         =   *('http://search.yahooapis.com/ImageSearchService/rss/imageSearch.xml?p=' qxQuery)
+            yqlUrl          =   'http://query.yahooapis.com/v1/public/yql'
+            ysST            =   TABLE()
+            ysST[0]         =   2
+            ysST[1]         =   'News'
+            ysST[2]         =   'Image'
+            ysST['News']    =   *(yqlUrl "?format=json&q=" URLEncode("SELECT * FROM rss WHERE url='" REPLACE(EVAL(ysNews), "'", "''") "'"))
+            ysST['Image']   =   *(yqlUrl "?format=json&q=" URLEncode("SELECT * FROM rss WHERE url='" REPLACE(EVAL(ysImage), "'", "''") "'"))
+*---------- ----------- --- ------------------------------------------------------------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            qQuery      =   POS(0) $ xQT . *assign(.iQT, 0) . *assign(.xQT, TABLE()) *qAlts RPOS(0)
+            qAlts       =   *qAlt ARBNO(*qOR *qAlt)
+            qOR         =   $'  ' 'OR' $'  '
+            qAlt        =   ('"' BREAK('"') '"') . qxAlt . *assign(.iQT, iQT + 1) . *assign(.xQT[iQT], qxAlt)
+*========== =========== === =================================================== ====================
+            SetupWait()                                                         :F(LEnd)
+            SetupCancel()                                                       :F(LEnd)
+            SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            curl        =   curl_easy_init()                                    :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(LErr)
+            periodSecs  =   IDENT(periodSecs) 30
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   2 * 24 * 60 * 60  ;* 2 day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+            backTime    =   '2011-01-01 00:00:00'
+            timeZone    =   -4 * 60 * 60  ;* North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;* Israel, GMT+2 hours in seconds
+            ysCntT      =   TABLE()
+            ysModT      =   TABLE()
+            ReadSchema('Yahoo')                                                 :F(error)
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(LEnd)
+            ReadConfig(xListener)                                               :F(error)
+            ysTotT      =   TABLE()
+*---------- FOR all topics ... ------------------------------------------------
+            iT          =   xIT[0]['Topic']
+L20         iT          =   LT(iT, xMaxEntity) iT + 1                           :F(L90)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            xT          =   DIFFER(xIT[iT]) xIT[iT]                             :F(L20)
+            iTopic      =   iT
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xQ          ?   *qQuery                                             :F(error)
+            ysCntT[iT]  =   GT(ysCntT[iT], 1) ysCntT[iT] - 1                    :S(L20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(L25)
+            xT['Until'] =
+            xT['Since'] =
+            xT['Max']   =
+            xT['Alt']   =
+            xT['Ofs']   =
+L25         nowDT       =   DTDecode(Datetime())
+            thenDT      =   DTDecode(backTime)
+            xT['Until'] =   IDENT(xT['Until']) DTEncode(nowDT)
+            xT['Since'] =   IDENT(xT['Since']) DTEncode(thenDT)
+            xT['Max']   =   IDENT(xT['Max']) xT['Until']
+            ysxMinBatch =
+            ysxMaxBatch =
+*---------- FOR each source type ... ------------------------------------------
+            iSource     =   xT['Source']
+L30         iSource     =   LT(iSource, ysST[0]) iSource + 1                    :F(L80)
+            ysSource    =   ysST[iSource]                                       :F(L30)
+            ysUrl       =   ysST[ysSource]
+            iAltsTotal  =
+*---------- FOR every search alternative ... ----------------------------------
+            iAlt        =   xT['Alt']
+L40         iAlt        =   iAlt + 1
+            qxQuery     =   DIFFER(xQT[iAlt]) xQT[iAlt]                         :F(L70)
+            ysOffset    =   xT['Ofs']
+            iPagesTotal =
+            ysxMinSave  =
+            ysxMaxSave  =
+*---------- FOR every page ... ------------------------------------------------
+            ysxHasMore  =   TRUE
+            iPage       =   0
+L50         iPage       =   EQ(ysxHasMore, TRUE) iPage + 1                      :F(L60)
+*           Get result ...
+            url         =   EVAL(ysUrl)
+L53         iTry        =   0
+L54         iTry        =   LT(iTry, 10) iTry + 1                               :F(LErr)
+            EQ(IsCancelled(), FALSE)                                            :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 6) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 6) DTEncode(prevTime) ' GET ...?' url
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(L54)
+            json        =   curl_easy_getdata()
+            json        ?   POS(0) '<!DOCTYPE ' ('HTML' | 'html')               :S(L50E)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                    :F(L50X)
+*           Process result ...
+L55         Write(xListener '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :S(L50S)F(L50F)
+L50S        iIter       =   iIter + 1
+            r           =   Pop()
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Yahoo'
+            tK['$' 'Yahoo'] = iIter
+            BATCH       =
+            Schema(.BATCH, r, 'Yahoo')
+            BATCH       =   DIFFER(BATCH)
++                           'SET TRANSACTION ISOLATION LEVEL READ COMMITTED' nl
++                           'BEGIN TRANSACTION Yahoo_Schema' nl
++                            BATCH
++                           'COMMIT TRANSACTION Yahoo_Schema' nl                :F(L50S1)
+            SQL_A_ExecDirect(hstmt, BATCH)                                      :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+L50S1       Save(r, 'Yahoo', 0)
+            ysxC        =
+            ysxMinDate  =
+            ysxMaxDate  =
+            ysxSpace    =   DUPL(' ', 8192)
+            ysxSpace    ?              FENCE
++                                     *IDENT(t(r), 'JSON')
++                                   *IDENT(t(c(r)[1]), '{}')
++                                      *GE(n(c(r)[1]), i = 1)
++                                ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                                 *IDENT(t(c(c(r)[1])[i]), ':')
++                               *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                               *IDENT(v(c(c(c(r)[1])[i])[1]), 'SearchResponse')
++                               *IDENT(t(c(c(c(r)[1])[i])[2]), '{}')
++                                  *GE(n(c(c(c(r)[1])[i])[2]), j = 1)
++                            ARBNO(*GE(n(c(c(c(r)[1])[i])[2]), j = j + 1) ' ')
++                             *IDENT(t(c(c(c(c(r)[1])[i])[2])[j]), ':')
++                           *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'Name')
++                           *IDENT(v(c(c(c(c(c(r)[1])[i])[2])[j])[1]), ysSource)
++                           *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[2]), '{}')
++                              *GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = 1)
++                        ARBNO(*GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = k + 1) ' ')
++                         *IDENT(t(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), ':')
++                       *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[1]), 'Name')
++                       *IDENT(v(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[1]), 'Results')
++                       *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), '[]')
++                          *GE(n(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), m = 1)
++                    ARBNO(*GE(n(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2]), m = m + 1) ' ') *?(ysxC = ysxC + 1)
++                     *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), '{}')
++                        *GE(n(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), n = 1)
++                  ARBNO(*GE(n(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m]), n = n + 1) ' ')
++                   *IDENT(t(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n]), ':')
++                 *IDENT(t(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[1]), 'Name')
++                 *IDENT(v(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[1]), ('Date' IDENT(ysSource, 'News'), 'DateTime'))
++                 *IDENT(t(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[2]), 'Datetime')
++           *?(ysxDate = v(c(c(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[2])[m])[n])[2]))
++           *?(ysxMinDate = MinDate(ysxDate, ysxMinDate))
++           *?(ysxMaxDate = MaxDate(ysxDate, ysxMaxDate))
++           FAIL
+            OUTPUT      =   GE(xVerbose, 5) Datetime() ':'
++                           ' ' LPAD(ysxMinDate, 19) ' ' LPAD(ysxMaxDate, 19)
++                           ' ' iPoll ' ' iT ' ' iSource ' ' iAlt
++                           ' ' iPage '(' +ysOffset ')' (' ' ysxC DIFFER(ysxC), NULL)
+            iPagesTotal =   DIFFER(ysxC) iPagesTotal + ysxC
+            iAltsTotal  =   DIFFER(ysxC) iAltsTotal + ysxC
+            ysTotT[iT]  =   DIFFER(ysxC) ysTotT[iT] + ysxC
+            ysOffset    =   ysOffset + ysxC
+            xT['Ofs']   =   ysOffset
+            xT['Until'] =   DIFFER(ysxMinDate) ysxMinDate
+            ysxMinBatch =   MinDate(ysxMinDate, ysxMinBatch)
+            ysxMaxBatch =   MaxDate(ysxMaxDate, ysxMaxBatch)
+            ysxHasMore  =   LT(ysxC, ysCT[ysSource]) FALSE                          :S(L50)
+            ysxHasMore  =   DIFFER(ysxMinDate) DIFFER(ysxMinSave)
++                           DIFFER(ysxMaxDate) DIFFER(ysxMaxSave)
++                           LEQ(ysxMinDate, ysxMinSave)
++                           LEQ(ysxMaxDate, ysxMaxSave)
++                           FALSE                                                   :S(L50)
+            ysxMinSave  =   ysxMinDate
+            ysxMaxSave  =   ysxMaxDate
+            ysxHasMore  =   IDENT(ysSource, 'Image') GE(iPagesTotal, 100) FALSE     :S(L50)
+            ysxHasMore  =   IDENT(ysSource, 'Video') GE(iPagesTotal, 100) FALSE     :S(L50)
+            ysxHasMore  =   DIFFER(ysxMinDate) LLT(ysxMinDate, xT['Since']) FALSE   :(L50)
+L50F        TERMINAL    =   'failure'                                               :(END)
+L50X        TERMINAL    =   'terminal failure'                                      :(END)
+L50E        TERMINAL    =   'HTML RESPONSE !!!'
+            TERMINAL    =   json                                                    :(L50)
+*---------- END FOR every page ----------------------------------------------------
+L60         OUTPUT      =   GE(xVerbose, 4) Datetime() ':'
++                           ' ' LPAD(ysxMinBatch, 19) ' ' LPAD(ysxMaxBatch, 19)
++                           ' ' iPoll ' ' iT ' ' iSource
++                           ' ' iAlt ' ' qxQuery (' ' iPagesTotal DIFFER(iPagesTotal), NULL)
+            xT['Until'] =   xT['Max']
+            xT['Ofs']   =
+            xT['Alt']   =   iAlt
+            IniWrite(xListener '.ini', xIT)                                         :(L40)
+*---------- END FOR every search alternative --------------------------------------
+L70         OUTPUT      =   GE(xVerbose, 3) Datetime() ':'
++                           ' ' LPAD(ysxMinBatch, 19) ' ' LPAD(ysxMaxBatch, 19)
++                           ' ' iPoll ' ' iT
++                           ' ' iSource ' "' ysSource '"' (' ' iAltsTotal DIFFER(iAltsTotal), NULL)
+            xT['Alt']   =
+            xT['Src']   =   iSource
+            IniWrite(xListener '.ini', xIT)                                         :(L30)
+*---------- END FOR each source type ... ------------------------------------------
+L80         OUTPUT      =   GE(xVerbose, 2) Datetime() ':'
++                           ' ' DUPL('-', 19) ' ' DUPL('-', 19)
++                           ' ' iPoll ' ' iT ' "' xE '"' (' ' ysTotT[iT] DIFFER(ysTotT[iT]), NULL)
+            ysModT[iT]  =   EQ(ysTotT[iT]) LT(ysModT[iT], 5) ysModT[iT] + 1
+            ysModT[iT]  =   GT(ysTotT[iT]) GT(ysModT[iT], 1) ysModT[iT] - 1
+            ysCntT[iT]  =   ysModT[iT]
+            xT['Since'] =   xT['Max']
+            xT['Until'] =
+            xT['Max']   =
+            xT['Src']   =
+            xIT[0]['Topic'] = iT
+            IniWrite(xListener '.ini', xIT)                                         :(L20)
+*---------- END FOR all topics ----------------------------------------------------
+L90         xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            ysReport    =
+            iTotal      =   0
+            iT          =   0
+L93         iT          =   LT(iT, xMaxEntity) iT + 1                               :F(L95)
+            DIFFER(xT = xIT[iT])                                                    :F(L93)
+            iTotal      =   iTotal + ysTotT[iT]
+            ysReport    =   ysReport ' ' LPAD(ysTotT[iT], 3)                        :(L93)
+L95         OUTPUT      =   GE(xVerbose, 1) Datetime() ':'
++                           ( GT(xVerbose, 1) ' ' DUPL('-', 19) ' ' DUPL('-', 19)
++                           , NULL
++                           ) ' ' LPAD(iPoll, 5) ' ' LPAD(iTotal, 5) ysReport       :(L10)
+*---------- ----------- --- -------------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                           :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                            :(L05)
+*---------- ----------- --- -------------------------------------------------------
+LErr1       OUTPUT      =   'Failure (' iT ', ' iPage ', ' ysxC ').'
+            OUTPUT      =   ysxChunk                                                :(LEnd)
+LErr2       OUTPUT      =   'Weird error.'                                          :(LEnd)
+LErr        curl_easy_error_info(curl, cc)                                          :(LEnd)
+*---------- ----------- --- -------------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                                 :(END)
+*========== =========== === =======================================================
+*-INCLUDE 'debug.sno'
+END

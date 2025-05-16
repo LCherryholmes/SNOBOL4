@@ -1,0 +1,49 @@
+*-------------------------------------------------------------------------------------------------------------------------
+-include    'portable.inc'
+            optSpcPat      =     (SPAN(' ') | '')
+            testPat        =     'test' optSpcPat
+            getAttrPat     =     'get' ('New' | 'Old' | '') ('Int' | '') . x 'Attr' ('State' | 'Len' | '') optSpcPat
+            bmcAValPat     =     'bmcAOldVal' . *assign(.getFunc, *('getOld' x 'Attr'))
++                          |     'bmcANewVal' . *assign(.getFunc, *('getNew' x 'Attr'))
+            testArgsExpr   =     *(RPAD(nm ':', 9) RPAD(a, 38) ' ' RPAD(b, 15) '' RPAD(c, 24))
+            list           =     system('@-find e:/brazos/alo/alotpl -name "*.cpp" -print')
+
+            nmTbl          =     TABLE()
+main10      list           POS(0) BREAK(nl) . cppSrcFile . cppTgtFile nl =       :f(main90)
+            cppSrcFile     '/' ARBNO(NOTANY('/')) . nm '.cpp' RPOS(0)
+            cppTgtFile     '.cpp' RPOS(0) = '.new'
+            INPUT(.cppInput, 3, cppSrcFile)                                      :f(ioerr)
+            OUTPUT(.cppOutput, 4, cppTgtFile)                                    :f(ioerr)
+main20      cppLine        =     cppInput                                        :f(main50)
+            cppLine        testPat '('                                           :f(main40)
+            cppLine        testPat '(' BAL . a ',' BAL . b ',' BAL . c ')'       :f(xerr)
+            allTot         =     allTot + 1
+            a              getAttrPat '(' BAL . attrName ')'                     :f(main40)
+            (b ' ' c)      bmcAValPat                                            :f(main40)
+            probTot        =     probTot + 1
+            nmTbl[nm]      =     nmTbl[nm] + 1
+            OUTPUT         =
+            OUTPUT         =     '< ' EVAL(testArgsExpr)
+            b              bmcAValPat = getFunc '(' attrName ')'
+            c              bmcAValPat = getFunc '(' attrName ')'
+            OUTPUT         =     '> ' EVAL(testArgsExpr)
+            orgLine        =     cppLine
+            cppLine        testPat '(' BAL ')' = 'test(' a ',' b ',' c ')'       :f(xerr)
+            cppOutput      =     '#ifdef _DYNIX'
+            cppOutput      =     cppLine
+            cppOutput      =     '#else'
+            cppOutput      =     orgLine
+            cppOutput      =     '#endif'                                        :(main20)
+main40      cppOutput      =     cppLine                                         :(main20)
+main50      (ENDFILE(3) ENDFILE(4))                                              :(main10)
+main90      OUTPUT         =
+            OUTPUT         =     'Total test() cases: ' allTot
+            OUTPUT         =     'Total problem test() cases: ' probTot
+            OUTPUT         =
+            nmArr          =     SORT(nmTbl)                                     :f(END)
+            i              =     0
+main95      nm             =     nmArr[i = i + 1, 1]                             :f(END)
+            cnt            =     nmArr[i, 2]
+            OUTPUT         =     RPAD(nm ':', 9) ' ' LPAD(cnt, 2)                :(main95)
+xerr        OUTPUT         =     DUPL('*', 12) 'Unexpected Error: ' cppLine      :(END)
+END

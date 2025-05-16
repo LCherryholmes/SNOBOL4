@@ -1,0 +1,72 @@
+*-------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'global.inc'
+-INCLUDE    'utility.inc'
+*------------- ------------------- --- ------------------------------- ----------------------------------------------------
+               DEFINE('RunCmd(cmd)runInput')                           :(RunCmdEnd)
+RunCmd         INPUT(.runInput, 6, '!!' cmd)                           :F(FRETURN)
+RunCmd10       RunCmd              =   RunCmd runInput nl              :S(RunCmd10)
+               ENDFILE(6)                                              :(RETURN)
+RunCmdEnd
+*------------- ------------------- --- ------------------------------- ----------------------------------------------------
+               pathName            =   "C:/SQLLiteSpeed/4.6.x"
+               fromPattern         =   '/dev/'
+               toPattern           =   '/4.6.x/'
+               mv                  =   'C:/mksnt/mv'
+               findCmdSLN          =   'C:/mksnt/find ' pathName ' -name "*.sln" -print'
+               findCmdVCP          =   'C:/mksnt/find ' pathName ' -name "*.vcproj" -print'
+               ssExePath           =   '//AusDcx01/Source/SourceSafe/win32/ss'
+               tabChar             =   CHAR(9)
+               sccNum              =   SPAN('0123456789')
+               sccPatternSLN       =   POS(0) tabChar tabChar 'SccProjectName' sccNum . sccNdx ' = ' BREAK(',') . sccPath ','
+	           sccPatternVCP       =   POS(0) tabChar 'SccProjectName="&quot;' BREAK('&') . sccPath
+*              EXIT(3, 'branch.exe')
+*------------- ------------------- --- ------------------------------- ----------------------------------------------------
+               INPUT(.findInput, 3, '!!' findCmdSLN)                   :F(error1)
+SLN_again1     findPath            =   findInput                       :F(SLN_done)
+               findFile            =   findPath
+               findFile            POS(0) pathName '/' =
+               OUTPUT              =   DUPL('=', 60) ' "' findFile '"'
+               INPUT(.fileInput, 4, findPath)                          :F(error2)
+               OUTPUT(.fileOutput, 5, findPath '-new')                 :F(error3)
+SLN_again2     fileLine            =   fileInput                       :F(SLN_fini)
+               fileLine            sccPatternSLN                       :S(SLN_dochange)F(SLN_dontchange)
+SLN_dochange   sccPath             fromPattern = toPattern
+               ssPath              =   sccPath
+SLN_cleanup1   ssPath              bSlash 'u0020' = ' '                :S(SLN_cleanup1)
+SLN_cleanup2   ssPath              bSlash 'u0022' =                    :S(SLN_cleanup2)
+               ssPhysical          =   RunCmd(ssExePath ' physical "' ssPath '"')
+               ssPhysical          POS(0) BREAK(nl) . ssPhysical nl
+               ssPhysical          POS(0) RTAB(8) RTAB(0) . ssAddress
+               fileLine            =   tabChar tabChar 'SccProjectName' sccNdx ' = ' sccPath ',' bSlash 'u0020' ssAddress
+SLN_dontchange fileOutput          =   fileLine                        :(SLN_again2)
+SLN_fini       ENDFILE(5)
+               ENDFILE(4)
+               RunCmd(mv ' -f "' findPath '-new" "' findPath '"')      :(SLN_again1)
+SLN_done       ENDFILE(3)
+*------------- ------------------- --- ------------------------------- ----------------------------------------------------
+VCP            INPUT(.findInput, 3, '!!' findCmdVCP)                   :F(error1)
+VCP_again1     findPath            =   findInput                       :F(VCP_done)
+               findFile            =   findPath
+               findFile            POS(0) pathName '/' =
+               OUTPUT              =   DUPL('=', 60) ' "' findFile '"'
+               INPUT(.fileInput, 4, findPath)                          :F(error2)
+               OUTPUT(.fileOutput, 5, findPath '-new')                 :F(error3)
+VCP_again2     fileLine            =   fileInput                       :F(VCP_fini)
+               fileLine            sccPatternVCP                       :S(VCP_dochange)F(VCP_dontchange)
+VCP_dochange   sccPath             fromPattern = toPattern
+               ssPath              =   sccPath
+               ssPhysical          =   RunCmd(ssExePath ' physical "' ssPath '"')
+               ssPhysical          POS(0) BREAK(nl) . ssPhysical nl
+               ssPhysical          POS(0) RTAB(8) RTAB(0) . ssAddress
+	           fileLine            =   tabChar 'SccProjectName="&quot;' ssPath '&quot;, ' ssAddress '"'
+VCP_dontchange fileOutput          =   fileLine                        :(VCP_again2)
+VCP_fini       ENDFILE(5)
+               ENDFILE(4)
+               RunCmd(mv ' -f "' findPath '-new" "' findPath '"')      :(VCP_again1)
+VCP_done       ENDFILE(3)                                              :(END)
+*------------- ------------------- --- ------------------------------- ----------------------------------------------------
+error1         OUTPUT              =   "Internal Error #1"             :(END)
+error2         OUTPUT              =   "Internal Error #2"             :(END)
+error3         OUTPUT              =   "Internal Error #3"             :(END)
+END

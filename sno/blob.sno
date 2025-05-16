@@ -1,0 +1,934 @@
+*-------------------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'system.inc'
+-INCLUDE 'utility.inc'
+-INCLUDE 'random.inc'
+-INCLUDE 'datetime.inc'
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+*           &MAXLNGTH       =   8388608
+            &MAXLNGTH       =   1048576
+            blobTypes       =   1
+            blobType        =   ARRAY('1:' blobTypes)
+            blobFGrp        =   ARRAY('1:' blobTypes)
+            blobType[1]     =   'mp3';  blobFGrp[1]    =   'PRIMARY'
+            blobType[2]     =   'bmp';  blobFGrp[2]    =   'PRIMARY'
+            blobType[3]     =   'bsc';  blobFGrp[3]    =   'SECONDARY'
+            blobType[4]     =   'dll';  blobFGrp[4]    =   'PRIMARY'
+            blobType[5]     =   'doc';  blobFGrp[5]    =   'SECONDARY'
+            blobType[6]     =   'exe';  blobFGrp[6]    =   'PRIMARY'
+            blobType[7]     =   'jpg';  blobFGrp[7]    =   'SECONDARY'
+            blobType[8]     =   'pdb';  blobFGrp[8]    =   'SECONDARY'
+            blobType[9]     =   'txt';  blobFGrp[9]    =   'PRIMARY'
+            blobType[10]    =   'wav';  blobFGrp[10]   =   'SECONDARY'
+            blobType[11]    =   'zip';  blobFGrp[11]   =   'PRIMARY'
+
+            algType         =   ARRAY('0:10')
+            algType[0]      =   'memcpy'
+            algType[1]      =   'Z'
+            algType[2]      =   'ZLIB(1)'
+            algType[3]      =   'ZLIB(2)'
+            algType[4]      =   'ZLIB(3)'
+            algType[5]      =   'ZLIB(4)'
+            algType[6]      =   'ZLIB(5)'
+            algType[7]      =   'ZLIB(6)'
+            algType[8]      =   'ZLIB(7)'
+            algType[9]      =   'ZLIB(8)'
+            algType[10]     =   'ZLIB(9)'
+            algType[11]     =   'ZLIB(9)'
+            algType[12]     =   'LZMA'
+
+            xferSize        =   ARRAY('1:7')
+            xferSize[1]     =     65536
+            xferSize[2]     =    131072
+            xferSize[3]     =    262144
+            xferSize[4]     =    524288
+            xferSize[5]     =   1048576
+            xferSize[6]     =   2097152
+            xferSize[7]     =   4194304
+
+            baseSize        =   ARRAY('1:9')
+            baseSize[1]     =         0
+            baseSize[2]     =     65536
+            baseSize[3]     =    131072
+            baseSize[4]     =    262144
+            baseSize[5]     =    524288
+            baseSize[6]     =   1048576
+            baseSize[7]     =   2097152
+            baseSize[8]     =   4194304
+            baseSize[9]     =   8388608
+*-------------------------------------------------------------------------------------------------------------------
+            DATA('column(colName,colDataType)')
+            columns         =   ARRAY('1:64')
+            c = 0
+            c = c + 1; columns[c]   =   column("colBigInt",            "bigint")
+            c = c + 1; columns[c]   =   column("colInt",               "int")
+            c = c + 1; columns[c]   =   column("colSmallInt",          "smallint")
+            c = c + 1; columns[c]   =   column("colTinyInt",           "tinyint")
+            c = c + 1; columns[c]   =   column("colBit0",              "bit")
+            c = c + 1; columns[c]   =   column("colBit1",              "bit")
+            c = c + 1; columns[c]   =   column("colBit2",              "bit")
+            c = c + 1; columns[c]   =   column("colBit3",              "bit")
+            c = c + 1; columns[c]   =   column("colBit4",              "bit")
+            c = c + 1; columns[c]   =   column("colBit5",              "bit")
+            c = c + 1; columns[c]   =   column("colBit6",              "bit")
+            c = c + 1; columns[c]   =   column("colBit7",              "bit")
+            c = c + 1; columns[c]   =   column("colDecimal_08_00",     "decimal(8,0)")
+            c = c + 1; columns[c]   =   column("colDecimal_08_04",     "decimal(8,4)")
+            c = c + 1; columns[c]   =   column("colDecimal_08_08",     "decimal(8,8)")
+            c = c + 1; columns[c]   =   column("colDecimal_18_01",     "decimal(18,1)")
+            c = c + 1; columns[c]   =   column("colDecimal_18_09",     "decimal(18,9)")
+            c = c + 1; columns[c]   =   column("colDecimal_18_17",     "decimal(18,17)")
+            c = c + 1; columns[c]   =   column("colDecimal_26_01",     "decimal(26,1)")
+            c = c + 1; columns[c]   =   column("colDecimal_26_13",     "decimal(26,13)")
+            c = c + 1; columns[c]   =   column("colDecimal_26_25",     "decimal(26,25)")
+            c = c + 1; columns[c]   =   column("colDecimal_38_00",     "decimal(38,0)")
+            c = c + 1; columns[c]   =   column("colDecimal_38_19",     "decimal(38,19)")
+            c = c + 1; columns[c]   =   column("colDecimal_38_38",     "decimal(38,38)")
+            c = c + 1; columns[c]   =   column("colMoney",             "money")
+            c = c + 1; columns[c]   =   column("colSmallMoney",        "smallmoney")
+            c = c + 1; columns[c]   =   column("colFloat",             "float")
+            c = c + 1; columns[c]   =   column("colReal",              "real")
+            c = c + 1; columns[c]   =   column("colDateTime",          "datetime")
+            c = c + 1; columns[c]   =   column("colSmallDateTime",     "smalldatetime")
+            c = c + 1; columns[c]   =   column("colChar",              "char(24)")
+            c = c + 1; columns[c]   =   column("colVarChar",           "varchar(24)")
+*           c = c + 1; columns[c]   =   column("colVarCharMax",        "varchar(max)")
+*           c = c + 1; columns[c]   =   column("colText",              "text")
+            c = c + 1; columns[c]   =   column("colNChar",             "nchar(24)")
+            c = c + 1; columns[c]   =   column("colNVarChar",          "nvarchar(24)")
+*           c = c + 1; columns[c]   =   column("colNVarCharMax",       "nvarchar(max)")
+*           c = c + 1; columns[c]   =   column("colNText",             "ntext")
+            c = c + 1; columns[c]   =   column("colBinary",            "binary(32)")
+            c = c + 1; columns[c]   =   column("colVarBinary",         "varbinary(32)")
+*           c = c + 1; columns[c]   =   column("colVarBinaryMax",      "varbinary(max)")
+*           c = c + 1; columns[c]   =   column("colImage",             "image")
+            c = c + 1; columns[c]   =   column("colUniqueIdentifier",  "uniqueidentifier")
+*           c = c + 1; columns[c]   =   column("colSQLVariant",        "sql_variant")
+*           c = c + 1; columns[c]   =   column("colTimeStamp",         "timestamp")
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            digits          =   '0123456789'
+            SLSint          =   SPAN(digits)
+            SLSreal         =   SPAN(digits) '.' SPAN(digits)
+            SLSmoney        =   '$' SPAN(digits) '.' ANY(digits) ANY(digits)
+            SLSname         =   "'" BREAK("'") "'"
+
+            SLSPreface      =   "LiteSpeed 2005 " *SLSint "." *SLSint "." *SLSint "." *SLSint nl
++                               "Copyright (C) 2004-2006, Quest Software Inc. All Rights Reserved." nl
++                               "www.quest.com." nl
++                               "Registered Name: " BREAK(nl) nl nl
+
+            SLSSuccess      =   ARBNO("Processed " *SLSint " pages for database " *SLSname ", file " *SLSname " on file " *SLSint "." nl)
++                               "BACKUP DATABASE successfully processed " *SLSint . slsPages " pages"
++                               " in " *SLSreal . slsSeconds " seconds (" *SLSreal . slsRate " MB/sec)." nl
++                               (   "This SQL Litespeed backup has saved you approximately " *SLSint . slsSavings " MB of space." nl
++                                   "This computes to a total hardware and tape media savings of " *SLSmoney
++                                   " for this usage with an annual savings of " *SLSmoney "." nl
++                                   "For a more detailed ROI calculation including cost of personnel," nl
++                                   "savings in recovery time and hardware performance savings go to http://www.imceda.com/ROI/." nl
++                                   "(Calculations use average disk and storage managements cost per Gartner and IDC.)" nl nl
++                                   "Run code : " BREAK(nl) nl
++                               |   nl
++                               )
++                               "Backup added as file number: " *SLSint nl
++                               nl (nl | '')
+
+            SLSFailure      =   nl 'Failed to compress data block.' nl nl
++                               'BACKUP DATABASE is terminating abnormally.' nl nl
++                               (   'Write on LiteSpeed 2005 backup file failed, status = ' *SLSint '.'
++                                   ' See the SQL Server error log for more details.' nl
++                               |   ''
++                               )
++                               nl (nl | '')
+
+            SLScksum        =   POS(0) SPAN(digits) tab SPAN(digits) . bkpSize
+            SLStiming       =   '' $ slsReal $ slsUser $ slsSys nl
++                               'real' tab *SLSint . slsRealMin 'm' (' ' | '') *SLSreal . slsRealSec 's' nl
++                               'user' tab *SLSint . slsUserMin 'm' (' ' | '') *SLSreal . slsUserSec 's' nl
++                               'sys'  tab *SLSint . slsSysMin  'm' (' ' | '') *SLSreal . slsSysSec  's' nl
++                               '' . *assign(.slsReal, *(slsRealMin * 60.0 + slsRealSec))
++                               '' . *assign(.slsUser, *(slsUserMin * 60.0 + slsUserSec))
++                               '' . *assign(.slsSys,  *(slsSysMin  * 60.0 + slsSysSec))
+
+            TCPreface       =   'TEXTCOPY Version 1.0' nl
++                               'DB-Library version 8.00.' *SLSint nl
+            TCSuccess       =   "Data copied into SQL Server image column from file '" BREAK("'") "'." nl
+            TCFailure       =   'ERROR: Text or image write failed.' nl
+
+            SQL_id          =   ANY(&UCASE &LCASE) (SPAN(&UCASE &LCASE '0123456789') | '')
+            SQL_server      =   *SQL_id (bSlash *SQL_id | '')
+            SQL_object      =   *SQL_id
+            SQL_database    =   *SQL_id
+            SQL_line        =   SPAN('0123456789')
+            SQL_Concerning  =   "(Concerning line " *SQL_line ")"
+            SQL_1105        =   "SQL Server '" *SQL_server
++                               "' Message 1105: Could not allocate space for object '" *SQL_object "'"
++                               " in database '" *SQL_database
++                               "' because the '" *SQL_object "' filegroup is full. " *SQL_Concerning nl
+            SQL_3621        =   "SQL Server '" *SQL_server
++                               "' Message 3621: The statement has been terminated. " *SQL_Concerning nl
+            SQL_7102        =   "SQL Server '" *SQL_server "' Message 7102: SQL Server Internal Error."
++                               " Text manager cannot continue with current statement. " *SQL_Concerning nl
+            SQL_10007       =   "DB-Library Error 10007:"
++                               " General SQL Server error: Check messages from the SQL Server." nl
+*-------------------------------------------------------------------------------------------------------------------
+-INCLUDE 'BCP.inc'
+*-------------------------------------------------------------------------------------------------------------------
+            sqlDataType                     =   TABLE()
+            sqlDataType['bit']              =   104
+            sqlDataType['tinyint']          =   48
+            sqlDataType['smallint']         =   52
+            sqlDataType['int']              =   56
+            sqlDataType['bigint']           =   127
+            sqlDataType['decimal']          =   106
+            sqlDataType['numeric']          =   108
+            sqlDataType['smallmoney']       =   122
+            sqlDataType['money']            =   60
+            sqlDataType['real']             =   59
+            sqlDataType['float']            =   62
+            sqlDataType['smalldatetime']    =   58
+            sqlDataType['datetime']         =   61
+            sqlDataType['char']             =   175
+            sqlDataType['varchar']          =   167
+            sqlDataType['text']             =   35
+            sqlDataType['nchar']            =   239
+            sqlDataType['nvarchar']         =   231
+            sqlDataType['ntext']            =   99
+            sqlDataType['binary']           =   173
+            sqlDataType['varbinary']        =   165
+            sqlDataType['image']            =   34
+            sqlDataType['timestamp']        =   189
+            sqlDataType['uniqueidentifier'] =   36
+            sqlDataType['sql_variant']      =   98
+*-------------------------------------------------------------------------------------------------------------------
+            sqlVar          =   ARRAY('1:20')
+            sqlVar[1]       =   'bit'
+            sqlVar[2]       =   'tinyint'
+            sqlVar[3]       =   'smallint'
+            sqlVar[4]       =   'int'
+            sqlVar[5]       =   'bigint'
+            sqlVar[6]       =   'decimal'
+            sqlVar[7]       =   'numeric'
+            sqlVar[8]       =   'smallmoney'
+            sqlVar[9]       =   'money'
+            sqlVar[10]      =   'real'
+            sqlVar[11]      =   'float'
+            sqlVar[12]      =   'smalldatetime'
+            sqlVar[13]      =   'datetime'
+            sqlVar[14]      =   'uniqueidentifier'
+            sqlVar[15]      =   'char'
+            sqlVar[16]      =   'varchar'
+            sqlVar[17]      =   'nchar'
+            sqlVar[18]      =   'nvarchar'
+            sqlVar[19]      =   'binary'
+            sqlVar[20]      =   'varbinary'
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ReadWords()i,word')
+            nwords          =   234936
+            words           =   ARRAY('1:' nwords)                                  :(ReadWordsEnd)
+ReadWords   INPUT(.wordsInput, 3, 'words.txt')                                      :F(ioerr)
+            i               =   0
+ReadWords1  i               =   i + 1
+            word            =   wordsInput                                          :F(ReadWords2)
+            words[i]        =   word                                                :(ReadWords1)
+ReadWords2  ENDFILE(3)                                                              :(RETURN)
+ReadWordsEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('RndDec(p,s)d,i,nF,nI')                                          :(RndDecEnd)
+RndDec      p               =   IDENT(p) 18
+            s               =   IDENT(s) 0
+            nI              =   RANDOM(p - s + 1) - 1
+            nF              =   GT(s, 0) RANDOM(s + 1) - 1
+            i               =   0
+RndDec1     i               =   LT(i, nI) i + 1                                     :F(RndDec2)
+            d               =   EQ(i, 1) RANDOM(9)
+            d               =   GT(i, 1) RANDOM(9 + 1) - 1
+            RndDec          =   RndDec d                                            :(RndDec1)
+RndDec2     RndDec          =   EQ(nI, 0) '0'
+            RndDec          =   GT(s, 0) RndDec '.'                                 :F(RETURN)
+            i               =   0
+RndDec3     i               =   LT(i, nF) i + 1                                     :F(RndDec4)
+            d               =   RANDOM(9 + 1) - 1
+            RndDec          =   RndDec d                                            :(RndDec3)
+RndDec4     RndDec          =   RndDec DUPL('0', s - nF)                            :(RETURN)
+RndDecEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('RndHex(maxLen)i,len')                                           :(RndHexEnd)
+RndHex      len             =   RANDOM(maxLen + 1) - 1
+            i               =   0
+RndHex1     i               =   LT(i, len * 2) i + 1                                :F(RETURN)
+            RndHex          =   RndHex SUBSTR('0123456789ABCDEF', RANDOM(16), 1)    :(RndHex1)
+RndHexEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('RndBinary(maxLen)i,len')                                        :(RndBinaryEnd)
+RndBinary   len             =   RANDOM(maxLen + 1) - 1
+            i               =   0
+RndBinary1  i               =   LT(i, len) i + 1                                    :F(RETURN)
+            RndBinary       =   RndBinary CHAR(RANDOM(255 + 1) - 1)                 :(RndBinary1)
+RndBinaryEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('OutBinary(nmOut,dt,maxLen)i,len')                               :(OutBinaryEnd)
+OutBinary   len             =   (EQ(1, RANDOM(10)) 0, RANDOM(maxLen + 1) - 1)
+            $nmOut          =   BCPPfx(len, dt)
+            i               =   0
+OutBinary1  i               =   LT(i, len) i + 1                                    :F(RETURN)
+            $nmOut          =   CHAR(RANDOM(255 + 1) - 1)                           :(OutBinary1)
+OutBinaryEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('RndWords(maxLen)len,word')                                      :(RndWordsEnd)
+RndWords    len             =   RANDOM(maxLen + 1) - 1
+            word            =   words[RANDOM(nwords)]
+            RndWords        =   LE(SIZE(word), len) word                            :F(RETURN)
+RndWords1   word            =   words[RANDOM(nwords)]
+            LE(SIZE(RndWords) + SIZE(word) + 1, len)                                :F(RETURN)
+            RndWords        =   RndWords ' ' word                                   :(RndWords1)
+RndWordsEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('OutWords(nmOut,dt,maxLen)len,word')                             :(OutWordsEnd)
+OutWords    len             =   (EQ(1, RANDOM(10)) 0, RANDOM(maxLen + 1) - 1)
+            $nmOut          =   BCPPfx(len, dt)
+            word            =   words[RANDOM(nwords)]
+            wordLen         =   SIZE(word)
+            $nmOut          =   LE(wordLen, len) word                               :F(OutWords9)
+            len             =   len - wordLen
+OutWords1   word            =   words[RANDOM(nwords)]
+            wordLen         =   SIZE(word)
+            $nmOut          =   LE(wordLen + 1, len) ' ' word                       :F(OutWords9)
+            len             =   len - wordLen - 1                                   :(OutWords1)
+OutWords9   $nmOut          =   DUPL('_', len)                                      :(RETURN)
+OutWordsEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('RndVariant()dataType')                                          :(RndVariantEnd)
+RndVariant  dataType        =   sqlVar[RANDOM(20)]
+            RndVariant      =   'NULL'                                              :(RETURN)
+RndVariantEnd
+*---------------------- ------- --- ----------------------------------------------- --------------------------------
+                        DEFINE('RndOUT(nmOut,datatype)dt,p,s')                      :(RndOUTEnd)
+RndOUT                  dt      =   DTDigest(datatype, .p, .s)                      :($('RndOUT_' dt))
+RndOUT_bigint           $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_int              $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_smallint         $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_tinyint          $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_bit              $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_decimal          $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_money            $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_smallmoney       $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_float            $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_real             $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_datetime         $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_smalldatetime    $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_char             OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_varchar          OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_varcharmax       OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_text             OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_nchar            OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_nvarchar         OutWords(nmOut, dt, p)                                      :(RndOUT_99)
+RndOUT_nvarcharmax      OutWords(nmOut, dt, p / 2)                                  :(RndOUT_99)
+RndOUT_ntext            OutWords(nmOut, dt, p / 2)                                  :(RndOUT_99)
+RndOUT_binary           OutBinary(nmOut, dt, p)                                     :(RndOUT_99)
+RndOUT_varbinary        OutBinary(nmOut, dt, p)                                     :(RndOUT_99)
+RndOUT_varbinarymax     OutBinary(nmOut, dt, p)                                     :(RndOUT_99)
+RndOUT_image            OutBinary(nmOut, dt, p)                                     :(RndOUT_99)
+RndOUT_uniqueidentifier $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_timestamp        $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_sql_variant      $nmOut  =   RndBCP(datatype)                                :(RndOUT_99)
+RndOUT_99                                                                           :(RETURN)
+RndOUTEnd
+*---------------------- ------- --- ----------------------------------------------- --------------------------------
+                        DEFINE('RndBCP(dt)e,f,i,j,l,m,p,s,w,x,y')                   :(RndBCPEnd)
+RndBCP                  dt      =   DTDigest(dt, .p, .s)
+                        RndBCP  =   EQ(1, RANDOM(10)) BCPPfx(-1, dt)                :S(RETURN)F($('RndBCP_' dt))
+RndBCP_bigint           RndBCP  =   RndDec(19, 0)
+                        LLT(LPAD(RndBCP, 19, 0), '9223372036854775808')             :S(RndBCP_99)F(RndBCP_bigint)
+RndBCP_int              RndBCP  =   (0.5 - RANDOM(0)) * 4294967296.0
+                        RndBCP  =   CONVERT(RndBCP, 'INTEGER')                      :(RndBCP_99)
+RndBCP_smallint         RndBCP  =   32768 - RANDOM(65536)                           :(RndBCP_99)
+RndBCP_tinyint          RndBCP  =   RANDOM(255 + 1) - 1                             :(RndBCP_99)
+RndBCP_bit              RndBCP  =   RANDOM(1 + 1) - 1                               :(RndBCP_99)
+RndBCP_decimal          RndBCP  =   RndDec(p, s)                                    :(RndBCP_99)
+RndBCP_money            RndBCP  =   RndDec(19, 4)
+                        LLT(LPAD(RndBCP, 20, 0), '922337203685477.5808')            :S(RndBCP_99)F(RndBCP_money)
+RndBCP_smallmoney       RndBCP  =   RndDec(10, 4)
+                        LLT(LPAD(RndBCP, 11, 0), '214748.3648')                     :S(RndBCP_99)F(RndBCP_smallmoney)
+RndBCP_float            e       =   308 + 1 - RANDOM(308 * 2)
+                        m       =   RANDOM(0) * 10.0
+                        m       =   EQ(e, 308)  RANDOM(0) * 1.79
+                        m       =   EQ(e, -308) RANDOM(0) * 1.79
+                        m       'E' ('+' | '-' | '') SPAN('0123456789') =
+                        RndBCP  =   m 'E' (GT(e, 0) '+', '') e                      :(RndBCP_99)
+RndBCP_real             e       =   38 + 1 - RANDOM(38 * 2)
+                        m       =   RANDOM(0) * 10.0
+                        m       =   EQ(e, 38)  RANDOM(0) * 3.4
+                        m       =   EQ(e, -38) RANDOM(0) * 3.4
+                        m       'E' ('+' | '-' | '') SPAN('0123456789') =
+                        RndBCP  =   m 'E' (GT(e, 0) '+', '') e                      :(RndBCP_99)
+RndBCP_datetime         y       =   1753 + RANDOM(8246 + 1) - 1
+                        j       =   RANDOM((IsLeap(y) 366, 365))
+                        RndBCP  =   Julian2date(j, y)
++                                   ' ' LPAD(RANDOM(23 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   '.' LPAD(RANDOM(999 + 1) - 1, 3, 0)
+                        RndBCP  =   REPLACE(RndBCP, '/', '-')
+                        LLT(RndBCP, "9999-12-31 00:00:00.000")                      :S(RndBCP_99)F(RndBCP_datetime)
+RndBCP_smalldatetime    y       =   1900 + RANDOM(179 + 1) - 1
+                        j       =   RANDOM((IsLeap(y) 366, 365))
+                        RndBCP  =   Julian2date(j, y)
++                                   ' ' LPAD(RANDOM(23 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   ':00'
+                        RndBCP  =   REPLACE(RndBCP, '/', '-')
+                        LLT(RndBCP, "2079-06-06 00:00:00")                          :S(RndBCP_99)F(RndBCP_smalldatetime)
+RndBCP_char             RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_varchar          RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_varcharmax       RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_text             RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_nchar            RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_nvarchar         RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p))             :(RndBCP_99)
+RndBCP_nvarcharmax      RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p / 2))         :(RndBCP_99)
+RndBCP_ntext            RndBCP  =   (EQ(1, RANDOM(10)) '', RndWords(p / 2))         :(RndBCP_99)
+RndBCP_binary           RndBCP  =   RndBinary(p)                                    :(RndBCP_99)
+RndBCP_varbinary        RndBCP  =   RndBinary(p)                                    :(RndBCP_99)
+RndBCP_varbinarymax     RndBCP  =   RndBinary(p)                                    :(RndBCP_99)
+RndBCP_image            RndBCP  =   RndBinary(p)                                    :(RndBCP_99)
+RndBCP_uniqueidentifier x       =   LPAD(RndHex(16), 32, 0)
+                        RndBCP  =   SUBSTR(x, 1, 8)
++                                   '-' SUBSTR(x, 9, 4)
++                                   '-' SUBSTR(x, 13, 4)
++                                   '-' SUBSTR(x, 17, 4)
++                                   '-' SUBSTR(x, 21, 12)                           :(RndBCP_99)
+RndBCP_timestamp        RndBCP  =   LPAD(RndBinary(8), 8, CHAR(0))                  :(RndBCP_99)
+RndBCP_sql_variant      RndBCP  =   RndSQLVariant()                                 :(RndSQL_99)
+RndBCP_99               RndBCP  =   BCPPfx(SIZE(RndBCP), dt) RndBCP                 :(RETURN)
+RndBCPEnd
+*---------------------- ------- --- ----------------------------------------------- --------------------------------
+                        DEFINE('RndSQL(dt)e,f,i,j,l,m,p,s,w,x,y')                   :(RndSQLEnd)
+RndSQL                  dt      =   DTDigest(dt, .p, .s)
+                        RndSQL  =   EQ(1, RANDOM(10)) "NULL"                        :S(RndSQL_99)F($('RndSQL_' dt))
+RndSQL_bigint           RndSQL  =   RndDec(19, 0)
+                        LLT(LPAD(RndSQL, 19, 0), '9223372036854775808')             :S(RndSQL_99)F(RndSQL_bigint)
+RndSQL_int              RndSQL  =   (0.5 - RANDOM(0)) * 4294967296.0
+                        RndSQL  =   CONVERT(RndSQL, 'INTEGER')                      :(RndSQL_99)
+RndSQL_smallint         RndSQL  =   32768 - RANDOM(65536)                           :(RndSQL_99)
+RndSQL_tinyint          RndSQL  =   RANDOM(255 + 1) - 1                             :(RndSQL_99)
+RndSQL_bit              RndSQL  =   RANDOM(1 + 1) - 1                               :(RndSQL_99)
+RndSQL_decimal          RndSQL  =   RndDec(p, s)                                    :(RndSQL_99)
+RndSQL_money            RndSQL  =   RndDec(19, 4)
+                        LLT(LPAD(RndSQL, 20, 0), '922337203685477.5808')            :F(RndSQL_money)
+                        RndSQL  =   '$' RndSQL                                      :(RndSQL_99)
+RndSQL_smallmoney       RndSQL  =   RndDec(10, 4)
+                        LLT(LPAD(RndSQL, 11, 0), '214748.3648')                     :F(RndSQL_smallmoney)
+                        RndSQL  =   '$' RndSQL                                      :(RndSQL_99)
+RndSQL_float            e       =   308 + 1 - RANDOM(308 * 2)
+                        m       =   RANDOM(0) * 10.0
+                        m       =   EQ(e, 308)  RANDOM(0) * 1.79
+                        m       =   EQ(e, -308) RANDOM(0) * 1.79
+                        m       'E' ('+' | '-' | '') SPAN('0123456789') =
+                        RndSQL  =   m 'E' (GT(e, 0) '+', '') e                      :(RndSQL_99)
+RndSQL_real             e       =   38 + 1 - RANDOM(38 * 2)
+                        m       =   RANDOM(0) * 10.0
+                        m       =   EQ(e, 38)  RANDOM(0) * 3.4
+                        m       =   EQ(e, -38) RANDOM(0) * 3.4
+                        m       'E' ('+' | '-' | '') SPAN('0123456789') =
+                        RndSQL  =   m 'E' (GT(e, 0) '+', '') e                      :(RndSQL_99)
+RndSQL_datetime         y       =   1753 + RANDOM(8246 + 1) - 1
+                        j       =   RANDOM((IsLeap(y) 366, 365))
+                        RndSQL  =   Julian2date(j, y)
++                                   ' ' LPAD(RANDOM(23 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   '.' LPAD(RANDOM(999 + 1) - 1, 3, 0)
+                        RndSQL  =   REPLACE(RndSQL, '/', '-')
+                        LLT(RndSQL, "9999-12-31 00:00:00.000")                      :F(RndSQL_datetime)
+                        RndSQL  =   "'" RndSQL "'"                                  :(RndSQL_99)
+RndSQL_smalldatetime    y       =   1900 + RANDOM(179 + 1) - 1
+                        j       =   RANDOM((IsLeap(y) 366, 365))
+                        RndSQL  =   Julian2date(j, y)
++                                   ' ' LPAD(RANDOM(23 + 1) - 1, 2, 0)
++                                   ':' LPAD(RANDOM(59 + 1) - 1, 2, 0)
++                                   ':00'
+                        RndSQL  =   REPLACE(RndSQL, '/', '-')
+                        LLT(RndSQL, "2079-06-06 00:00:00")                          :F(RndSQL_smalldatetime)
+                        RndSQL  =   "'" RndSQL "'"                                  :(RndSQL_99)
+RndSQL_char             RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_varchar          RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_varcharmax       RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_text             RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_nchar            RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_nvarchar         RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p)) "'"     :(RndSQL_99)
+RndSQL_nvarcharmax      RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p / 2)) "'" :(RndSQL_99)
+RndSQL_ntext            RndSQL  =   "'" (EQ(1, RANDOM(10)) '', RndWords(p / 2)) "'" :(RndSQL_99)
+RndSQL_binary           RndSQL  =   '0x' RndHex(p)                                  :(RndSQL_99)
+RndSQL_varbinary        RndSQL  =   '0x' RndHex(p)                                  :(RndSQL_99)
+RndSQL_varbinarymax     RndSQL  =   '0x' RndHex(p)                                  :(RndSQL_99)
+RndSQL_image            RndSQL  =   '0x' RndHex(p)                                  :(RndSQL_99)
+RndSQL_uniqueidentifier RndSQL  =   "NEWID()"                                       :(RndSQL_99)
+RndSQL_timestamp        RndSQL  =   "DEFAULT"                                       :(RndSQL_99)
+                        RndSQL  =   LPAD(RndBinary(8), 8, CHAR(0))                  :(RndSQL_99)
+RndSQL_sql_variant      RndSQL  =   RndSQLVariant()                                 :(RndSQL_99)
+RndSQL_99                                                                           :(RETURN)
+RndSQLEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('BldBCPData(db,tbl,iMax)column,colName,colDataType,i,j,row')     :(BldBCPDataEnd)
+BldBCPData  OUTPUT(.bcpOutput, 4, 'DB.bcp[-r1 -w]')                                 :F(ioerr)
+            i               =   0
+BldBCPData1 i               =   LT(i, iMax) i + 1                                   :F(BldBCPData9)
+            OUTPUT          =   EQ(REMDR(i, 1000), 0) RPAD(tbl, 7) LPAD(i, 8)
+            row             =
+            j               =   0
+BldBCPData3 j               =   j + 1
+            column          =   columns[j]                                          :F(BldBCPData7)
+            DIFFER(column)                                                          :F(BldBCPData3)
+            colName         =   colName(column)
+            colDataType     =   colDataType(column)
+            RndOUT(.bcpOutput, colDataType)                                         :(BldBCPData3)
+BldBCPData7                                                                         :(BldBCPData1)
+BldBCPData9 ENDFILE(4)                                                              :(RETURN)
+BldBCPDataEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('BldCreate(db,tbl)column,colName,colDataType,i,j')               :(BldCreateEnd)
+BldCreate   BldCreate       =   "CREATE TABLE " db ".." tbl nl
+            i               =   0
+            j               =   0
+BldCreate1  i               =   i + 1
+            column          =   columns[i]                                          :F(BldCreate9)
+            j               =   DIFFER(column) j + 1                                :F(BldCreate1)
+            colName         =   colName(column)
+            colDataType     =   colDataType(column)
+            BldCreate       =   BldCreate (EQ(i, 1) "(", ",")
+            BldCreate       =   BldCreate "   " colName " " colDataType " NULL" nl  :(BldCreate1)
+BldCreate9  BldCreate       =   BldCreate ");" nl                                   :(RETURN)
+BldCreateEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('BldInsert(db,tbl)column,colName,colDataType,i,j')               :(BldInsertEnd)
+BldInsert   BldInsert       =   "INSERT INTO " db ".." tbl nl
+            BldInsert       =   BldInsert " VALUES" nl
+            i               =   0
+            j               =   0
+BldInsert1  i               =   i + 1
+            column          =   columns[i]                                          :F(BldInsert9)
+            j               =   DIFFER(column) j + 1                                :F(BldInsert1)
+            colName         =   colName(column)
+            colDataType     =   colDataType(column)
+            BldInsert       =   BldInsert (EQ(i, 1) "(", ",")
+            BldInsert       =   BldInsert "   " RndSQL(colDataType) nl              :(BldInsert1)
+BldInsert9  BldInsert       =   BldInsert ");" nl                                   :(RETURN)
+BldInsertEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ExecSQL(SQL)osqlFile,osqlSwitches,SQLerr,SQLout,SQLtxt,SQLOutput') :(ExecSQLEnd)
+ExecSQL     osqlFile        =   'OR' ORSuffix '.sql'
+            OUTPUT(.SQLOutput, 4, osqlFile)                                         :F(ioerr)
+            SQLtxt          =   SQL
+ExecSQL1    SQLtxt          POS(0) BREAK(nl) . SQLOutput nl =                       :S(ExecSQL1)
+            ENDFILE(4)
+            osqlSwitches    =   stdCmd ' -n -i "' osqlFile '"'
+            SQLout          =   system('@osql', osqlSwitches, .SQLerr)              :F(FRETURN)
+            SQLout          'Msg 170'                                               :F(RETURN)
+ExecSQL2    SQL             POS(0) BREAK(nl) . OUTPUT nl =                          :S(ExecSQL2)F(RETURN)
+ExecSQLEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ORPopulate(db,mult,proportion,style)i,iMax,tbl,SQL')            :(ORPopulateEnd)
+ORPopulate  tbl             =   'TBL' LPAD(proportion, 2, 0)
+            OUTPUT          =   'Building ' tbl
+            SQL             =   BldCreate(db, tbl)
+            ExecSQL(SQL)
+            iMax            =   proportion * mult
+            IDENT(style, 'SQL')                                                     :F(ORPopulate2)
+            i               =   0
+ORPopulate1 i               =   LT(i, iMax) i + 1                                   :F(RETURN)
+            SQL             =   BldInsert(db, tbl)
+            ExecSQL(SQL)                                                            :(ORPopulate1)
+ORPopulate2 BldBCPFmt()
+            BldBCPData(db, tbl, iMax)
+            INPUT(.bcpInput, 3, '!!' exe['bcp'] ' "' db '..' tbl '" in DB.bcp ' stdCmd ' -m 10000 -k -e DB.err -f DB.fmt')
+ORPopulate3 OUTPUT          =   bcpInput                                            :S(ORPopulate3)
+            ENDFILE(3)                                                              :(RETURN)
+            SQL             =   "BULK INSERT " db ".." tbl nl
++                               "    FROM 'C:\SNOBOL4\DB.bcp'" nl
++                               "    WITH (FORMATFILE = 'C:\SNOBOL4\DB.fmt');" nl
+            ExecSQL(SQL)                                                            :(RETURN)
+ORPopulateEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('OR()db,multiplier,SQL')
+            ORSuffix        =                                                       :(OREnd)
+OR          ReadWords()
+            multiplier      =   100000
+*           db              =   'DBMax' multiplier
+*           db              =   'Whopper_' multiplier '_128MB'
+            db              =   'DB_' multiplier
+            DropDB(db)
+            CreateDB(db)
+            ORPopulate(db, multiplier, 1, 'BCP')
+            ORPopulate(db, multiplier, 5, 'BCP')
+            ORPopulate(db, multiplier, 10, 'BCP')
+            ORPopulate(db, multiplier, 4, 'BCP')                                    :(RETURN)
+OREnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ORList(orType)list,n,name')                                     :(ORListEnd)
+ORList      ORList          =   TABLE()
+            list            =   system('@-OR', '-V -Y ' orType ' -F "' bkupFileName '"')
+            list            POS(0) 'SQL LiteSpeed Object Level Recovery' BREAK(nl) nl =
+            list            POS(0) 'Copyright (C) 2004-2006 Imceda Software Inc. All Rights Reserved.' nl nl =
+            list            POS(0) 'The following object(s) were found in the backup:' nl nl =
+            n               =   0
+ORList10    list            POS(0) BREAK(nl) . name nl =                            :F(RETURN)
+            n               =   n + 1
+            ORList[n]       =   name                                                :(ORList10)
+ORListEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ORGen(orObject,orType)')                                        :(ORGenEnd)
+ORGen       SQL             =   system('@-OR', '-C "' orObject '" -Y ' orType ' -F "' bkupFileName '"')
+            SQL             POS(0) 'SQL LiteSpeed Object Recovery' nl =
+            SQL             POS(0) 'Copyright (C) 2004-2005 Imceda Software Inc. All Rights Reserved.' nl nl =
+            SQL             'Create SQL Script successfully generated.' nl RPOS(0) =
+            SQL             POS(0) nl RPOS(0)                                       :S(RETURN)
+ORGen10     SQL             POS(0) BREAK(nl) . OUTPUT nl =                          :S(ORGen10)F(RETURN)
+ORGenEnd
+
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('ORScript()bkupFileName,i,n,SQL,tables,tblName')                 :(ORScriptEnd)
+ORScript
+*           bkupFileName    =   'E:/WebChampSchema2005.bak'
+            bkupFileName    =   'E:/SAP.bak'
+            bkupFileName    =   'E:/PeopleSoft.bak'
+*           bkupFileName    =   'E:/Northwind2005.bak'
+            objs            =   ORList('Table')
+            i               =   0
+ORScript020 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'Table'))                               :S(ORScript020)
+            i               =   0
+ORScript030 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'TableConstraintClustered'))            :S(ORScript030)
+            i               =   0
+ORScript035 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'TableIndexClustered'))                 :S(ORScript035)
+            i               =   0
+ORScript040 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'TableConstraints'))                    :S(ORScript040)
+            i               =   0
+ORScript050 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'TableIndexes'))                        :S(ORScript050)
+            i               =   0
+ORScript060 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'TableForeignKeys'))                    :S(ORScript060)
+            objs            =   ORList('View')
+            i               =   0
+ORScript070 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'View'))                                :S(ORScript070)
+ORScript075 objs            =   ORList('StoredProcedure')
+            i               =   0
+ORScript080 i               =   i + 1
+            (DIFFER(objs[i]) ORGen(objs[i], 'StoredProcedure'))                     :S(ORScript080)
+ORScript999                                                                         :(RETURN)
+ORScriptEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('DropDB(dbName)SQL')                                             :(DropDBEnd)
+DropDB      SQL             =   "DROP DATABASE " dbName
+            DropDB          =   system('@osql', EVAL(osqlCmd))                      :S(RETURN)F(FRETURN)
+DropDBEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('CreateDB(dbName,maxSize)LDFspec,MDFspec,SQL,dir,pfx')           :(CreateDBEnd)
+CreateDB    MDFspec         =  *(   " (  NAME = '" pfx dbName "_dat',"
++                                   "    FILENAME = '" dir bSlash dbName "_dat.mdf" "',"
++                                   "    SIZE = 2MB,"
++                                  ("    " DIFFER(maxSize) "MAXSIZE = " maxSize ",", "")
++                                   "    FILEGROWTH = 1%"
++                                   " )"
++                               )
+            LDFspec         =  *(   " (  NAME = '" dbName "_log',"
++                                   "    FILENAME = '" dir bSlash dbName "_log.ldf" "',"
++                                   "    SIZE = 1MB,"
++                                   "    FILEGROWTH = 10%"
++                                   " )"
++                               )
+*   :S(CreateDB10)
+*           dbName          POS(0) 'DB'                                             :S(CreateDB10)
+            SQL             =   "CREATE DATABASE " dbName " ON"
+            pfx             =
+            dir             =   mssqlDir
+            SQL             =   SQL EVAL(MDFspec)
+            SQL             =   SQL " LOG ON"
+            SQL             =   SQL EVAL(LDFspec)                                   :(CreateDB90)
+CreateDB10
+*           maxSize         =   DIFFER(maxSize) CONVERT(maxSize / 3 / 1024, 'INTEGER')
+            SQL             =   "CREATE DATABASE " dbName " ON"
+            SQL             =   SQL " PRIMARY"
+            pfx             =   'C_'
+            dir             =   'C:\MSSQL8\Data'
+            SQL             =   SQL EVAL(MDFspec)
+            pfx             =   'D_'
+            dir             =   'D:\MSSQL8\Data'
+            SQL             =   SQL ", "
+            SQL             =   SQL EVAL(MDFspec)
+            pfx             =   'E_'
+            dir             =   'E:\MSSQL8\Data'
+*           SQL             =   SQL EQ(doSingleDB, TRUE) "FILEGROUP SECONDARY"
+            SQL             =   SQL ", "
+            SQL             =   SQL EVAL(MDFspec)
+            dir             =   'C:\MSSQL8\Data'
+            SQL             =   SQL " LOG ON"
+            SQL             =   SQL EVAL(LDFspec)                                   :(CreateDB90)
+CreateDB90  CreateDB        =   system('@osql', EVAL(osqlCmd))                      :S(RETURN)F(FRETURN)
+CreateDBEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('CreateTbl(dbName,tblName,fileGroup)SQL')                        :(CreateTblEnd)
+CreateTbl   SQL             =   "CREATE TABLE " dbName ".." tblName
++                               " ("
++                               "    blobId int NOT NULL,"
++                               "    blobPath varchar(1024) NOT NULL,"
++                               "    blobImage image NULL,"
++                               "    PRIMARY KEY CLUSTERED (blobId)"
++                               " )"
++                               (DIFFER(fileGroup) " ON '" fileGroup "'", "")
+            CreateTbl       =   system('@osql', EVAL(osqlCmd))                      :S(RETURN)F(FRETURN)
+CreateTblEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('InsertRow(dbName,tblName,tblKey,fileNm)SQL')                    :(InsertRowEnd)
+InsertRow   SQL             =   "INSERT INTO " dbName ".." tblName " VALUES (" tblKey ", '" fileNm "', '')"
+            InsertRow       =   system('@-osql', EVAL(osqlCmd))                     :S(RETURN)F(FRETURN)
+InsertRowEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('TextCopy(dbName,tblName,tblKey,fileNm)tcCmd')                   :(TextCopyEnd)
+TextCopy    tcCmd           =   stdCmd
++                               ' -D ' dbName
++                               ' -I -T ' tblName ' -C blobImage'
++                               ' -W "' 'WHERE blobId = ' tblKey '"'
++                               ' -F "' fileNm '"'
+            TextCopy        =   system('@-textcopy', tcCmd)                         :S(RETURN)F(FRETURN)
+TextCopyEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('Tiny()constraint,CreateTbl,db,InsertRow,i,j,SQL,tbl')           :(TinyEnd)
+Tiny        db              =   'TinyDB'
+            tbl             =   'TinyTbl'
+            DropDB(db)
+            CreateDB(db)
+            constraints     =   TABLE()
+            constraints[0]  =
+            constraints[1]  =   ' PRIMARY KEY CLUSTERED'
+            constraints[2]  =   ' PRIMARY KEY NONCLUSTERED'
+            constraints[3]  =   ' UNIQUE CLUSTERED'
+            constraints[4]  =   ' UNIQUE NONCLUSTERED'
+            i               =   -1
+Tiny10      i               =   LT(i, 4) i + 1                                      :F(Tiny19)
+            SQL             =   "CREATE TABLE " db ".." tbl '_' i
++                               " ("
++                               "    TinyCol1 char(8),"
++                               "    TinyCol2 char(5),"
++                               "    TinyCol3 char(25)"
++                              ("    " NE(i, 0) constraints[i] " (TinyCol2)", "")
++                               " );"
+            CreateTbl       =   system('@-osql', EVAL(osqlCmd))                     :S(Tiny10)F(error)
+Tiny19      j               =   -2
+Tiny20      j               =   LT(j, 24000) j + 2                                  :F(RETURN)
+            TERMINAL        =   j
+            SQL             =
+            i               =   -1
+Tiny25      i               =   LT(i, 4) i + 1                                      :F(Tiny30)
+            k               =   -1
+Tiny27      k               =   LT(k, 1) k + 1                                      :F(Tiny25)
+            SQL             =   SQL "INSERT INTO " db ".." tbl '_' i " VALUES ("
++                               "'Tiny is ',"
++                               "'" LPAD(j + k, 5, 0) "',"
++                               "'" constraints[i] "'); "                           :(Tiny27)
+Tiny30      InsertRow       =   system('@-osql', EVAL(osqlCmd))                     :S(Tiny20)F(error)
+TinyEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('Million()db,fileNm,findInput,findCmd,findDir,InsertRow,i,SQL,tbl')  :(MillionEnd)
+Million     db              =   'million'
+            tbl             =   'million'
+            DropDB(db)
+            CreateDB(db)
+            CreateTbl(db, tbl)
+            findDir         =   'C:/'
+            findCmd         =   exe['find'] ' ' findDir ' -name "*.*' '"'
+            i               =   0
+Million20   INPUT(.findInput, 3, '!!' findCmd)                                      :F(ioerr)
+Million30   fileNm          =     findInput                                         :F(Million60)
+            fileNm          ANY("'!")                                               :S(Million30)
+            i               =   LT(i, 1048576) i + 1                                :F(Million70)
+            TERMINAL        =   LPAD(i, 7) ', ' fileNm
+            SQL             =   "INSERT INTO " db ".." tbl " VALUES (" i ", '" fileNm "', NULL)"
+            InsertRow       =   system('@-osql', EVAL(osqlCmd))                     :(Million30)
+Million60   ENDFILE(3)                                                              :(Million20)
+Million70   ENDFILE(3)                                                              :(RETURN)
+MillionEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('Create(maxSize)'
++               'b,blobCnt,blobId,blobLen,blobMax,'
++               'db,fGrp,fileNm,'
++               'findCmd,findCnt,findDir,findFile,findInput,findOutput,'
++               'mxSize,tbl,tcOut,wcOut,xb'
++           )
+            $'_1K'          =   1024.0
+            $'_1M'          =   1048576.0
+            $'_1G'          =   1073741824.0
+            $'_blob_audit'  =   '/blob-audit-log.txt' RPOS(0)
+            $'_stderr'      =   '/stderr-' SPAN('-0123456789') '.txt' RPOS(0)       :(CreateEnd)
+Create      mxSize          =   upr(maxSize)
+            mxSize          POS(0) (SLSreal | SLSint) . xb 'KB' RPOS(0) = xb * $'_1K'
+            mxSize          POS(0) (SLSreal | SLSint) . xb 'MB' RPOS(0) = xb * $'_1M'
+            mxSize          POS(0) (SLSreal | SLSint) . xb 'GB' RPOS(0) = xb * $'_1G'
+            mxSize          =   CHOP(mxSize)
+            blobMax         =   EQ(doSingleDB, TRUE) mxSize / blobTypes
+            blobMax         =   EQ(doSingleDB, FALSE) mxSize
+            (EQ(doRecreateDB, TRUE) EQ(doSingleDB, TRUE) DropDB('blobs'))
+            (EQ(doRecreateDB, TRUE) EQ(doSingleDB, TRUE) CreateDB('blobs', maxSize))
+            blobCnt         =   0
+Create10    blobCnt         =   blobCnt + 1
+            b               =   blobType[blobCnt]                                   :F(RETURN)
+            fg              =   blobFGrp[blobCnt]
+            DIFFER(b)                                                               :F(Create10)
+            db              =   EQ(doSingleDB, TRUE) 'blobs'
+            db              =   EQ(doSingleDB, FALSE) b
+            tbl             =   EQ(doSingleDB, TRUE)  b
+            tbl             =   EQ(doSingleDB, FALSE) 'blob'
+            fGrp            =   IDENT(nodeName, 'LONXP1') EQ(doSingleDB, TRUE) fg
+            (EQ(doRecreateDB, TRUE) EQ(doSingleDB, FALSE) DropDB(db))
+            (EQ(doRecreateDB, TRUE) EQ(doSingleDB, FALSE) CreateDB(db, maxSize))
+            CreateTbl(db, tbl, fGrp)
+            blobId          =   0
+            blobLen         =   0
+            findCnt         =   0
+            findDir         =   'C:/'
+            findCmd         =   exe['find'] ' ' findDir ' -name "*.' b '"'
+            findFile        =   b '-lst.txt'
+            INPUT(.findInput, 3, '!!' findCmd)                                      :F(ioerr)
+            OUTPUT(.findOutput, 4, b '-lst.txt')                                    :F(ioerr)
+Create15    fileNm          =   findInput                                           :F(Create17)
+            fileNm          *LEQ(b, 'txt') $'_blob_audit'                           :S(Create15)
+            fileNm          *LEQ(b, 'txt') $'_stderr'                               :S(Create15)
+            findCnt         =   findCnt + 1
+            findOutput      =   fileNm                                              :(Create15)
+Create17    ENDFILE(4)
+            ENDFILE(3)
+            GT(findCnt, 0)                                                          :F(Create10)
+Create20    INPUT(.findInput, 3, findFile)                                          :F(ioerr)
+Create30    fileNm          =   findInput                                           :F(Create60)
+Create40    fileNm          '/' = bSlash                                            :S(Create40)
+            fileNm          "'"                                                     :S(Create30)
+            fileNm          '!'                                                     :S(Create30)
+            wcOut           =   system('@-wc', '-c "' fileNm '"')
+            wcOut           POS(0) (SPAN(' ') | '') SPAN('0123456789') . fileLen    :F(CreateErr)
+            blobId          =   LT(blobLen, blobMax) blobId + 1                     :F(Create70)
+            InsertRow(db, tbl, blobId, fileNm)
+            tcOut           =   TextCopy(db, tbl, blobId, fileNm)
+            tcOut           POS(0) *TCPreface =
+            tcOut           POS(0) *TCSuccess =                                     :F(Create45)
+            blobLen         =   blobLen + fileLen
+            OUTPUT          =   'COPIED: ' fileNm                                   :(Create30)
+Create45    tcOut           *TCFailure =                                            :F(Create50)
+            tcOut           POS(0) *SQL_3621 RPOS(0) =                              :S(Create55)
+            tcOut           POS(0) *SQL_7102 *SQL_3621 *SQL_10007 RPOS(0) =         :S(Create55)
+            tcOut           POS(0) *SQL_1105 *SQL_3621 *SQL_10007 RPOS(0) =         :S(Create70)
+Create50    tcOut           POS(0) BREAK(nl) . OUTPUT nl =                          :S(Create50)F(Create30)
+Create55    OUTPUT          =   'ERROR:  ' fileNm                                   :(Create30)
+Create60    ENDFILE(3)                                                              :(Create20)
+Create70    ENDFILE(3)                                                              :(Create10)
+CreateErr   OUTPUT          =   'Error: ' wcOut                                     :(END)
+CreateEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            DEFINE('Backup()'
++               'b,bs,bkpSize,c,cMin,cMax,blobCnt,i,iMax,ibs,ixs,xs,'
++               'slsCmd,slsErr,slsOut,cksumOut,'
++               'avgSecs,avgBytes,avgReal,avgUser,avgSys,'
++               'totSecs,totBytes,totReal,totUser,totSys'
++           )                                                                       :(BackupEnd)
++
+Backup      OUTPUT(.OUTPUT, 1, "Backup.csv")                                        :F(ioerr)
+            blobCnt         =   0
+            iMax            =   3
+            slsCmd          =   *('-I -B database' ' -x ' xs ' -0 ' bs ' -C ' c ' -D ' b ' -F ' b '.bkp')
+Backup10    blobCnt         =   blobCnt + 1
+            b               =   blobType[blobCnt]                                   :F(BackupRet)
+            DIFFER(b)                                                               :F(Backup10)
+            cMin            =   0
+            cMax            =   10
+            c               =   cMin - 1
+Backup20    c               =   LT(c, cMax) c + 1                                   :F(Backup10)
+            ixs             =   0
+Backup30    ixs             =   ixs + 1
+            xs              =   xferSize[ixs]                                       :F(Backup20)
+            ibs             =   0
+Backup40    ibs             =   ibs + 1
+            bs              =   baseSize[ibs]                                       :F(Backup30)
+            totSecs         =   0
+            totBytes        =   0.0
+            totReal         =   0.0
+            totUser         =   0.0
+            totSys          =   0.0
+            i               =   0
+Backup50    i               =   LT(i, iMax) i + 1                                   :F(Backup90)
+            slsOut          =   system('@-SQLLiteSpeed', EVAL(slsCmd), .slsErr)
+            slsOut          POS(0) *SLSPreface =                                    :F(error)
+            slsOut          POS(0) *SLSSuccess RPOS(0)                              :S(Backup60)
+            slsOut          POS(0) *SLSFailure RPOS(0)                              :S(Backup70)
+            TERMINAL        =   'Error: '
+Backup55    slsOut          POS(0) BREAK(nl) . TERMINAL nl =                        :S(Backup55)F(Backup40)
+Backup60    slsErr          POS(0) *SLStiming RPOS(0)                               :F(error)
+            cksumOut        =   system('@-cksum', b '.bkp')
+            cksumOut        POS(0) *SLScksum                                        :F(error)
+            totSecs         =   totSecs + slsSeconds
+            totBytes        =   totBytes + 1.0 * bkpSize
+            totReal         =   totReal + 1.0 * slsReal
+            totUser         =   totUser + 1.0 * slsUser
+            totSys          =   totSys + 1.0 * slsSys                               :(Backup50)
+Backup70    OUTPUT = TERMINAL = b ',' c ',"' algType[c] '"' ',' xs ',' bs ',' -1    :(Backup40)
+Backup90    avgSecs         =   totSecs / iMax
+            avgBytes        =   totBytes / iMax
+            avgReal         =   totReal / iMax
+            avgUser         =   totUser / iMax
+            avgSys          =   totSys / iMax
+            OUTPUT          =   TERMINAL = b
++                               ',' c
++                               ',"' algType[c] '"'
++                               ',' xs
++                               ',' bs
++                               ',' avgBytes
++                               ',' avgSecs
++                               ',' avgReal
++                               ',' avgUser
++                               ',' avgSys                                          :(Backup40)
+BackupRet   ENDFILE(1)                                                              :(RETURN)
+BackupEnd
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+            doBackup        =   FALSE
+            doCreate        =   FALSE
+            doMillion       =   FALSE
+            doSingleDB      =   FALSE
+            doRecreateDB    =   FALSE
+            doTiny          =   FALSE
+            doOR            =   FALSE
+            doORScript      =   FALSE
+*           EXIT(3, 'blob.exe')
+            &STLIMIT        =   -1
+            argPos          =   HOST(3) - 1
+arg1        argPos          =   argPos + 1
+            arg             =   HOST(2, argPos)                                     :F(arg4)
+            arg             '-' 'b' . *assign(.doBackup, TRUE) RPOS(0)              :S(arg1)
+            arg             '-' 'c' . *assign(.doCreate, TRUE) RPOS(0)              :S(arg1)
+            arg             '-' 'm' . *assign(.doMillion, TRUE) RPOS(0)             :S(arg1)
+            arg             '-' 'o' . *assign(.doOR, TRUE) RPOS(0)                  :S(arg1)
+            arg             '-' 'r' . *assign(.doRecreateDB, TRUE) RPOS(0)          :S(arg1)
+            arg             '-' 's' . *assign(.doSingleDB, TRUE) RPOS(0)            :S(arg1)
+            arg             '-' 't' . *assign(.doTiny, TRUE) RPOS(0)                :S(arg1)
+            arg             '-' 'z' . *assign(.doORScript, TRUE) RPOS(0)            :S(arg1)
+            arg             POS(0) '-'                                              :S(usage)F(arg1)
+arg4        Utility()
+            OUTPUT(.auditLog, 5, 'blob-audit-log.txt')                              :F(ioerr)
+            mssqlDir        =   IDENT(nodeName, 'LONXP1')        'C:\MSSQL8\Data'
+*           mssqlDir        =   IDENT(nodeName, 'LONXP1')        'C:\MSSQL9\Data'
+            stdCmd          =   IDENT(userId, 'LCHERRYH')        '-S LonXP1\SQL2000 -U sa -P manager'
+*           stdCmd          =   IDENT(userId, 'LCHERRYH')        '-S LonXP1 -E'
+            osqlCmd         =   *(stdCmd ' -Q "' SQL '"')
+            (EQ(doBackup, TRUE) Backup())
+            (EQ(doCreate, TRUE) Create('1GB'))
+            (EQ(doMillion, TRUE) Million())
+            (EQ(doTiny, TRUE) Tiny())
+            (EQ(doOR, TRUE) OR())
+            (EQ(doORScript, TRUE) ORScript())                                       :(END)
+usage       OUTPUT          =   'usage: blob [-b] [-c] [-m] [-o] [-r] [-s] [-t]'    :(END)
+*---------- --------------- --- --------------------------------------------------- --------------------------------
+*-INCLUDE 'debug.sno'
+END

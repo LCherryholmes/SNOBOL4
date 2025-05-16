@@ -1,0 +1,174 @@
+*/---------------------------------------------------------------------------------------------------------
+start
+-INCLUDE    'env.inc'
+-INCLUDE    'portable.inc'
+-INCLUDE    'ini.inc'
+-INCLUDE    'ss.inc'
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            DEFINE('diff(src1Path,src2Path,diffPath)'
++              'diffCmd,diffInput,diffLine,diffOutput'
++           )                                                                          :(diff_end)
+diff        diff              =     0
+            diffCmd           =     'diff -b "' src1Path '" "' src2Path '"'
+            OUTPUT            =     datetime() ' % ' diffCmd
+            INPUT(.diffInput, 5, '!!' diffCmd)                                         :f(ioerr)
+            OUTPUT(.diffOutput, 6, diffPath)                                           :f(ioerr)
+diff10      diffLine          =     diffInput                                          :f(diff20)
+            diff              =     diff + 1
+            diffOutput        =     diffLine                                           :(diff10)
+diff20      ENDFILE(6)
+            ENDFILE(5)                                                                 :(RETURN)
+diff_end
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            DEFINE('diff3(ancestorPath,src1Path,src2Path,mrgPath)'
++              'diff3Cmd,diff3Input,edCmd,edOutput'
++           )                                                                          :(diff3_end)
+diff3       system('cp', '-f "' src1Path '" "' mrgPath '"')
+            diff3Cmd          =     'diff3 -b -E "' src1Path '" "' ancestorPath '" "' src2Path '"'
+            edCmd             =     'ed -b -s "' mrgPath '"'
+            OUTPUT            =     datetime() ' % ' diff3Cmd
+            OUTPUT            =     datetime() ' % ' edCmd
+            INPUT(.diff3Input, 5, '!!' diff3Cmd)                                       :f(ioerr)
+            OUTPUT(.edOutput, 6, '!!' edCmd)                                           :f(ioerr)
+diff35      edOutput          =     diff3Input                                         :s(diff35)
+            edOutput          =     'wq'
+            ENDFILE(6)
+            ENDFILE(5)                                                                 :(RETURN)
+diff3_end
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            DEFINE('clean(srcPath,tgtPath)kwd,line,srcInput,tgtOutput,val')
+            cleanKwd          =     'Revision' | 'Date' | 'Archive'
+            cleanVal          =     BREAK('$') $ val $ *notmatch(val, POS(0) SPAN(' ') RPOS(0))
+            cleanKwdVarLen    =     '$' *cleanKwd . kwd ':'  *cleanVal . val '$'
+            cleanKwdFixLen    =     '$' *cleanKwd . kwd '::' *cleanVal . val '$'       :(clean_end)
+clean       system('rm', '-f "' tgtPath '"')
+            OUTPUT            =     datetime() ' % ' 'clean' ' "' srcPath '" "' tgtPath '"'
+            INPUT(.srcInput, 5, srcPath)                                               :f(FRETURN)
+            OUTPUT(.tgtOutput, 6, tgtPath)                                             :f(ioerr)
+clean10     line              =     srcInput                                           :f(clean40)
+clean20     line              cleanKwdVarLen = '$' kwd ': $'                           :s(clean20)
+clean30     line              cleanKwdFixLen = '$' kwd '::' DUPL(' ', SIZE(val)) '$'   :s(clean30)
+            tgtOutput         =     line                                               :(clean10)
+clean40     ENDFILE(6)
+            ENDFILE(5)
+            system('rm', '-f "' srcPath '"')                                           :(RETURN)
+clean_end
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+            testing           =
+            comment           =     "Merged from '" '$/cm33' "'."
+            OUTPUT(.auditLog, 3, 'ssmerge-audit-log.txt')                              :f(error)
+            pathExtent        =     ('.' *pathExt | epsilon) . ext RPOS(0)
+            ini               =     IniRead('ssdb.ini')
+            mDir              =     '//flash/merge'
+            mTbl              =     TABLE()
+            rivers            =     'dev/cm33/'
+            A                 =     'dev'
+            D                 =     'dev'
+            $'3'              =     'cm33'
+            r2id              =     TABLE()
+            r2id['dev']       =     'D'
+            r2id['cm33']      =     '3'
+            r                 =     ARRAY('0:3')
+            r[0]              =     'A'
+            riverList         =     rivers
+main05      riverList         POS(0) BREAK('/') . river '/' =                          :f(main20)
+            ss_workfold('maxm', '$/' river, mDir)
+            INPUT(.srcList, 4, 'ssdb-' river '-files.txt')                             :f(error)
+main10      srcNm             =     srcList                                            :f(main15)
+            srcNm             POS(0) '$/' river '/' =                                  :f(error)
+            srcNm             POS(0) 'ThirdParty/'                                     :s(main10)
+            srcNm             POS(0) 'Web/'                                            :s(main10)
+            srcNm             POS(0) 'al2/'                                            :s(main10)
+            srcNm             POS(0) 'alo/'                                            :s(main10)
+            srcNm             POS(0) 'bom/'                                            :s(main10)
+            srcNm             POS(0) 'common/build/'                                   :s(main10)
+            mTbl[srcNm]       =     mTbl[srcNm] r2id[river]                            :(main10)
+main15      ENDFILE(4)                                                                 :(main05)
+main20      OUTPUT(.csvOutput, 4, 'ssmerge.csv')
+            mArr              =     SORT(mTbl)                                         :f(fini)
+            i                 =     0
+main25      i                 =     i + 1
+            mSrcNm            =     mArr[i, 1]                                         :f(fini)
+            mRiversList       =     mArr[i, 2]
+            mInfo             =
+            OUTPUT            =     mRiversList ',' mSrcNm
+            mRivers           =     mRiversList
+            minDate           =
+main35      mRivers           POS(0) LEN(1) . r[1] LEN(1) . r[2] = r[1]                :f(main75)
+            preDate1          =     ini[$r[1]]['PreviousDateTime']
+            preDate2          =     ini[$r[2]]['PreviousDateTime']
+            preDate           =     preDate1
+            preDate           =     LLT(preDate2, preDate1) preDate2
+            minDate           =     DIFFER(minDate) LLT(preDate, minDate) preDate
+            minDate           =     IDENT(minDate) preDate
+            ssMinDate         =     SSDateTime(minDate)
+            n                 =     -1
+main45      n                 =     n + 1
+            rCode             =     LT(n, 3) r[n]                                      :f(main50)
+            srcNm             =     '$/' $rCode '/' mSrcNm
+            srcPath           =     mDir '/' mSrcNm
+            tgtPath           =     srcPath
+            tgtPath           pathExtent = '-' rCode ext                               :f(error)
+            ssGetOpts         =     '-gf -gtu -gwr -i-y'
+            ssGetOpts         =     EQ(n, 0) ssGetOpts ' -vd"' ssMinDate '"'
+            wfDir             =     splitname(srcPath)[1]
+            mkdir(wfDir, '-p')
+            ss_get('maxm', srcNm,, ssGetOpts)
+            clean(srcPath, tgtPath)                                                    :(main45)
+main50      ancestorPath      =     srcPath
+            src1Path          =     srcPath
+            src2Path          =     srcPath
+            mrgPath           =     srcPath
+            ancestorPath      pathExtent = '-' r[0] ext                                :f(error)
+            src1Path          pathExtent = '-' r[1] ext                                :f(error)
+            src2Path          pathExtent = '-' r[2] ext                                :f(error)
+            mrgPath           pathExtent = '-' r[1] r[2] ext                           :f(error)
+            OUTPUT            =     DIFFER(notyet) DUPL('-', 120)
+            diffPath1         =     srcPath
+            diffPath2         =     srcPath
+            diffPath3         =     srcPath
+            diffPath1         pathExtent = '-' r[0] r[1] '-diff' ext                   :f(error)
+            diffPath2         pathExtent = '-' r[0] r[2] '-diff' ext                   :f(error)
+            diffPath3         pathExtent = '-' r[1] r[2] '-diff' ext                   :f(error)
+            nDiff1            =     diff(ancestorPath, src1Path, diffPath1)
+            nDiff2            =     diff(ancestorPath, src2Path, diffPath2)
+            nDiff3            =     diff(src1Path, src2Path, diffPath3)
+            mInfo             =     EQ(nDiff3, 0) mInfo ' ' r[1] '==' r[2]
+            mInfo             =     NE(nDiff3, 0) mInfo ' ' r[1] '!=' r[2]
+            diff3(ancestorPath, src1Path, src2Path, mrgPath)
+            system('cp', '-f "' mrgPath '" "' srcPath '"')
+            OUTPUT            =     DIFFER(notyet) DUPL('-', 120)                      :(main35)
+main75      mRivers           =     mRiversList
+            mRivers           POS(0) LEN(1) . r[1] LEN(1) . r[2] LEN(1) . r[3]         :f(main90)
+            ancestorPath      =     srcPath
+            src1Path          =     srcPath
+            src2Path          =     srcPath
+            mrgPath           =     srcPath
+            ancestorPath      pathExtent = '-' r[0] ext                                :f(error)
+            src1Path          pathExtent = '-' r[1] r[2] ext                           :f(error)
+            src2Path          pathExtent = '-' r[1] r[3] ext                           :f(error)
+            mrgPath           pathExtent = '-' r[1] r[2] r[3] ext                      :f(error)
+            mInfo             =     mInfo ' ' r[1] r[2] r[3]
+            diff3(ancestorPath, src1Path, src2Path, mrgPath)
+            system('cp', '-f "' mrgPath '" "' srcPath '"')                             :(main90)
+main90      mInfo             =     IDENT(mInfo) mRiversList
+            mInfo             POS(0) ' ' =
+            csvOutput         =     '"' mInfo '",' mSrcNm                              :(main25)
+            IDENT(mInfo, '3')                                                          :f(main25)
+            mSrcDir           =     splitname(mDir '/' mSrcNm)[1]
+            mkdir(mSrcDir, '-p')
+            mTgtSSNm          =     '$/dev/' mSrcNm
+            mSrcSSNm          =     '$/cm33/' mSrcNm
+            mTgtPath          =     mDir '/' mSrcNm
+            ss_status('maxm', mTgtSSNm)                                                :f(main95)
+            ss_checkout('maxm', mTgtSSNm, '-gf -i-y')
+            ss_get('maxm', mSrcSSNm,, '-gf -gtu -gwr -i-y')
+            ss_checkin('maxm', mTgtSSNm, comment, '-gf -i-n')                          :(main25)
+main95      ss_get('maxm', mSrcSSNm,, '-gf -gtu -gwr -i-y')
+            ss_cp('maxm', splitname(mTgtSSNm)[1])
+            ss_add('maxm', mTgtPath, comment)                                          :(main25)
+fini        ENDFILE(4)
+            ENDFILE(3)                                                                 :(END)
+*---------- ----------------- ----- -------------------------------------------------- -----------------------------
+*-INCLUDE 'debug.sno'
+END

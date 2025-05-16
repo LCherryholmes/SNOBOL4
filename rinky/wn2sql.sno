@@ -1,0 +1,50 @@
+*---------------------------------------------------------------------------------------------------
+START   tModules                    =   TABLE()
+        tModules['word']            =   'Wordnet_words'
+        tModules['lexname']         =   'Wordnet_lex_names'
+        tModules['synset']          =   'Wordnet_syn_sets'
+        tModules['sense']           =   'Wordnet_senses'
+        tModules['reltype']         =   'Wordnet_rel_types'
+        tModules['lexrel']          =   'Wordnet_lex_rels'
+        tModules['semrel']          =   'Wordnet_sem_rels'
+        tModules['sample']          =   'Wordnet_samples'
+        tModules['adjmod']          =   'Wordnet_adj_mods'
+        tModules['frame']           =   'Wordnet_frames'
+        tModules['lexverbframe']    =   'Wordnet_lex_verb_frames'
+        tModules['semverbframe']    =   'Wordnet_sem_verb_frames'
+*---------------------------------------------------------------------------------------------------
+        sBZCAT      =   'C:/cygwin/bin/bzcat'
+        sDir        =   'C:/WordNet'
+        sWordNet    =   sDir '/wn2sql-0.99.4a'
+        aModules    =   CONVERT(tModules, 'ARRAY')
+        sOutFile    =   sDir '/Wordnet 3.0 INSERT Thesaurus.sql'
+        OUTPUT(.sql, 3, sOutFile)                                   :F(Error)
+        i           =   0
+L10     i           =   i + 1
+        sModule     =   aModules[i, 1]                              :F(L99)
+        sTable      =   aModules[i, 2]
+        TERMINAL    =   sTable
+        sInFile     =   sWordNet '/' sModule '.bz2'
+        sInsert     =   'INSERT INTO ' sTable ' VALUES'
+        sCommand    =   '"' sBZCAT '" "' sInFile '"'
+        INPUT(.bz2, 4, '!!' sCommand '[-m10]')                      :F(Error)
+        sql         =   DUPL('-', 120)
+        sql         =   'PRINT ' "'" sTable "'"
+        sql         =   'SET NOCOUNT ON'
+        iLine       =   -1
+L20     sLine       =   bz2                                         :F(L30)
+        iLine       =   iLine + 1
+        iModulo     =   REMDR(iLine, 100)
+L21     sLine       '<apo' ('1' | '2' | epsilon) '>' = "''"         :S(L21)
+L22     sLine       '<com>' = ','                                   :S(L22)
+        sql         =   EQ(iModulo,  0) sInsert
+        sql         =   EQ(iModulo,  0) '  ' sLine                  :S(L20)
+        sql         =   NE(iModulo,  0) ', ' sLine
+        sql         =   EQ(iModulo, 99) 'GO'                        :(L20)
+L30     sql         =   NE(iModulo, 99) 'GO'
+        sql         =   'SET NOCOUNT OFF'
+        ENDFILE(4)                                                  :(L10)
+L99     ENDFILE(3)                                                  :(END)
+*---------------------------------------------------------------------------------------------------
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,69 @@
+START   tS          =   TABLE(2048)
+        tE          =   TABLE(2048)
+        csvHeader   =   "GuestId,StoreCode,StoreName,StoreAddress1,StoreAddress2,StoreCity,StoreState,ZipCode,MPSC,FirstName,EmailAddress,DateOfBirth,,"
+        csvNumber   =   SPAN('0123456789')
+        csvDate     =   csvNumber '/' csvNumber '/' csvNumber
+        csvValue    =   ARBNO(NOTANY(','))
+        csvName     =   csvValue (', Jr' | ', Fl.' | ',Sc' | ',Nj' | ',' csvValue | epsilon)
++                   |   'Danny R, White (Ret-Army)'
++                   |   'F, James'
+        csvState    =   'AK' | 'AL' | 'AR' | 'AZ' | 'CA' | 'CO' | 'CT' | 'DE' | 'FL' | 'GA' | 'IA'
++                   |   'ID' | 'IL' | 'IN' | 'KS' | 'KY' | 'LA' | 'MA' | 'MD' | 'ME' | 'MI'
++                   |   'MN' | 'MO' | 'MS' | 'MT' | 'NC' | 'ND' | 'NE' | 'NH' | 'NJ' | 'NM' | 'NV'
++                   |   'NY' | 'OH' | 'OK' | 'OR' | 'PA' | 'RI' | 'SC' | 'SD' | 'TN' | 'TX'
++                   |   'UT' | 'VA' | 'VT' | 'WA' | 'WI' | 'WV' | 'WY'
+        csvEmail    =   BREAK('@') '@' csvValue
+        csvEmpty    =   ',,,,,,,,,,,,,'
+        csvUnassign =   csvNumber ',' csvNumber ',' 'Unassigned Store'
+        csvPattern  =   csvNumber . GuestId
++                       ',' csvNumber . iC
++                       ',' csvValue . name
++                       ',' csvValue . StoreAddress1
++                      (',' ('Units 4,5,6' | csvValue) | epsilon) . StoreAddress2
++                      (',' csvValue | epsilon)
++                       ',' csvValue . StoreCity
++                       ',' csvState . StoreState
++                       ',' (SPAN('0123456789') | epsilon) . ZipCode
++                       ',' epsilon . MPSC
++                       ',' csvName . FirstName
++                       ',' csvEmail . sE
++                       ',' (csvDate | epsilon) . DateOfBirth
++                      (',' (csvValue (',' csvValue | epsilon) | epsilon) | epsilon)
+        EXIT(3, 'FishBowl.exe')
+        iArg        =   HOST(3) - 1
+L10     sArg        =   HOST(2, iArg = iArg + 1)        :F(L40)
+        TERMINAL    =   'Processing file: ' sArg ' ...'
+        INPUT(.csvInput, 3, sArg '[-l1024]')            :F(Err1)
+L20     csvLine     =   csvInput                        :F(L30)
+        csvLine     POS(0) csvHeader RPOS(0)            :S(L20)
+        csvLine     POS(0) '*'                          :S(L20)
+        csvLine     POS(0) csvEmpty RPOS(0)             :S(L20)
+        csvLine     POS(0) csvUnassign                  :S(L20)
+        csvLine     POS(0) csvPattern RPOS(0)           :F(Err3)
+        iC          =   +iC
+        tS[iC]      =   IDENT(tS[iC]) name
+        tS[iC]      =   IDENT(tS[iC], name) name        :F(Err5)
+        tE[iC]      =   IDENT(tE[iC]) TABLE()
+        tE[iC][sE]  =   tE[iC][sE] + 1                  :(L20)
+L30     ENDFILE(3)                                      :(L10)
+L40     aE          =   SORT(tE)                        :F(Err4)
+        i           =   0
+L50     i           =   i + 1
+        iC          =   aE[i, 1]                        :F(L99)
+        aX          =   SORT(aE[i, 2])                  :F(Err5)
+        sFile       =   iC ' ' tS[iC] '.csv'
+        sFile       =   REPLACE(sFile, '/', ' ')
+        TERMINAL    =   'Writing file: ' sFile
+        OUTPUT(.csvOutput, 4, sFile)                    :F(Err6)
+        csvOutput   =   'Email Addresses'
+        j           =   0
+L60     j           =   j + 1
+        sE          =   aX[j, 1]                        :F(L70)
+        iE          =   aX[j, 2]
+        csvOutput   =   sE                              :(L60)
+L70     ENDFILE(4)                                      :(L50)
+L99     TERMINAL    =   (i - 1) ' stores processed'     :(END)
+Err1    TERMINAL    =   'Unable to open file: ' sArg    :(END)
+Err2    TERMINAL    =   'Empty file: ' sArg             :(END)
+Err3    TERMINAL    =   'Invalid line: "' csvLine '"'   :(L20)
+END

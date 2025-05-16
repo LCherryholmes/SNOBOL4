@@ -1,0 +1,561 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'export.inc'
+-INCLUDE 'datetime.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'XML.inc'
+-INCLUDE 'URL.inc'
+*           ----------- --- ------------------------------------- ------------
+            DEFINE('TT(t,s)f,r')                                  :(TTEnd)
+TT          s           =   IDENT(s) 0
+            f           =   (GT(s, 0) '.' LPAD(REMDR(t, 10 ** s), s, '0'), NULL)
+            r           =   t / (10 ** s)
+            r           ?   POS(0)
++                           (LEN(1) | LEN(2) | LEN(3)) . TT
++                           ARBNO(LEN(3) . r . *assign(.TT, TT ',' r))
++                           RPOS(0) . *assign(.TT, TT f)          :S(RETURN)F(Yikes)
+TTEnd
+*           ----------- --- ------------------------------------- ------------
+            DEFINE('Hex(n)h')                                     :(HexEnd)
+Hex         GE(n, 0)                                              :F(FRETURN)
+Hex1        GT(n, 0)                                              :F(Hex9)
+            '0123456789ABCDEF' ? POS(REMDR(n, 16)) LEN(1) . h     :F(Yikes)
+            Hex = h Hex
+            n   = n / 16                                          :(Hex1)
+Hex9        Hex = LPAD(Hex, 4, 0)                                 :(RETURN)
+HexEnd
+*           ----------- --- ------------------------------------- ------------
+            DEFINE('CEncode(str)c,s,X1,X2,X3,X4,Xn,Xx')           :(CEncodeEnd)
+CEncode     str         ?   POS(0) RPOS(0)                        :S(RETURN)
+            str         ?   POS(0)
++                       (   '\' *?(s = '\\')
++                       |   "'" *?(s = "\'")
++                       |   '"' *?(s = '\"')
++                       |   bs  *?(s = '\b')
++                       |   ff  *?(s = '\f')
++                       |   nl  *?(s = '\n')
++                       |   cr  *?(s = '\r')
++                       |   tab *?(s = '\t')
++                       |   UtfX1 . s
++                       ) =                                       :S(CEncode1)
+            str         ?   POS(0)
++                       (   UtfX2 UtfXn
++                       |   UtfX3 UtfXn UtfXn
++                       |   UtfX4 UtfXn UtfXn UtfXn
++                       ) =                                       :S(CEncode2)
+            str         ?   UtfXx                                 :S(CEncodeE)F(Yikes)
+CEncode1    CEncode     =   CEncode s                             :(CEncode)
+CEncode2    CEncode     =   CEncode '\u' Hex(s)                   :(CEncode)
+CEncodeE    OUTPUT      =   'Error: ' str                         :(END)
+CEncodeEnd
+*       ----------- --- ------------------------------------------- ------------
+        DEFINE('MM_Node(x,pid,nid)content_id,created,id,link,modified,text,tree_id') :(MM_NodeEnd)
+MM_Node $nid = id   = DIFFER(d(x)) DIFFER(d(x)['ID'])         +(d(x)['ID']         ? POS(0) 'ID_' = NULL) :F(Yikes)
+        tree_id     = DIFFER(d(x)) DIFFER(d(x)['TREE_ID'])    +(d(x)['TREE_ID']    ? POS(0) 'ID_' = NULL)
+        content_id  = DIFFER(d(x)) DIFFER(d(x)['CONTENT_ID']) +(d(x)['CONTENT_ID'] ? POS(0) 'ID_' = NULL)
+        link        = DIFFER(d(x)) d(x)['LINK']
+        created     = DIFFER(d(x)) d(x)['CREATED']
+        modified    = DIFFER(d(x)) d(x)['MODIFIED']
+        text        = DIFFER(d(x)) d(x)['TEXT']
+        TERMINAL    = DIFFER(tree_id)    IDENT(Ids[tree_id])    'Missing Tree ' tree_id ;* :F(MM_Yikes)
+        TERMINAL    = DIFFER(content_id) IDENT(Ids[content_id]) 'Missing Content ' content_id ;* :F(MM_Yikes)
+        created     = DIFFER(created)  CONVERT(CONVERT(created '.0', 'REAL') / 1000, 'INTEGER')
+        modified    = DIFFER(modified) CONVERT(CONVERT(modified '.0', 'REAL') / 1000, 'INTEGER')
+        created     = DIFFER(created)  DTEncode(DTSubtract(epoch, -created))
+        modified    = DIFFER(modified) DTEncode(DTSubtract(epoch, -modified))
+        created     = REPLACE(created,  ' ', 'T')
+        modified    = REPLACE(modified, ' ', 'T')
+        node_count  = node_count + 1
+        Ids[id]     = seq_id = seq_id + 1
+        n_node      = EVAL(n_node_data)                             :F(Yikes)
+        DIFFER(pid)                                                 :F(RETURN)
+        r_node      = EVAL(r_node_data)                             :S(RETURN)F(Yikes)
+MM_Yikes
+        TERMINAL    = 'Yikes!' filePath
+        doTDict     = TRUE
+        TDump(x,, 3)                                                :(END)
+MM_NodeEnd
+*       ----------- --- ------------------------------------------- ------------
+        $' '        =   FENCE(SPAN(' ') | epsilon)
+        mm_A        =   SPAN(&UCASE &LCASE)
+        mm_D        =   SPAN(digits)
+        mm_class    =   (   '552 Government Code'
++                       |   'Account opening -- Educational materials.'
++                       |   '"Bad Actor"'
++                       |   '"Bad actor"'
++                       |   'Accredited Investor'
++                       |   'Affiliated Issuers:'
++                       |   'Applicability'
++                       |   'Asset Backed Security:'
++                       |   'Bad Actor disqualification'
++                       |   'Bad Actor disqualificatons'
++                       |   'Business Combinaton.'
++                       |   'Condigions to be ment'
++                       |   'Conditions to be met'
++                       |   'Crowdfunding exemption and requirements Exemptions:'
++                       |   'Crowdfunding exemption and requirements'
++                       |   !('Instruction' mm_D ' ') 'Crowdfunding exemption and requirement'
++                       |   'Definitions and terms used in Regulation D.'
++                       |   'Disclosure of prior "bad actor" events:'
++                       |   'Disclosure requirements.'
++                       |   'Disqualification Provisions' !(mm_D !mm_A) !(':' | ';)' | ';')
++                       |   'Exchange Act filing requirements.'
++                       |   'Exempted transactions'
++                       |   'Exemption applies.'
++                       |   'Exempton for Limited Offerings' !('.' !mm_D)
++                       |   'Exhibits.' !mm_D
++                       |   'Filing of notice of sales' !(' ' | mm_D) '.'
++                       |   'For all of your investors,'
++                       |   'Foreign Issuer.'
++                       |   'General conditions to be met.'
++                       |   'General conditions.'
++                       |   'How notice of sales on Form D must be filed and signed.'
++                       |   'Information Requirements' !mm_D ':'
++                       |   'Instruction ' mm_D !(' to ' BREAK('.') '.')
++                       |   'Instruction to ' mm_D
++                       |   'Information Requirements'
++                       |   'Instruction Applicability'
++                       |   'Investigations and actions'
++                       |   'Invocation of Right'
++                       |   'Issuer' !mm_D !':' ':'
++                       |   'Limitations on Manner of Offering.'
++                       |   'Limitations on Resale.'
++                       |   'Nature of purchasers. (KYC)'
++                       |   'Note' !mm_D !mm_A (':' | '.')
++                       |   'Note' !(' ' mm_D) ' to ' BREAK(':.') ANY(':.')
++                       |   'Notice of certain proposed unregistered offerings.'
++                       |   'Qualified for Exemption'
++                       |   'Reairements for Issues:'
++                       |   'Requirements for Issuers:'
++                       |   'Requirements for issuers'
++                       |   'Requirements with respect to certain small transactions Requirements for issuers'
++                       |   'Requirements with respect to certain small transactions Requirements on intermediaries'
++                       |   'Requirements with respect to transactions Investor qualification.'
++                       |   'Requrements for Issuers:'
++                       |   'Resale Limitations.'
++                       |   'Restrictions'
++                       |   'Scope of Exemptions:'
++                       |   ('Scope' | 'Scpoe') ' of exemption Tier ' mm_D !' ' ':'
++                       |   'Signature'
++                       |   'Specific conditions - Limitation on number of purchasers.'
++                       |   'Specific conditions - Nature of purchasers.'
++                       |   'Transition, waivers, reasonable care exception' !' ' '.'
++                       |   'Transitions, waivers, reasonable care exception:'
++                       |   'Type of Information.' !mm_D
++                       |   'Use of Regulation D.'
++                       |   'Violation'
++                       |   'amendment is required' !'.' !'.'
++                       |   'amendment required'
++                       |   'applicability:'
++                       |   'exemption does not apply' !'.'
++                       |   'Due Process'
++                       |   'Ex Parte Hearing'
++                       |   'Rules of Evidence'
++                       |   'TxCCP Art 45.014 -- Misdemeanor Arrest Warrant'
++                       |   'TxCCP Chapter 14 -- Arrest Without Warrant'
++                       |   'TxCCP Chapter 15 Arrest on Warrant'
++                       |   'TxCCP Chapter 16'
++                       |   'Validity of Arrest'
++                       |   'Validity of Warrant'
++                       )
+        mm_qword    =   'are' | 'can' | 'did' | 'do' | 'does' | 'is' | 'has' | 'have'
++                   |   'was' | 'were' | 'where' | 'when' | 'what'
+        mm_question =   SPAN(&UCASE &LCASE) $ tx *?(lwr(tx) ? POS(0) mm_qword RPOS(0))
+        mm_on       =   SPAN(&UCASE &LCASE) $ tx *?(tx ? POS(0) ANY('Oo') ANY('Nn') RPOS(0))
+        mm_no       =   SPAN(&UCASE &LCASE) $ tx *?(tx ? POS(0) ANY('Nn') ANY('Oo') RPOS(0))
+        mm_yes      =   SPAN(&UCASE &LCASE) $ tx *?(tx ? POS(0) ANY('Yy') ANY('Ee') ANY('Ss') RPOS(0))
+        mm_yesno    =   $' ' !'(' !(mm_on $' ')
++                       (   mm_yes . *assign(.tx_yesno, 'yes')
++                       |   mm_no  . *assign(.tx_yesno, 'no')
++                       )
+        mm_USC      =   ('USC' | 'U.' $' ' 'S.' $' ' ('C.' | 'Code'))
+        mm_CFR      =   'CFR'
+        mm_dash     =   '-' | EN_DASH
+        mm_qual     =   $' ' '('      . *assign(.tx_ref, tx_ref '(')
++                       $' ' BAL . tx . *assign(.tx_ref, tx_ref tx)
++                       $' ' ')'      . *assign(.tx_ref, tx_ref ')')
++                       FENCE(*mm_qual | epsilon)
+        mm_section  =   SECTION_SIGN !NARROW_NO_BREAK_SPACE
+        mm_ref      =   !('Ref:' $' ')
++                       (   mm_D . tx_ref
++                           $' ' mm_USC !NARROW_NO_BREAK_SPACE  . *assign(.tx_ref, tx_ref ' USC')
++                           $' ' !mm_section
++                           $' ' (mm_D !mm_A) . tx              . *assign(.tx_ref, tx_ref ' ' tx)
++                           $' ' !(mm_dash mm_D) . tx           . *assign(.tx_ref, tx_ref tx)
++                           $' ' !mm_qual
++                           !($' ' mm_D . tx                    . *assign(.tx_ref, tx_ref '~' tx))
++                       |   mm_D . tx_ref
++                           $' ' mm_CFR                         . *assign(.tx_ref, tx_ref ' CFR')
++                           $' ' !mm_section
++                           $' ' (mm_D '.' mm_D !mm_A) . tx     . *assign(.tx_ref, tx_ref ' ' tx)
++                           $' ' !(mm_dash mm_D) . tx           . *assign(.tx_ref, tx_ref tx)
++                           $' ' !mm_qual
++                           !($' ' (!'.' mm_D !mm_A) . tx       . *assign(.tx_ref, tx_ref '~' tx))
++                       |   ('Section' | mm_section)            . *assign(.tx_ref, SECTION_SIGN)
++                           $' ' (mm_D !mm_A !('.' mm_D)) . tx  . *assign(.tx_ref, tx_ref ' ' tx)
++                           !mm_qual
++                           !(NARROW_NO_BREAK_SPACE mm_D . tx   . *assign(.tx_ref, tx_ref '~' tx))
++                       )
+        mm_info     =   (   mm_yesno
++                       |   mm_ref        . *assign(.tx_refs,  (DIFFER(tx_refs)  tx_refs  ' ' tx_ref, tx_ref))
++                       |   mm_class . tx . *assign(.tx_class, (DIFFER(tx_class) tx_class ' ' tx, tx))
++                       )
+        mm_junk     =   (':' | '.' | ',' | '---' | '--' | '-' | '#' | EM_DASH | EN_DASH)
+        mm_trash    =   $' ' mm_junk FENCE(*mm_trash | epsilon)
+        mm_collect  =   $' ' mm_info !mm_trash FENCE(*mm_collect | epsilon)
+        mm_fix      =   ('(' BAL ')') . tx_bal ANY(&UCASE &LCASE) . tx_letter
+*       ----------- --- ------------------------------------------- ------------
+        DEFINE('MM_Rich(x,pid)'
++          'type,tx_bal,tx_class,tx_letter,tx_ref,tx_refs,tx_yesno'
++       )                                                           :(MM_RichEnd)
+MM_Rich type        = DIFFER(d(x)) lwr(d(x)['TYPE'])                :F(Yikes)
+        type        = IDENT(type, 'node') 'content'
+        rich_content = IDENT(type, 'content') rich_content + 1
+        rich_details = IDENT(type, 'details') rich_details + 1
+        rich_notes  = IDENT(type, 'note') rich_notes + 1
+        v(x)        = TEval(x)
+MM_ric0 v(x)        ? NO_BREAK_SPACE = ' '                          :S(MM_ric0)
+MM_ric1 v(x)        ? POS(0) ' ' =                                  :S(MM_ric1)
+MM_ric2 v(x)        ? ' ' RPOS(0)  =                                :S(MM_ric2)
+MM_ric3 v(x)        ? '  ' = ' '                                    :S(MM_ric3)
+        DIFFER(v(x))                                                :F(RETURN)
+        IDENT(type, 'content')                                      :F(MM_ric4)
+        tx_refs     = tx_class = tx_yesno =
+        v(x)        ? POS(0) *mm_collect $' ' =
+        v(x)        ? POS(0) *mm_fix = tx_bal ' ' tx_letter
+        v(x)        ? POS(0) *mm_question                           :S(MM_ric4)
+        stderr      = ' ' Qize(v(x)) ' [' tx_refs '] [' tx_class ']'
+MM_ric4 seq_id      = seq_id + 1
+        IDENT(type, 'content')                                      :S(MM_ricc)
+        IDENT(type, 'details')                                      :S(MM_ricd)
+        IDENT(type, 'note')                                         :S(MM_ricn)F(Yikes)
+MM_ricc n_content   = EVAL(n_content_data)                          :F(Yikes)
+        r_content   = EVAL(r_content_data)
+        seq_id      = DIFFER(tx_yesno) seq_id + 1
+        n_answered  = DIFFER(tx_yesno) EVAL(n_answered_data)
+        r_answered  = DIFFER(tx_yesno) EVAL(r_answered_data)
+        seq_id      = DIFFER(tx_class) seq_id + 1
+        n_class     = DIFFER(tx_class) EVAL(n_class_data)
+        r_class     = DIFFER(tx_class) EVAL(r_class_data)
+        seq_id      = DIFFER(tx_refs)  seq_id + 1
+        n_quotes    = DIFFER(tx_refs)  EVAL(n_quotes_data)
+        r_quotes    = DIFFER(tx_refs)  EVAL(r_quotes_data)          :(RETURN)
+MM_ricd n_details   = EVAL(n_details_data)                          :F(Yikes)
+        r_details   = EVAL(r_details_data)                          :S(RETURN)F(Yikes)
+MM_ricn n_note      = EVAL(n_note_data)                             :F(Yikes)
+        r_note      = EVAL(r_note_data)                             :S(RETURN)F(Yikes)
+MM_RichEnd
+*       ----------- --- ------------------------------------------- ------------
+        DEFINE('MM_Anch(x,pid)href')                                :(MM_AnchEnd)
+MM_Anch href        = DIFFER(d(x))
++                     DIFFER(d(x)['href'])
++                     d(x)['href']                                  :F(RETURN)
+        seq_id      = seq_id + 1
+        v(x)        = TEval(x)
+        n_anchor    = EVAL(n_anchor_data)                           :F(Yikes)
+        r_anchor    = EVAL(r_anchor_data)                           :S(RETURN)F(Yikes)
+MM_AnchEnd
+*       ----------- --- ------------------------------------------- ------------
+        DEFINE('MM(x,pid)i,node_id')                                :(MMEnd)
+MM
+*       TERMINAL = t(x) nl
+                                                                    :($('MM_' t(x)))
+MM_node MM_Node(x, pid, .node_id)
+MM_nod5 MM(c(x)[i = LT(i, n(x)) i + 1], node_id)                    :S(MM_nod5)F(RETURN)
+MM_richcontent
+        MM_Rich(x, pid)                                             :(MM5)
+MM_a    MM_Anch(x, pid)                                             :(RETURN)
+
+MM_area ;MM_b ;MM_body ;MM_br ;MM_cloud ;MM_div ;MM_edge
+MM_font ;MM_head ;MM_hook ;MM_html ;MM_icon ;MM_input
+MM_map ;MM_map_styles ;MM_o ;MM_p ;MM_properties ;MM_span
+MM_stylenode ;MM_sup
+
+MM_article ;MM_attribute ;MM_attribute_layout
+MM_attribute_registry ;MM_blockquote ;MM_chunkcontent
+MM_em ;MM_excludedoc ;MM_h1 ;MM_h2 ;MM_h3 ;MM_h4 ;MM_h5
+MM_h6 ;MM_i ;MM_img ;MM_li ;MM_nobr ;MM_ol
+MM_pre ;MM_strong ;MM_table ;MM_td ;MM_tr ;MM_u ;MM_ul
+
+MM_included
+MM_includedoc
+MM_indlucedoc
+MM_incudedoc
+
+MM5     MM(c(x)[i = LT(i, n(x)) i + 1], pid)                        :S(MM5)F(RETURN)
+MMEnd
+*       ----------- --- ----------------------------------- ------------
+        cygwinDir   =   'C:/cygwin64/bin'
+        fileParams  =   '[-m10 -l65536]'
+        cruq        =   'CREATE CONSTRAINT ON (n:Node) ASSERT (n.map_name, n.map_id) IS NODE KEY'
+        crndx       =   'CREATE INDEX ON :Node(map_name, map_id)'
+        user        =   'neo4j'
+        bin         =   "installation-3.5.6/bin"
+        dir         =   HOST(4, "Neo4jDir")
+        pw          =   HOST(4, "Neo4jPassword")
+        dir         =   IDENT(dir) "C:/Neo4j/neo4jDatabases"
+        pw          =   IDENT(pw) 'Blogzilla99#'
+        wild        =   'database-*'
+        find        =   cygwinDir '/find "' dir '" -type d -name "' wild '"'
+        import      =   "import"
+*       ----------- --- ----------------------------------- ------------
+        OUTPUT(.stderr, 5, 'mm.err')                        :F(Yikes)
+        OUTPUT(.TERMINAL, 2, '[-f2 -r1 -b1]')               :F(Yikes)
+        INPUT(.findInput, 3, "!!" find fileParams)          :F(E3)
+L05     dbdir       =   findInput '/'
+        ENDFILE(3)
+        admin       =   dbdir bin '/neo4j-admin'
+        shell       =   dbdir bin '/cypher-shell -u ' user ' -p ' pw
+        database    =   'Mindmaps' ;* 'graph.db' ;*
+        import_cmd  =   'import'
++                       ' --mode csv'
++                       ' --max-memory 95%'
++                       ' --id-type integer'
++                       ' --nodes '          '"import/hn_node.csv'      ',import/n_node.csv"'
++                       ' --nodes '          '"import/hn_content.csv'   ',import/n_content.csv"'
++                       ' --nodes '          '"import/hn_details.csv'   ',import/n_details.csv"'
++                       ' --nodes '          '"import/hn_note.csv'      ',import/n_note.csv"'
++                       ' --nodes '          '"import/hn_anchor.csv'    ',import/n_anchor.csv"'
++                       ' --nodes '          '"import/hn_answered.csv'  ',import/n_answered.csv"'
++                       ' --nodes '          '"import/hn_class.csv'     ',import/n_class.csv"'
++                       ' --nodes '          '"import/hn_quotes.csv'    ',import/n_quotes.csv"'
++                       ' --relationships '  '"import/hr_node.csv'      ',import/r_node.csv"'
++                       ' --relationships '  '"import/hr_content.csv'   ',import/r_content.csv"'
++                       ' --relationships '  '"import/hr_details.csv'   ',import/r_details.csv"'
++                       ' --relationships '  '"import/hr_note.csv'      ',import/r_note.csv"'
++                       ' --relationships '  '"import/hr_anchor.csv'    ',import/r_anchor.csv"'
++                       ' --relationships '  '"import/hr_answered.csv'  ',import/r_answered.csv"'
++                       ' --relationships '  '"import/hr_class.csv'     ',import/r_class.csv"'
++                       ' --relationships '  '"import/hr_quotes.csv'    ',import/r_quotes.csv"'
+*+                      ' --report-file ' database '.report'
+*+                      ' --database ' database
+*+                      ' --high-io true'
+                                                            ;* :(L93)
+*       ----------- --- ----------------------------------- ------------
+        load  = *(' USING PERIODIC COMMIT 500' nl
++                       '  LOAD CSV' nl
++                       '  WITH HEADERS' nl
++                       '  FROM "file:///' CEncode(URLEncode(csvPath)) '"' nl
++                       '    AS line' nl
++                       'CREATE (:Node {'
++                          ' id: line.id,'
++                          ' parent_id: line.parent_id,'
++                          ' tree_id: line.tree_id,'
++                          ' content_id: line.content_id,'
++                          ' link: line.link,'
++                          ' created: line.created,'
++                          ' modified: line.modified,'
++                          ' map: line.map'
++                          ' map_id: line.map_id'
++                          ' });' nl
++                       )
+*       ----------- --- ----------------------------------- ------------
+        OUTPUT(.n_node_header,     32, import '/hn_node.csv')      :F(Yikes)
+        OUTPUT(.r_node_header,     31, import '/hr_node.csv')      :F(Yikes)
+        OUTPUT(.n_content_header,  30, import '/hn_content.csv')   :F(Yikes)
+        OUTPUT(.r_content_header,  29, import '/hr_content.csv')   :F(Yikes)
+        OUTPUT(.n_details_header,  28, import '/hn_details.csv')   :F(Yikes)
+        OUTPUT(.r_details_header,  27, import '/hr_details.csv')   :F(Yikes)
+        OUTPUT(.n_note_header,     26, import '/hn_note.csv')      :F(Yikes)
+        OUTPUT(.r_note_header,     25, import '/hr_note.csv')      :F(Yikes)
+        OUTPUT(.n_anchor_header,   24, import '/hn_anchor.csv')    :F(Yikes)
+        OUTPUT(.r_anchor_header,   23, import '/hr_anchor.csv')    :F(Yikes)
+        OUTPUT(.n_answered_header, 22, import '/hn_answered.csv')  :F(Yikes)
+        OUTPUT(.r_answered_header, 21, import '/hr_answered.csv')  :F(Yikes)
+        OUTPUT(.n_class_header,    20, import '/hn_class.csv')     :F(Yikes)
+        OUTPUT(.r_class_header,    19, import '/hr_class.csv')     :F(Yikes)
+        OUTPUT(.n_quotes_header,   18, import '/hn_quotes.csv')    :F(Yikes)
+        OUTPUT(.r_quotes_header,   17, import '/hr_quotes.csv')    :F(Yikes)
+
+        n_node_header       =   ':LABEL'
++                               ',:ID'
++                               ',parent_id:int'
++                               ',tree_id:int'
++                               ',content_id:int'
++                               ',text:string'
++                               ',link:string'
++                               ',created:datetime{timezone:+00:00}'
++                               ',modified:datetime{timezone:+00:00}'
++                               ',map_name:string'
++                               ',map_id:int'
+        n_node_data         =   *(  (   DIFFER(tree_id) 'Tree'
++                                   ,   DIFFER(content_id) 'Clone'
++                                   ,   DIFFER(link) 'Link'
++                                   ,   'Node'
++                                   )
++                               ',' Ids[id]
++                               ',' (DIFFER(pid) pid, NULL)
++                               ',' (DIFFER(tree_id) tree_id, NULL)
++                               ',' (DIFFER(content_id) content_id, NULL)
++                               ',' (DIFFER(text) '"' CsvDQize(text) '"', NULL)
++                               ',' (DIFFER(link) '"' CsvDQize(link) '"', NULL)
++                               ',' created
++                               ',' modified
++                               ',' (DIFFER(map) '"' CsvDQize(map) '"', NULL)
++                               ',' id
++                               )
+        n_content_header    =   ':LABEL,:ID,text:string'
+        n_details_header    =   ':LABEL,:ID,text:string'
+        n_note_header       =   ':LABEL,:ID,text:string'
+        n_anchor_header     =   ':LABEL,:ID,text:string,href:string'
+        n_answered_header   =   ':LABEL,:ID,text:string'
+        n_class_header      =   ':LABEL,:ID,text:string'
+        n_quotes_header     =   ':LABEL,:ID,text:string'
+        n_content_data      =   *('Content,'  seq_id ',"' CsvDQize(v(x)) '"')
+        n_details_data      =   *('Detail,'   seq_id ',"' CsvDQize(v(x)) '"')
+        n_note_data         =   *('Note,'     seq_id ',"' CsvDQize(v(x)) '"')
+        n_anchor_data       =   *('Anchor,'   seq_id ',"' CsvDQize(v(x)) '","' CsvDQize(href) '"')
+        n_answered_data     =   *('Answered,' seq_id ',"' tx_yesno '"')
+        n_class_data        =   *('Class,'    seq_id ',"' CsvDQize(tx_class) '"')
+        n_quotes_data       =   *('Quotes,'   seq_id ',"' CsvDQize(tx_refs) '"')
+
+        r_node_header       =   ':START_ID,:TYPE,:END_ID'
+        r_content_header    =   ':START_ID,:TYPE,:END_ID'
+        r_details_header    =   ':START_ID,:TYPE,:END_ID'
+        r_note_header       =   ':START_ID,:TYPE,:END_ID'
+        r_anchor_header     =   ':START_ID,:TYPE,:END_ID'
+        r_answered_header   =   ':START_ID,:TYPE,:END_ID'
+        r_class_header      =   ':START_ID,:TYPE,:END_ID'
+        r_quotes_header     =   ':START_ID,:TYPE,:END_ID'
+        r_node_data         =   *(Ids[pid] ',CONTAINS,' Ids[id])
+        r_content_data      =   *(Ids[pid] ',CONTENT,'  seq_id)
+        r_details_data      =   *(Ids[pid] ',DETAILS,'  seq_id)
+        r_note_data         =   *(Ids[pid] ',NOTE,'     seq_id)
+        r_anchor_data       =   *(Ids[pid] ',ANCHOR,'   seq_id)
+        r_answered_data     =   *(Ids[pid] ',ANSWERED,' seq_id)
+        r_class_data        =   *(Ids[pid] ',CLASS,'    seq_id)
+        r_quotes_data       =   *(Ids[pid] ',QUOTES,'   seq_id)
+
+        ENDFILE(17)
+        ENDFILE(18)
+        ENDFILE(19)
+        ENDFILE(20)
+        ENDFILE(21)
+        ENDFILE(22)
+        ENDFILE(23)
+        ENDFILE(24)
+        ENDFILE(25)
+        ENDFILE(26)
+        ENDFILE(27)
+        ENDFILE(28)
+        ENDFILE(29)
+        ENDFILE(30)
+        ENDFILE(31)
+        ENDFILE(32)
+*       ----------- --- ----------------------------------------------- ------------
+        &PROFILE    =   0
+        findDirPath =   "C:/LegalEarth/15_USC_77d" ;* "C:/LegalEarth" ;*  ;* "/Criminal"
+        findWild    =   "*.mm"
+        findCmd     =   cygwinDir '/find "' findDirPath '" -type f -name "' findWild '"'
+        outParams   =   '[-l65536]'
+        fileDirPat  =   (ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/')))
+        fileNamePat =   ARBNO(NOTANY('/'))
+        filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+        fileNo      =   0
+        fileNoMin   =   1
+        fileNoMax   =   1000
+        fileLineNo  =   0
+        fileBytes   =   0
+        fileFail    =   0
+        MaxD        =   0
+        node_count  =   0
+        stmt_count  =   0
+        epoch       =   DTDecode('1970-01-01 00:00:00')
+        mm_version  =   POS(0) 'freeplane ' ('1.5.9' | '1.6.0' | '1.7.0') RPOS(0)
+*       ----------- --- ----------------------------------- ------------
+        OUTPUT(.n_node,     32, import '/n_node.csv')        :F(Yikes)
+        OUTPUT(.r_node,     31, import '/r_node.csv')        :F(Yikes)
+        OUTPUT(.n_content,  30, import '/n_content.csv')     :F(Yikes)
+        OUTPUT(.r_content,  29, import '/r_content.csv')     :F(Yikes)
+        OUTPUT(.n_details,  28, import '/n_details.csv')     :F(Yikes)
+        OUTPUT(.r_details,  27, import '/r_details.csv')     :F(Yikes)
+        OUTPUT(.n_note,     26, import '/n_note.csv')        :F(Yikes)
+        OUTPUT(.r_note,     25, import '/r_note.csv')        :F(Yikes)
+        OUTPUT(.n_anchor,   24, import '/n_anchor.csv')      :F(Yikes)
+        OUTPUT(.r_anchor,   23, import '/r_anchor.csv')      :F(Yikes)
+        OUTPUT(.n_answered, 22, import '/n_answered.csv')    :F(Yikes)
+        OUTPUT(.r_answered, 21, import '/r_answered.csv')    :F(Yikes)
+        OUTPUT(.n_class,    20, import '/n_class.csv')       :F(Yikes)
+        OUTPUT(.r_class,    19, import '/r_class.csv')       :F(Yikes)
+        OUTPUT(.n_quotes,   18, import '/n_quotes.csv')      :F(Yikes)
+        OUTPUT(.r_quotes,   17, import '/r_quotes.csv')      :F(Yikes)
+*       ----------- --- ----------------------------------- ------------
+        tBegin      =   TIME()
+        TERMINAL    =   'File      Bytes    Reading  Scripting Name' nl
+        divider     =   '---- ---------- ---------- ---------- ----------------------------------' nl
+        INPUT(.findInput, 3, "!!" findCmd fileParams)       :F(E1)
+L10     filePath    =   findInput                           :F(L90)
+        filePath    ?   filePattern                         :F(Yikes)
+        filePath    ?   '/1-Older Working Criminal/'        :S(L10)
+        fileName    ?   POS(0) ARB . map '.mm' RPOS(0)
+        fileNo      =   fileNo + 1
+        GE(fileNo, fileNoMin)                               :F(L10)
+        LE(fileNo, fileNoMax)                               :F(L90)
+*       &TRACE      =   4194304
+        Ids         =   TABLE()
+L15     TERMINAL    =   EQ(REMDR(fileNo, 30), 1) divider
+        TERMINAL    =   LPAD(fileNo, 4) ' '
+        tStart      =   TIME()
+        xmlBytes    =   0
+        xml         =   XmlRead(filePath, fileParams)       :S(L20)
+        fileFail    =   fileFail + 1
+        TERMINAL    =   DUPL(' ', 25) filePath nl           :(L10)
+L20     tFinish     =   TIME()
+        TERMINAL    =   LPAD(TT(xmlBytes, 0), 10) ' '
+        TERMINAL    =   LPAD(TT(tFinish - tStart, 3), 10) ' '
+        tStart      =   tFinish
+        COLLECT()
+        MM(xml)
+        tFinish     =   TIME()
+        TERMINAL    =   LPAD(TT(tFinish - tStart, 3), 10) ' '
+        TERMINAL    =   map nl                              :(L10)
+L90     ENDFILE(17)
+        ENDFILE(18)
+        ENDFILE(19)
+        ENDFILE(20)
+        ENDFILE(21)
+        ENDFILE(22)
+        ENDFILE(23)
+        ENDFILE(24)
+        ENDFILE(25)
+        ENDFILE(26)
+        ENDFILE(27)
+        ENDFILE(28)
+        ENDFILE(29)
+        ENDFILE(30)
+        ENDFILE(31)
+        ENDFILE(32)
+        ENDFILE(3)
+        ENDFILE(5)
+        tEnd        =   TIME()
+        TERMINAL    =   'Processed ' LPAD(TT(fileNo), 12) ' files.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(fileLineNo), 12) ' lines.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(fileBytes), 12) ' bytes.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(+node_count), 12) ' nodes.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(+rich_content), 12) ' contents.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(+rich_details), 12) ' details.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(+rich_notes), 12) ' notes.' nl
+        TERMINAL    =   'Processed ' LPAD(TT(+fileFail), 12) ' failures.' nl
+        TERMINAL    =   'Maximum depth: ' +MaxD  nl
+        TERMINAL    =   'Total time: ' TT((tEnd - tBegin) / 60, 3) ' minutes.' nl
+*       ----------- --- ----------------------------------- ------------
+L93     OUTPUT      =   admin ' ' import_cmd
+*       INPUT(.neo4j, 4, '!!' admin ' ' import_cmd '[-r1 -b1]') :F(Yikes)
+*L95    TERMINAL    =   neo4j                               :S(L95)
+*       ENDFILE(4)
+                                                            :(END)
+*       ----------- --- ----------------------------------- ------------
+E1      OUTPUT      =   "Error: find: " findCmd             :(END)
+E2      OUTPUT      =   "Error: read: " fileNo ' ' filePath :(END)
+E3      OUTPUT      =   "Error: find: " find                :(END)
+E4      OUTPUT      =   "Error: find: " full                :(END)
+E9      TERMINAL    =   'Error: unknown tag: ' t(x)
+        TERMINAL    =   &ERRTYPE ' ' &ERRTEXT               :(ABORT)
+*Yikes  TERMINAL    =   &ERRTYPE ' ' &ERRTEXT ' -- Yikes'   :(END)
+*-INCLUDE 'debug.sno'
+END

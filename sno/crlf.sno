@@ -1,0 +1,9 @@
+        &ALPHABET   POS(10) LEN(1) . lf
+        &ALPHABET   POS(13) LEN(1) . cr
+        EXIT(3, 'crlf.exe')
+        INPUT(.INPUT, 0, '[-f0 -m10]')          :F(err)
+loop    line        =   INPUT                   :F(END)
+        line        cr RPOS(0) =
+        OUTPUT      =   line                    :(loop)
+err     TERMINAL    =   'Unable to open stdin'  :(END)
+END

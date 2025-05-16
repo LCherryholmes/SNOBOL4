@@ -1,0 +1,318 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Foursquare.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR every city ... ------------------------------------------------
+*---------- FOR all topics ... ------------------------------------------------
+*---------- FOR every search alternative ... ----------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =============== === ======================================================= ====================
+            xListener       =   'Listen2Foursquare'
+            userAgent       =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies         =   xListener 'Cookies.txt'
+            doParseTree     =   FALSE
+            urlReferer      =   'LonCherryholmes.BlogSpot.com'
+            fsUrl           =   'https://api.foursquare.com/v2/tips/search'
+            fsLimit         =   50 ;* 25 ;* 50 ;* 100
+            fsApiKey        =   'AIzaSyAlKb_QRZN3zEoF4SE8dGNCaZn6w6BuqPU'
+            fsClientID      =   '4HAWGMBJM4UEVZKH13NG3SO51HHAGWMPN3EHEWCX2OQ1HGYM' ;* Foursquare
+            fsClientSecret  =   'VKBTINXZ3DSMMDQJ2ZMZRQJLSDRDLRUEWTDO3XCYN3YO43D0' ;* Foursquare
+            fsOauthToken    =   'DNKMZ4GEXIBF52V55YAQ0CNE3E1WDVZQJIKT2DEVTLGSLWVW' ;* Foursquare
+            'https://api.foursquare.com/v2/venues/search?ll=&radius=&sw=&ne&query=&limit=50&intent=browse'
+            'https://api.foursquare.com/v2/venues/VENUE_ID/tips?sort=recent&limit=100&offset=0'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            fsExpr      =  *(   'll'            '=' fsLL
++                           '&' 'limit'         '=' fsLimit
++                           '&' 'sort'          '=' 'recent'
++                          ('&' 'offset'        '=' fsOffset DIFFER(fsOffset), NULL)
++                           '&' 'query'         '=' URLEncode(qxQuery)
++                           '&' 'client_id'     '=' fsClientID
++                           '&' 'client_secret' '=' fsClientSecret
++                           '&' 'v'             '=' '20120104'
++                           )
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            qQuery      =   POS(0) $ xQT . *assign(.iQT, 0) . *assign(.xQT, TABLE()) *qAlts RPOS(0)
+            qAlts       =   *qAlt ARBNO(*qOR *qAlt)
+            qOR         =   $'  ' 'OR' $'  '
+            qAlt        =   ('"' BREAK('"') '"') . qxAlt . *assign(.iQT, iQT + 1) . *assign(.xQT[iQT], qxAlt)
+*========== =========== === ======================================================= ====================
+            SetupWait()                                                             :F(LEnd) ;* :(L100)
+            SetupCancel()                                                           :F(LEnd)
+L05         SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+            SQL_SetAutoCommitOff()                                                  :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                         :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            curl        =   curl_easy_init()                                        :F(LErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))                  :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))          :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))           :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))            :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))            :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))             :F(LErr)
+            periodSecs  =   IDENT(periodSecs) 10
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   4 * 60 * 60  ;* hours(s) in seconds
+            backSecs    =   40 * 24 * 60 * 60  ;* day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+            backTime    =   '2009-01-01 00:00:00'
+            timeZone    =   -4 * 60 * 60  ;* North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;* Israel, GMT+2 hours in seconds
+            fsCntT      =   TABLE()
+            fsModT      =   TABLE()
+            ReadCities()                                                            :F(error)
+            ReadSchema('Foursquare')                                                :F(error)
+            ReadConfig(xListener)                                                   :F(error)
+*---------- Polling ... -----------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+L10         iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                      :F(LEnd)
+            ReadConfig(xListener)                                                   :F(error)
+*---------- FOR every city ... ----------------------------------------------------
+            iCity       =   xIT[0]['City']
+L20         iCity       =   LT(iCity, xMaxCities) iCity + 1                         :F(L90)
+            city        =   DIFFER(xCT[iCity]) xCT[iCity]                           :F(L20)
+            fsTotT      =   TABLE()
+            xWhere      =   name(city)
+            fsLatitude  =   latitude(city)
+            fsLongitude =   longitude(city)
+            fsLatitude  '.' RPOS(0) = '.0'
+            fsLongitude '.' RPOS(0) = '.0'
+            NE(fsLatitude, 0.0)                                                     :F(L20)
+            NE(fsLongitude, 0.0)                                                    :F(L20)
+            fsLL        =   fsLatitude ',' fsLongitude
+*---------- FOR all topics ... ----------------------------------------------------
+            iT          =   xIT[0]['Topic']
+L30         iT          =   LT(iT, xMaxEntity) iT + 1                               :F(L80)
+            EQ(IsCancelled(), FALSE)                                                :F(L90)
+            xT          =   DIFFER(xIT[iT]) xIT[iT]                                 :F(L30)
+            iTopic      =   iT
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            xQ          ?   *qQuery                                                 :F(error)
+            fsCntT[iT]  =   GT(fsCntT[iT], 1) fsCntT[iT] - 1                        :S(L30)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                         :F(L35)
+            xT['Until'] =
+            xT['Since'] =
+            xT['Max']   =
+            xT['Alt']   =
+            xT['Ofs']   =
+L35         nowDT       =   DTDecode(Datetime())
+            thenDT      =   DTDecode(backTime)
+            xT['Until'] =   IDENT(xT['Until']) DTEncode(nowDT)
+            xT['Since'] =   IDENT(xT['Since']) DTEncode(thenDT)
+            xT['Max']   =   IDENT(xT['Max']) xT['Until']
+            fsxMinBatch =
+            fsxMaxBatch =
+*---------- FOR every search alternative ... ----------------------------------
+            iAlt        =   xT['Alt']
+L40         iAlt        =   iAlt + 1
+            qxQuery     =   DIFFER(xQT[iAlt]) xQT[iAlt]                             :F(L70)
+            iTotal      =   0
+            fsOffset    =   xT['Ofs']
+            fsxMinSave  =
+            fsxMaxSave  =
+*---------- FOR every page ... ----------------------------------------------------
+            fsxHasMore  =   TRUE
+            iPage       =   0
+L50         iPage       =   EQ(fsxHasMore, TRUE) iPage + 1                          :F(L60)
+*           Get result ...
+            fsxExpr     =   EVAL(fsExpr)
+            url         =   fsUrl '?' fsxExpr
+L53         iTry        =   0
+L54         iTry        =   LT(iTry, 10) iTry + 1                                   :F(LErr)
+            EQ(IsCancelled(), FALSE)                                                :F(L90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 5) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) DTEncode(prevTime) ' GET ...?' fsxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))                  :F(LErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))               :F(LErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                       :F(LErr)
+            EQ(cc = curl_easy_perform(curl))                                        :F(L54)
+            json        =   curl_easy_getdata()
+            Write(xListener '.json', json)
+            json        ?   POS(0) '<!DOCTYPE ' ('HTML' | 'html')                   :S(L50E)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                        :F(L50X)
+*           Process result ...
+L55         Write(xListener '.json', json)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                            :S(L50S)F(L50F)
+L50S        iIter       =   iIter + 1
+            Write(xListener '-' iIter '.json', json)
+            r           =   Pop()
+            TDump(r)
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Foursquare'
+            tK['$Foursquare'] = '@id$'
+            BATCH       =
+            Schema(.BATCH, r, 'Foursquare')
+            DIFFER(BATCH)                                                           :F(L50S1)
+            SQL_A_ExecDirect(hstmt, BATCH)                                          :F(SQLFail)
+            SQL_EndTranCommit()                                                     :F(SQLFail)
+L50S1       BATCH       =
+            BATCH       =   BATCH 'DECLARE @id$ int' nl
+            Save(.BATCH, r, 'Foursquare', 0)
+            hBatch      =   SQL_AllocStmt()                                         :F(SQLFail)
+            SQL_W_ExecDirect(hBatch, utf8_to_wstr(BATCH))                           :F(SQLFail)
+            SQL_EndTranCommit()                                                     :F(SQLFail)
+            SQL_FreeStmt(hBatch)                                                    :F(SQLFail)
+            iCount      =   0
+            fsxC        =   0
+            fsxMinDate  =
+            fsxMaxDate  =
+            fsxSpace    =   DUPL(' ', 8192)
+            fsxSpace    ?          FENCE
++                                 *IDENT(t(r), 'JSON')
++                               *IDENT(t(c(r)[1]), '{}')
++                                  *GE(n(c(r)[1]), i = 1)
++                            ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                             *IDENT(t(c(c(r)[1])[i]), ':')
++                           *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                           *IDENT(v(c(c(c(r)[1])[i])[1]), 'response')
++                           *IDENT(t(c(c(c(r)[1])[i])[2]), '{}')
++                              *GE(n(c(c(c(r)[1])[i])[2]), j = 1)
++                        ARBNO(*GE(n(c(c(c(r)[1])[i])[2]), j = j + 1) ' ')
++                         *IDENT(t(c(c(c(c(r)[1])[i])[2])[j]), ':')
++                       *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'Name')
++                       *IDENT(v(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'tips')
++                       *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[2]), '[]')
++                          *GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = 1)
++                    ARBNO(*GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = k + 1) ' ')
++                     *IDENT(t(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), '{}')
++                        *GE(n(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), m = 1)
++                  ARBNO(*GE(n(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), m = m + 1) ' ')
++                   *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m]), ':')
++                 *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[1]), 'Name')
++                 *IDENT(v(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[1]), 'createdAt')
++                 *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[2]), 'Integer')
++           *?(fsxDate = v(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[2]))
++           *?(fsxDate = DTEncode(DTSubtract(DTDecode('1970-01-01 00:00:00'), -fsxDate)))
++           *?(fsxMinDate = MinDate(fsxDate, fsxMinDate))
++           *?(fsxMaxDate = MaxDate(fsxDate, fsxMaxDate))
++           *?(fsxC = fsxC + 1)
++           *?(iCount = iCount + 1)
++           FAIL
+            OUTPUT      =   GE(xVerbose, 4) Datetime()
++                           ' ' LPAD(fsxMinDate, 19) ' ' LPAD(fsxMaxDate, 19)
++                           ' ' iCity ' ' iT ' ' iAlt ' ' iPage '(' +fsOffset ') ' iCount
+            iTotal      =   iTotal + iCount
+            fsTotT[iT]  =   fsTotT[iT] + iCount
+            fsOffset    =   fsOffset + fsxC
+            fsxMinBatch =   MinDate(fsxMinDate, fsxMinBatch)
+            fsxMaxBatch =   MaxDate(fsxMaxDate, fsxMaxBatch)
+            fsxHasMore  =   EQ(fsxC) FALSE                                          :S(L50)
+            fsxHasMore  =   DIFFER(fsxMinDate) DIFFER(fsxMinSave)
++                           DIFFER(fsxMaxDate) DIFFER(fsxMaxSave)
++                           LEQ(fsxMinDate, fsxMinSave)
++                           LEQ(fsxMaxDate, fsxMaxSave)
++                           FALSE                                                   :S(L50)
+            fsxMinSave  =   fsxMinDate
+            fsxMaxSave  =   fsxMaxDate
+            xT['Ofs']   =   fsOffset
+            xT['Until'] =   DIFFER(fsxMinDate) fsxMinDate
+            fsxHasMore  =   DIFFER(fsxMinDate) LLT(fsxMinDate, xT['Since']) FALSE   :(L50)
+L50F        TERMINAL    =   'failure'                                               :(END)
+L50X        TERMINAL    =   'terminal failure'                                      :(END)
+L50E        TERMINAL    =   'HTML RESPONSE !!!'
+            TERMINAL    =   json                                                    :(L50)
+*---------- END FOR every page ----------------------------------------------------
+L60         OUTPUT      =   GE(xVerbose, 3) Datetime()
++                           ' ' LPAD(fsxMinBatch, 19) ' ' LPAD(fsxMaxBatch, 19)
++                           ' ' iCity ' ' iT ' ' iAlt ' ' qxQuery ' ' iTotal
+            xT['Until'] =   xT['Max']
+            xT['Ofs']   =
+            xT['Alt']   =   iAlt
+            IniWrite(xListener '.ini', xIT)                                         :(L40)
+*---------- END FOR every search alternative ----------------------------------
+L70         OUTPUT      =   GE(xVerbose, 2) Datetime()
++                           ' ' DUPL('-', 19) ' ' DUPL('-', 19)
++                           ' ' iCity ' "' xWhere '" ' iT ' "' xE '" ' fsTotT[iT]
+            fsModT[iT]  =   EQ(fsTotT[iT]) LT(fsModT[iT], 5) fsModT[iT] + 1
+            fsModT[iT]  =   GT(fsTotT[iT]) GT(fsModT[iT], 1) fsModT[iT] - 1
+            fsCntT[iT]  =   fsModT[iT]
+            xT['Since'] =   xT['Max']
+            xT['Until'] =
+            xT['Max']   =
+            xT['Alt']   =
+            xIT[0]['Topic'] = iT
+            IniWrite(xListener '.ini', xIT)                                         :(L30)
+*---------- END FOR all topics ----------------------------------------------------
+L80         xIT[0]['Topic'] = 0
+            xIT[0]['City'] = iCity
+            IniWrite(xListener '.ini', xIT)
+            fsReport    =
+            iTotal      =   0
+            iT          =   0
+L83         iT          =   LT(iT, xMaxEntity) iT + 1                               :F(L85)
+            DIFFER(xT = xIT[iT])                                                    :F(L83)
+            iTotal      =   iTotal + fsTotT[iT]
+            fsReport    =   fsReport ' ' LPAD(fsTotT[iT], 3)                        :(L83)
+L85         OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           (GT(xVerbose, 1) ' ' DUPL('-', 19) ' ' DUPL('-', 19), NULL)
++                           ' ' iCity
++                           ' "' xWhere '"'
++                           ' ' LPAD(iTotal, 5) fsReport                            :(L20)
+*---------- END FOR every city ----------------------------------------------------
+L90         xIT[0]['City'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)                                         :(L10)
+*---------- ----------- --- -------------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                           :F(LEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                            :(L05)
+*---------- ----------- --- -------------------------------------------------------
+LErr1       OUTPUT      =   'Failure (' iT ', ' iPage ', ' fsxC ').'
+            OUTPUT      =   fsxChunk                                                :(LEnd)
+LErr2       OUTPUT      =   'Weird error.'                                          :(LEnd)
+LErr        curl_easy_error_info(curl, cc)                                          :(LEnd)
+*---------- Testing ... -------------------------------------------------------
+L100        iIter       =   0
+L103        iIter       =   iIter + 1
+            json        =   Read(xListener '-' iIter '.json')                        :F(END)
+            LineMap(json, .t8Map)
+            json        ?   *jpPretty = jpxP                                         :F(L103X)
+            LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                             :S(L103S)F(L103F)
+L103S       TERMINAL    =   iIter ' success'                                         :(L103)
+L103F       TERMINAL    =   iIter ' failure'                                         :(END)
+L103X       TERMINAL    =   iIter ' terminal failure'                                :(END)
+*---------- ----------- --- -------------------------------------------------------
+LEnd        IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                                 :(END)
+*========== =========== === =======================================================
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,73 @@
+*-------------------------------------------------------------------------------------------------------
+* Loops.sno
+*---------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+*========== =========== === =================================================== ====================
+*---------- ----------- --- --------------------------------------------------- --------------------
+*           EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            Args(xListener)                                                     :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                :F(debuggo)
+*========== =========== === =================================================== ====================
+START
+L05         ePollInit   =   *(iPoll = 1)
+            ePollIter   =   *(iPoll = iPoll + 1)
+            ePollTest   =   *(EQ(IsCancelled(), FALSE))
+            eTopicInit  =   *(iE = 1)
+            eTopicIter  =   *(iE = iE + 1)
+            eTopicTest  =   *(EQ(IsCancelled(), FALSE) LE(iE, xMaxEntity))
+            eLoopInit   =   *(iCount = iTweets = 0)
+            eLoopIter   =   *(iTweets = iTweets + iCount)
+            eLoopTest   =   *(EQ(IsCancelled(), FALSE) (EQ(iCount, 1500), EQ(iTweets, 0)))
+            ePageInit   =   *(((iPage = 1) DIFFER(), xHasMore = TRUE))
+            ePageIter   =   *(iPage = iPage + 1)
+            ePageTest   =   *(EQ(IsCancelled(), FALSE) EQ(xHasMore, TRUE))
+            eTryInit    =   *(ITry = )
+            eTryIter    =   *(iTry = iTry + 1)
+            eTryTest    =   *(EQ(IsCancelled(), FALSE) LT(iTry, 10))
+            eItemInit   =   *(((iCount = 0) DIFFER(), iC = 1))
+            eItemIter   =   *(iC = iC + 1)
+            eItemTest   =   *(LE(iC, xC))
+*---------- Polling ... -------------------------------------------------------
+            EVAL(ePollInit)     :(L10C)
+L10N        EVAL(ePollIter)
+L10C        EVAL(ePollTest)     :F(LEnd)
+*---------- FOR all topics ... ------------------------------------------------
+            EVAL(eTopicInit)    :(L20C)
+L20N        EVAL(eTopicIter)
+L20C        EVAL(eTopicTest)    :F(L20E)
+*---------- WHILE looping ... -------------------------------------------------
+            EVAL(eLoopInit)     :(L30C)
+L30N        EVAL(eLoopIter)
+L30C        EVAL(eLoopTest)     :F(L30E)
+*---------- FOR every page ... ------------------------------------------------
+            EVAL(ePageInit)     :(L40C)
+L40N        EVAL(ePageIter)
+L40C        EVAL(ePageTest)     :F(L40E)
+*---------- WHILE trying ... --------------------------------------------------
+            EVAL(eTryInit)      :(L50C)
+L50N        EVAL(eTryIter)
+L50C        EVAL(eTryTest)      :F(L50E)
+*---------- END trying ... ----------------------------------------------------
+L50E
+*---------- FOR every chunk/entry ... -----------------------------------------
+            EVAL(eItemInit)     :(L60C)
+L60N        EVAL(eItemIter)
+L60C        EVAL(eItemTest)     :F(L60E)
+*---------- END FOR every chunk/entry -----------------------------------------
+L60E        xHasMore    =   LT(xC, pageSize) FALSE                              :(L40N)
+*---------- END FOR every page ------------------------------------------------
+L40E                                                                            :(L30N)
+*---------- END FOR every loop ------------------------------------------------
+L30E                                                                            :(L20N)
+*---------- END FOR every entity ----------------------------------------------
+L20E                                                                            :(L10N)
+*---------- END FOR polling ---------------------------------------------------
+L10E                                                                            :(LEnd)
+*---------- ----------- --- ---------------------------------------------------
+LEnd        {end_actions}                                                       :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

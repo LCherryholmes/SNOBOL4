@@ -1,0 +1,443 @@
+START
+ doDebug = 3
+-INCLUDE 'global.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'Populate.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'XML.inc'
+*-------------------------------------------------------------------------------
+            white             =     SPAN(' ' tab lf vt ff cr fs gs rs us)
++                             |     EN_QUAD
++                             |     EM_QUAD
++                             |     NO_BREAK_SPACE
++                             |     NARROW_NO_BREAK_SPACE
++                             |     OGHAM_SPACE_MARK
++                             |     MONGOLIAN_VOWEL_SEPARATOR
++                             |     EN_SPACE
++                             |     EM_SPACE
++                             |     THREE_PER_EM_SPACE
++                             |     FOUR_PER_EM_SPACE
++                             |     SIX_PER_EM_SPACE
++                             |     FIGURE_SPACE
++                             |     PUNCTUATION_SPACE
++                             |     THIN_SPACE
++                             |     HAIR_SPACE
++                             |     LINE_SEPERATOR
++                             |     PARAGRAPH_SEPERATOR
++                             |     MEDIUM_MATHEMATICAL_SPACE
++                             |     IDEOGRAPHIC_SPACE
+            cStyleComment     =     '/*' BREAKX('*') '*/'
+            cppStyleComment   =     '//' BREAK(nl) nl
+            whitespace        =     (white | cStyleComment | cppStyleComment)
+            whitespace        =     whitespace ARBNO(whitespace)
+            $' '              =     (whitespace | epsilon)
+*-------------------------------------------------------------------------------
+            reswords          =     'ADD ALL AND ANY AS ASC ASCENDING BY CALL '
++                                   'CASE CONSTRAINT CONTAINS COUNT CREATE '
++                                   'DELETE DESC DESCENDING DETACH DISTINCT DO '
++                                   'DROP ELSE END ENDS EXISTS EXTRACT FILTER '
++                                   'FOR IN IS LIMIT L_SKIP MANDATORY MATCH '
++                                   'MERGE NONE NOT OF ON OPTIONAL OR ORDER '
++                                   'REMOVE REQUIRE RETURN SCALAR SET SINGLE '
++                                   'STARTS THEN UNION UNIQUE UNWIND WHEN '
++                                   'WHERE WITH XOR YIELD'
+            operators         =     '$ % ( ) * + += , - . .. / : ; < <= <> = > >= [ ] ^ { | }'
+            ident             =     ANY(&UCASE '_' &LCASE) FENCE(SPAN(digits &UCASE '_' &LCASE) | epsilon)
+            identifier        =     ident $ tx $ *notmatch(reswords, (POS(0) | ' ') upr(tx) (' ' | RPOS(0)))
+            resword           =     ident $ tx $ *match(reswords, (POS(0) | ' ') upr(tx) (' ' | RPOS(0)))
+main0       Populate(.TW, ident,, reswords,, operators)
+
+            OctDigit                            = ANY('01234567')
+            HexDigit                            = ANY(digits 'AaBbCcDdEeFf')
+            Digit                               = ANY(digits)
+            Digits                              = SPAN(digits)
+            EscapedChar                         = bSlash
++                                                 (  bSlash
++                                                 |  "'"
++                                                 |  '"'
++                                                 |  ANY('Bb')
++                                                 |  ANY('Ff')
++                                                 |  ANY('Nn')
++                                                 |  ANY('Rr')
++                                                 |  ANY('Tt')
++                                                 |  ANY('Uu') *HexDigit *HexDigit *HexDigit *HexDigit
++                                                 |  ANY('Uu') *HexDigit *HexDigit *HexDigit *HexDigit *HexDigit *HexDigit *HexDigit *HexDigit
++                                                 )
+            StringLiteral_0                     = NOTANY('"' bSlash) BREAK('"' bSlash)
+            StringLiteral_1                     = NOTANY("'" bSlash) BREAK("'" bSlash)
+            StringLiteral                       = $' '
++                                               ( '"' ARBNO(StringLiteral_0 | EscapedChar) '"'
++                                               | "'" ARBNO(StringLiteral_1 | EscapedChar) "'"
++                                               )
+            HexInteger                          = $' ' '0x' SPAN(digits 'AaBbCcDdEeFf')
+            OctalInteger                        = $' ' '0' SPAN('01234567')
+            DecimalInteger                      = $' ' '0' | ANY('123456789') (SPAN(digits) | epsilon)
+            HexLetter                           = $' ' ANY('AaBbCcDdEeFf')
+            RegularDecimalReal                  = $' ' (Digits | epsilon) '.' Digits
+            ExponentDecimalReal                 = $' ' (Digits | Digits '.' Digits | '.' Digits) ANY('Ee') ('-' | epsilon) Digits
+            True                                = $' ' ident $ tx *IDENT(upr(tx), 'TRUE')
+            False                               = $' ' ident $ tx *IDENT(upr(tx), 'FALSE')
+            Null                                = $' ' ident $ tx *IDENT(upr(tx), 'NULL')
+
+            oC_SymbolicName                     = $' '
++                                               ( *identifier
++                                               | #('`' BREAK('`') '`')
++                                               | *HexLetter
++                                               | COUNT
++                                               | FILTER
++                                               | EXTRACT
++                                               | ANY
++                                               | NONE
++                                               | SINGLE
++                                               )
+            oC_LeftArrowHead                    = $' '
++                                               ( '<'
++                                               | CHAR(226) CHAR(159) CHAR(168)
++                                               | CHAR(227) CHAR(128) CHAR(136)
++                                               | CHAR(239) CHAR(185) CHAR(164)
++                                               | CHAR(239) CHAR(188) CHAR(156)
++                                               )
+            oC_RightArrowHead                   = $' '
++                                               ( '>'
++                                               | CHAR(226) CHAR(159) CHAR(169)
++                                               | CHAR(227) CHAR(128) CHAR(137)
++                                               | CHAR(239) CHAR(185) CHAR(165)
++                                               | CHAR(239) CHAR(188) CHAR(158)
++                                               )
+            oC_Dash                             = $' '
++                                               ( '-'
++                                               | EN_DASH
++                                               | EM_DASH
++                                               | MINUS_SIGN
++                                               | SOFT_HYPHEN
++                                               | CHAR(226) CHAR(128) CHAR(144)
++                                               | CHAR(226) CHAR(128) CHAR(145)
++                                               | CHAR(226) CHAR(128) CHAR(146)
++                                               | CHAR(226) CHAR(128) CHAR(149)
++                                               | CHAR(239) CHAR(185) CHAR(152)
++                                               | CHAR(239) CHAR(185) CHAR(163)
++                                               | CHAR(239) CHAR(188) CHAR(141)
++                                               )
+
+            oC_Cyphers                          = #*oC_Cypher
+            oC_Cypher                           = *oC_Statement ($';' FENCE | epsilon)
+            oC_Statement                        = *oC_Query
+            oC_Query                            = *oC_RegularQuery | *oC_StandaloneCall
+            oC_RegularQuery                     = *oC_SingleQuery %*oC_Union
+            oC_Union                            = UNION ALL *oC_SingleQuery | UNION *oC_SingleQuery
+            oC_SingleQuery                      = *oC_SinglePartQuery | *oC_MultiPartQuery
+            oC_SinglePartQuery                  = %*oC_ReadingClause *oC_Return
++                                               | %*oC_ReadingClause #*oC_UpdatingClause !*oC_Return
+            oC_MultiPartQuery                   = #(%*oC_ReadingClause %*oC_UpdatingClause *oC_With) *oC_SinglePartQuery
+            oC_UpdatingClause                   = *oC_Create | *oC_Merge | *oC_Delete | *oC_Set | *oC_Remove
+            oC_ReadingClause                    = *oC_Match | *oC_Unwind | *oC_InQueryCall
+            oC_Match                            = !OPTIONAL MATCH *oC_Pattern !*oC_Where
+            oC_Unwind                           = UNWIND *oC_Expression AS *oC_Variable
+            oC_Merge                            = MERGE *oC_PatternPart %*oC_MergeAction
+            oC_MergeAction                      = ON MATCH *oC_Set | ON CREATE *oC_Set
+            oC_Create                           = CREATE *oC_Pattern
+            oC_Set                              = SET *oC_SetItem %($',' *oC_SetItem)
+            oC_SetItem                          = *oC_PropertyExpression $'=' *oC_Expression
++                                               | *oC_Variable $'=' *oC_Expression
++                                               | *oC_Variable $'+=' *oC_Expression
++                                               | *oC_Variable *oC_NodeLabels
+            oC_Delete                           = !DETACH DELETE *oC_Expression %($',' *oC_Expression)
+            oC_Remove                           = REMOVE *oC_RemoveItem %($',' *oC_RemoveItem)
+            oC_RemoveItem                       = *oC_Variable *oC_NodeLabels | *oC_PropertyExpression
+            oC_InQueryCall                      = CALL *oC_ExplicitProcedureInvocation !(YIELD *oC_YieldItems)
+            oC_StandaloneCall                   = CALL
++                                                 (*oC_ExplicitProcedureInvocation | *oC_ImplicitProcedureInvocation)
++                                                 !(YIELD *oC_YieldItems)
+            oC_YieldItems                       = ($'*' | *oC_YieldItem %($',' *oC_YieldItem)) !*oC_Where
+            oC_YieldItem                        = !(*oC_ProcedureResultField AS) *oC_Variable
+            oC_With                             = WITH !DISTINCT *oC_ReturnBody !*oC_Where
+            oC_Return                           = RETURN !DISTINCT *oC_ReturnBody
+            oC_ReturnBody                       = *oC_ReturnItems !*oC_Order !*oC_Skip !*oC_Limit
+            oC_ReturnItems                      = $'*' %($',' *oC_ReturnItem) | *oC_ReturnItem %($',' *oC_ReturnItem)
+            oC_ReturnItem                       = *oC_Expression AS *oC_Variable | *oC_Expression
+            oC_Order                            = ORDER BY *oC_SortItem %($',' *oC_SortItem)
+            oC_Skip                             = L_SKIP *oC_Expression
+            oC_Limit                            = LIMIT *oC_Expression
+            oC_SortItem                         = *oC_Expression !(ASCENDING | ASC | DESCENDING | DESC)
+            oC_Where                            = WHERE *oC_Expression
+            oC_Pattern                          = *oC_PatternPart %($',' *oC_PatternPart)
+            oC_PatternPart                      = *oC_Variable $'=' *oC_AnonymousPatternPart
++                                               | *oC_AnonymousPatternPart
+            oC_AnonymousPatternPart             = *oC_PatternElement
+            oC_PatternElement                   = *oC_NodePattern %*oC_PatternElementChain
++                                               | $'(' *oC_PatternElement $')'
+            oC_NodePattern                      = $'(' !*oC_Variable !*oC_NodeLabels !*oC_Properties $')'
+            oC_PatternElementChain              = *oC_RelationshipPattern *oC_NodePattern
+            oC_RelationshipPattern              = *oC_LeftArrowHead *oC_Dash !*oC_RelationshipDetail *oC_Dash *oC_RightArrowHead
++                                               | *oC_LeftArrowHead *oC_Dash !*oC_RelationshipDetail *oC_Dash
++                                               | *oC_Dash !*oC_RelationshipDetail *oC_Dash *oC_RightArrowHead
++                                               | *oC_Dash !*oC_RelationshipDetail *oC_Dash
+            oC_RelationshipDetail               = $'[' !*oC_Variable !*oC_RelationshipTypes !*oC_RangeLiteral !*oC_Properties $']'
+            oC_Properties                       = *oC_MapLiteral | *oC_Parameter
+            oC_RelationshipTypes                = $':' *oC_RelTypeName %($'|' !$':' *oC_RelTypeName)
+            oC_NodeLabels                       = *oC_NodeLabel %*oC_NodeLabel
+            oC_NodeLabel                        = $':' *oC_LabelName
+            oC_RangeLiteral                     = $'*' !*oC_IntegerLiteral !($'..' !*oC_IntegerLiteral)
+            oC_LabelName                        = *oC_SchemaName
+            oC_RelTypeName                      = *oC_SchemaName
+            oC_Expression                       = *oC_OrExpression
+            oC_OrExpression                     = *oC_XorExpression %(OR *oC_XorExpression)
+            oC_XorExpression                    = *oC_AndExpression %(XOR *oC_AndExpression)
+            oC_AndExpression                    = *oC_NotExpression %(AND *oC_NotExpression)
+            oC_NotExpression                    = %NOT *oC_ComparisonExpression
+            oC_ComparisonExpression             = *oC_AddOrSubtractExpression %*oC_PartialComparisonExpression
+            oC_AddOrSubtractExpression          = *oC_MultiplyDivideModuloExpression
++                                                 %($'+' *oC_MultiplyDivideModuloExpression | $'-' *oC_MultiplyDivideModuloExpression)
+            oC_MultiplyDivideModuloExpression   = *oC_PowerOfExpression
++                                                 %(
++                                                    $'*' *oC_PowerOfExpression
++                                                 |  $'/' *oC_PowerOfExpression
++                                                 |  $'%' *oC_PowerOfExpression
++                                                 )
+            oC_PowerOfExpression                = *oC_UnaryAddOrSubtractExpression %($'^' *oC_UnaryAddOrSubtractExpression)
+            oC_UnaryAddOrSubtractExpression     = %(($'+' | $'-')) *oC_StringListNullOperatorExpression
+            oC_StringListNullOperatorExpression = *oC_PropertyOrLabelsExpression
++                                                 %(
++                                                    *oC_StringOperatorExpression
++                                                 |  *oC_ListOperatorExpression
++                                                 |  *oC_NullOperatorExpression
++                                                 )
+            oC_ListOperatorExpression           = IN *oC_PropertyOrLabelsExpression
++                                               | $'[' *oC_Expression $']'
++                                               | $'[' !*oC_Expression $'..' !*oC_Expression $']'
+            oC_StringOperatorExpression         = (STARTS WITH | ENDS WITH | CONTAINS) *oC_PropertyOrLabelsExpression
+            oC_NullOperatorExpression           = IS Null | IS NOT Null
+            oC_PropertyOrLabelsExpression       = *oC_Atom %*oC_PropertyLookup !*oC_NodeLabels
+            oC_Atom                             = *oC_Literal
++                                               | *oC_Parameter
++                                               | *oC_CaseExpression
++                                               | COUNT $'(' $'*' $')'
++                                               | *oC_ListComprehension
++                                               | *oC_PatternComprehension
++                                               | ALL $'(' *oC_FilterExpression $')'
++                                               | ANY $'(' *oC_FilterExpression $')'
++                                               | NONE $'(' *oC_FilterExpression $')'
++                                               | SINGLE $'(' *oC_FilterExpression $')'
++                                               | *oC_RelationshipsPattern
++                                               | *oC_ParenthesizedExpression
++                                               | *oC_FunctionInvocation
++                                               | *oC_Variable
+            oC_Literal                          = *oC_NumberLiteral
++                                               | *StringLiteral
++                                               | *oC_BooleanLiteral
++                                               | Null
++                                               | *oC_MapLiteral
++                                               | *oC_ListLiteral
+            oC_BooleanLiteral                   = True | False
+            oC_ListLiteral                      = $'[' !(*oC_Expression %($',' *oC_Expression)) $']'
+            oC_PartialComparisonExpression      = $'='  *oC_AddOrSubtractExpression
++                                               | $'<>' *oC_AddOrSubtractExpression
++                                               | $'<'  *oC_AddOrSubtractExpression
++                                               | $'>'  *oC_AddOrSubtractExpression
++                                               | $'<=' *oC_AddOrSubtractExpression
++                                               | $'>=' *oC_AddOrSubtractExpression
+            oC_ParenthesizedExpression          = $'(' *oC_Expression $')'
+            oC_RelationshipsPattern             = *oC_NodePattern #*oC_PatternElementChain
+            oC_FilterExpression                 = *oC_IdInColl !*oC_Where
+            oC_IdInColl                         = *oC_Variable IN *oC_Expression
+            oC_FunctionInvocation               = *oC_FunctionName $'(' !DISTINCT !(*oC_Expression %($',' *oC_Expression)) $')'
+            oC_FunctionName                     = *oC_Namespace *oC_SymbolicName | EXISTS
+            oC_ExplicitProcedureInvocation      = *oC_ProcedureName $'(' !(*oC_Expression %($',' *oC_Expression)) $')'
+            oC_ImplicitProcedureInvocation      = *oC_ProcedureName
+            oC_ProcedureResultField             = *oC_SymbolicName
+            oC_ProcedureName                    = *oC_Namespace *oC_SymbolicName
+            oC_Namespace                        = %(*oC_SymbolicName $'.')
+            oC_ListComprehension                = $'[' *oC_FilterExpression !($'|' *oC_Expression) $']'
+            oC_PatternComprehension             = $'['
++                                                 !(*oC_Variable $'=')
++                                                 *oC_RelationshipsPattern
++                                                 !(WHERE *oC_Expression)
++                                                 $'|'
++                                                 *oC_Expression
++                                                 $']'
+            oC_PropertyLookup                   = $'.' *oC_PropertyKeyName
+            oC_CaseExpression                   = (CASE #*oC_CaseAlternatives | CASE *oC_Expression #*oC_CaseAlternatives)
++                                                 !(ELSE *oC_Expression)
++                                                 END
+            oC_CaseAlternatives                 = WHEN *oC_Expression THEN *oC_Expression
+            oC_Variable                         = *oC_SymbolicName
+            oC_NumberLiteral                    = *oC_DoubleLiteral | *oC_IntegerLiteral
+            oC_MapLiteral                       = $'{'
++                                                 !( *oC_PropertyKeyName
++                                                    $':'
++                                                    *oC_Expression
++                                                    %($',' *oC_PropertyKeyName $':' *oC_Expression)
++                                                 )
++                                                 $'}'
+            oC_Parameter                        = $'$' (*oC_SymbolicName | *DecimalInteger)
+            oC_PropertyExpression               = *oC_Atom #*oC_PropertyLookup
+            oC_PropertyKeyName                  = *oC_SchemaName
+            oC_IntegerLiteral                   = *HexInteger | *OctalInteger | *DecimalInteger
+            oC_DoubleLiteral                    = *ExponentDecimalReal | *RegularDecimalReal
+            oC_SchemaName                       = *oC_SymbolicName | $' ' *oC_ReservedWord
+            oC_ReservedWord                     = ALL
++                                               | ASC
++                                               | ASCENDING
++                                               | BY
++                                               | CREATE
++                                               | DELETE
++                                               | DESC
++                                               | DESCENDING
++                                               | DETACH
++                                               | EXISTS
++                                               | LIMIT
++                                               | MATCH
++                                               | MERGE
++                                               | ON
++                                               | OPTIONAL
++                                               | ORDER
++                                               | REMOVE
++                                               | RETURN
++                                               | SET
++                                               | L_SKIP
++                                               | WHERE
++                                               | WITH
++                                               | UNION
++                                               | UNWIND
++                                               | AND
++                                               | AS
++                                               | CONTAINS
++                                               | DISTINCT
++                                               | ENDS
++                                               | IN
++                                               | IS
++                                               | NOT
++                                               | OR
++                                               | STARTS
++                                               | XOR
++                                               | False
++                                               | True
++                                               | Null
++                                               | CONSTRAINT
++                                               | DO
++                                               | FOR
++                                               | REQUIRE
++                                               | UNIQUE
++                                               | CASE
++                                               | WHEN
++                                               | THEN
++                                               | ELSE
++                                               | END
++                                               | MANDATORY
++                                               | SCALAR
++                                               | OF
++                                               | ADD
++                                               | DROP
+*-------------------------------------------------------------------------------
+main1
+      oC_AddOrSubtractExpression          = TZ(2, 'oC_AddOrSubtractExpression', oC_AddOrSubtractExpression)
+      oC_AndExpression                    = TZ(2, 'oC_AndExpression', oC_AndExpression)
+      oC_AnonymousPatternPart             = TZ(2, 'oC_AnonymousPatternPart', oC_AnonymousPatternPart)
+      oC_Atom                             = TZ(2, 'oC_Atom', oC_Atom)
+      oC_BooleanLiteral                   = TZ(2, 'oC_BooleanLiteral', oC_BooleanLiteral)
+      oC_CaseAlternatives                 = TZ(2, 'oC_CaseAlternatives', oC_CaseAlternatives)
+      oC_CaseExpression                   = TZ(2, 'oC_CaseExpression', oC_CaseExpression)
+      oC_ComparisonExpression             = TZ(2, 'oC_ComparisonExpression', oC_ComparisonExpression)
+      oC_Create                           = TZ(2, 'oC_Create', oC_Create)
+      oC_Cypher                           = TZ(2, 'oC_Cypher', oC_Cypher)
+      oC_Cyphers                          = TZ(2, 'oC_Cyphers', oC_Cyphers)
+      oC_Dash                             = TZ(2, 'oC_Dash', oC_Dash)
+      oC_Delete                           = TZ(2, 'oC_Delete', oC_Delete)
+      oC_DoubleLiteral                    = TZ(2, 'oC_DoubleLiteral', oC_DoubleLiteral)
+      oC_ExplicitProcedureInvocation      = TZ(2, 'oC_ExplicitProcedureInvocation', oC_ExplicitProcedureInvocation)
+      oC_Expression                       = TZ(2, 'oC_Expression', oC_Expression)
+      oC_FilterExpression                 = TZ(2, 'oC_FilterExpression', oC_FilterExpression)
+      oC_FunctionInvocation               = TZ(2, 'oC_FunctionInvocation', oC_FunctionInvocation)
+      oC_FunctionName                     = TZ(2, 'oC_FunctionName', oC_FunctionName)
+      oC_IdInColl                         = TZ(2, 'oC_IdInColl', oC_IdInColl)
+      oC_ImplicitProcedureInvocation      = TZ(2, 'oC_ImplicitProcedureInvocation', oC_ImplicitProcedureInvocation)
+      oC_InQueryCall                      = TZ(2, 'oC_InQueryCall', oC_InQueryCall)
+      oC_IntegerLiteral                   = TZ(2, 'oC_IntegerLiteral', oC_IntegerLiteral)
+      oC_LabelName                        = TZ(2, 'oC_LabelName', oC_LabelName)
+      oC_LeftArrowHead                    = TZ(2, 'oC_LeftArrowHead', oC_LeftArrowHead)
+      oC_Limit                            = TZ(2, 'oC_Limit', oC_Limit)
+      oC_ListComprehension                = TZ(2, 'oC_ListComprehension', oC_ListComprehension)
+      oC_ListLiteral                      = TZ(2, 'oC_ListLiteral', oC_ListLiteral)
+      oC_ListOperatorExpression           = TZ(2, 'oC_ListOperatorExpression', oC_ListOperatorExpression)
+      oC_Literal                          = TZ(2, 'oC_Literal', oC_Literal)
+      oC_MapLiteral                       = TZ(2, 'oC_MapLiteral', oC_MapLiteral)
+      oC_Match                            = TZ(2, 'oC_Match', oC_Match)
+      oC_Merge                            = TZ(2, 'oC_Merge', oC_Merge)
+      oC_MergeAction                      = TZ(2, 'oC_MergeAction', oC_MergeAction)
+      oC_MultiPartQuery                   = TZ(2, 'oC_MultiPartQuery', oC_MultiPartQuery)
+      oC_MultiplyDivideModuloExpression   = TZ(2, 'oC_MultiplyDivideModuloExpression', oC_MultiplyDivideModuloExpression)
+      oC_Namespace                        = TZ(2, 'oC_Namespace', oC_Namespace)
+      oC_NodeLabel                        = TZ(2, 'oC_NodeLabel', oC_NodeLabel)
+      oC_NodeLabels                       = TZ(2, 'oC_NodeLabels', oC_NodeLabels)
+      oC_NodePattern                      = TZ(2, 'oC_NodePattern', oC_NodePattern)
+      oC_NotExpression                    = TZ(2, 'oC_NotExpression', oC_NotExpression)
+      oC_NullOperatorExpression           = TZ(2, 'oC_NullOperatorExpression', oC_NullOperatorExpression)
+      oC_NumberLiteral                    = TZ(2, 'oC_NumberLiteral', oC_NumberLiteral)
+      oC_OrExpression                     = TZ(2, 'oC_OrExpression', oC_OrExpression)
+      oC_Order                            = TZ(2, 'oC_Order', oC_Order)
+      oC_Parameter                        = TZ(2, 'oC_Parameter', oC_Parameter)
+      oC_ParenthesizedExpression          = TZ(2, 'oC_ParenthesizedExpression', oC_ParenthesizedExpression)
+      oC_PartialComparisonExpression      = TZ(2, 'oC_PartialComparisonExpression', oC_PartialComparisonExpression)
+      oC_Pattern                          = TZ(2, 'oC_Pattern', oC_Pattern)
+      oC_PatternComprehension             = TZ(2, 'oC_PatternComprehension', oC_PatternComprehension)
+      oC_PatternElement                   = TZ(2, 'oC_PatternElement', oC_PatternElement)
+      oC_PatternElementChain              = TZ(2, 'oC_PatternElementChain', oC_PatternElementChain)
+      oC_PatternPart                      = TZ(2, 'oC_PatternPart', oC_PatternPart)
+      oC_PowerOfExpression                = TZ(2, 'oC_PowerOfExpression', oC_PowerOfExpression)
+      oC_ProcedureName                    = TZ(2, 'oC_ProcedureName', oC_ProcedureName)
+      oC_ProcedureResultField             = TZ(2, 'oC_ProcedureResultField', oC_ProcedureResultField)
+      oC_Properties                       = TZ(2, 'oC_Properties', oC_Properties)
+      oC_PropertyExpression               = TZ(2, 'oC_PropertyExpression', oC_PropertyExpression)
+      oC_PropertyKeyName                  = TZ(2, 'oC_PropertyKeyName', oC_PropertyKeyName)
+      oC_PropertyLookup                   = TZ(2, 'oC_PropertyLookup', oC_PropertyLookup)
+      oC_PropertyOrLabelsExpression       = TZ(2, 'oC_PropertyOrLabelsExpression', oC_PropertyOrLabelsExpression)
+      oC_Query                            = TZ(2, 'oC_Query', oC_Query)
+      oC_RangeLiteral                     = TZ(2, 'oC_RangeLiteral', oC_RangeLiteral)
+      oC_ReadingClause                    = TZ(2, 'oC_ReadingClause', oC_ReadingClause)
+      oC_RegularQuery                     = TZ(2, 'oC_RegularQuery', oC_RegularQuery)
+      oC_RelTypeName                      = TZ(2, 'oC_RelTypeName', oC_RelTypeName)
+      oC_RelationshipDetail               = TZ(2, 'oC_RelationshipDetail', oC_RelationshipDetail)
+      oC_RelationshipPattern              = TZ(2, 'oC_RelationshipPattern', oC_RelationshipPattern)
+      oC_RelationshipTypes                = TZ(2, 'oC_RelationshipTypes', oC_RelationshipTypes)
+      oC_RelationshipsPattern             = TZ(2, 'oC_RelationshipsPattern', oC_RelationshipsPattern)
+      oC_Remove                           = TZ(2, 'oC_Remove', oC_Remove)
+      oC_RemoveItem                       = TZ(2, 'oC_RemoveItem', oC_RemoveItem)
+      oC_ReservedWord                     = TZ(2, 'oC_ReservedWord', oC_ReservedWord)
+      oC_Return                           = TZ(2, 'oC_Return', oC_Return)
+      oC_ReturnBody                       = TZ(2, 'oC_ReturnBody', oC_ReturnBody)
+      oC_ReturnItem                       = TZ(2, 'oC_ReturnItem', oC_ReturnItem)
+      oC_ReturnItems                      = TZ(2, 'oC_ReturnItems', oC_ReturnItems)
+      oC_RightArrowHead                   = TZ(2, 'oC_RightArrowHead', oC_RightArrowHead)
+      oC_SchemaName                       = TZ(2, 'oC_SchemaName', oC_SchemaName)
+      oC_Set                              = TZ(2, 'oC_Set', oC_Set)
+      oC_SetItem                          = TZ(2, 'oC_SetItem', oC_SetItem)
+      oC_SinglePartQuery                  = TZ(2, 'oC_SinglePartQuery', oC_SinglePartQuery)
+      oC_SingleQuery                      = TZ(2, 'oC_SingleQuery', oC_SingleQuery)
+      oC_Skip                             = TZ(2, 'oC_Skip', oC_Skip)
+      oC_SortItem                         = TZ(2, 'oC_SortItem', oC_SortItem)
+      oC_StandaloneCall                   = TZ(2, 'oC_StandaloneCall', oC_StandaloneCall)
+      oC_Statement                        = TZ(2, 'oC_Statement', oC_Statement)
+      oC_StringListNullOperatorExpression = TZ(2, 'oC_StringListNullOperatorExpression', oC_StringListNullOperatorExpression)
+      oC_StringOperatorExpression         = TZ(2, 'oC_StringOperatorExpression', oC_StringOperatorExpression)
+      oC_SymbolicName                     = TZ(2, 'oC_SymbolicName', oC_SymbolicName)
+      oC_UnaryAddOrSubtractExpression     = TZ(2, 'oC_UnaryAddOrSubtractExpression', oC_UnaryAddOrSubtractExpression)
+      oC_Union                            = TZ(2, 'oC_Union', oC_Union)
+      oC_Unwind                           = TZ(2, 'oC_Unwind', oC_Unwind)
+      oC_UpdatingClause                   = TZ(2, 'oC_UpdatingClause', oC_UpdatingClause)
+      oC_Variable                         = TZ(2, 'oC_Variable', oC_Variable)
+      oC_Where                            = TZ(2, 'oC_Where', oC_Where)
+      oC_With                             = TZ(2, 'oC_With', oC_With)
+      oC_XorExpression                    = TZ(2, 'oC_XorExpression', oC_XorExpression)
+      oC_YieldItem                        = TZ(2, 'oC_YieldItem', oC_YieldItem)
+      oC_YieldItems                       = TZ(2, 'oC_YieldItems', oC_YieldItems)
+
+      cypher_file       =  'cypher.inp'
+      cypher_file       =  'neo4j-Musical-Groups.inp'
+main2 cypher            =  Read(cypher_file, .t8Map) :F(Yikes)
+      cypher            ?  POS(0) ARBNO(*oC_Cyphers) !$' ' RPOS(0) :S(END)
+      OUTPUT            =  'FAIL'
+*-INCLUDE 'debug.sno'
+END

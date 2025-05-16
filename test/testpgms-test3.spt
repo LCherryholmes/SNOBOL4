@@ -1,0 +1,60 @@
+./*
+-TITLE SPITBOL TEST PROGRAM #3 -- COMPUTE FACTORIAL TABLE
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*                                                                     *
+*        THIS PROGRAM COMPUTES AND PRINTS A TABLE OF N FACTORIAL      *
+*        FOR VALUES OF N FROM 1 THROUGH AN UPPER LIMIT "NX".          *
+*                                                                     *
+*        IT DEMONSTRATES A METHOD OF MANIPULATING NUMBERS WHICH ARE   *
+*        TOO LARGE FOR THE COMPUTER, AS STRINGS OF CHARACTERS.  THE   *
+*        COMMAS IN THE PRINTED VALUES ARE OPTIONAL, ADDED FOR READING *
+*        EASE.                                                        *
+*                                                                     *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*
+*        INITIALIZATION.
+*
+         NX = 45
+         N = 1
+         NSET = 1
+         NUM = ARRAY(1000)
+         NUM<1> = 1
+         FILL = ARRAY('0:3')
+         FILL<0> = '000'
+         FILL<1> = '00'
+         FILL<2> = '0'
+*
+         OUTPUT = '          TABLE OF FACTORIALS FOR 1 THROUGH ' NX
+         OUTPUT =
+*
+*        COMPUTE THE NEXT VALUE FROM THE PREVIOUS ONE.
+*
+L1       I = 1
+L2       NUM<I> = NUM<I> * N                           :F(ERR)
+         I = LT(I,NSET) I + 1                          :S(L2)
+         I = 1
+L3       LT(NUM<I>,1000)                               :S(L4)
+         NUMX = NUM<I> / 1000                          :F(ERR)
+         NUM<I + 1> = NUM<I + 1> + NUMX                :F(ERR)
+         NUM<I> = NUM<I> - 1000 * NUMX                 :F(ERR)
+L4       I = LT(I,NSET) I + 1                          :S(L3)
+*
+*        FORM A STRING REPRESENTING THE FACTORIAL.
+*
+L5       NSET = DIFFER(NUM<NSET + 1>) NSET + 1
+         NUMBER = NUM<NSET>                            :F(ERR)
+         I = GT(NSET,1) NSET - 1                       :F(L7)
+L6       NUMBER = NUMBER ',' FILL<SIZE(NUM<I>)> NUM<I>
+         I = GT(I,1) I - 1                             :S(L6)
+*
+*        OUTPUT A LINE OF THE TABLE.
+*
+L7       OUTPUT = N '!=' NUMBER
+         N = LT(N,NX) N + 1                            :S(L1)F(END)
+*
+*        ERROR TERMINATION.
+*
+ERR      OUTPUT = N '! CANNOT BE COMPUTED BECAUSE OF TABLE OVERFLOW.'
+         OUTPUT = '     INCREASE THE SIZE OF ARRAY "NUM".'
+*
+END

@@ -1,0 +1,111 @@
+*-------------------------------------------------------------------------------------------------------
+START
+-INCLUDE 'portable.inc'
+-INCLUDE 'curl.inc'
+*========== =========== === ======================================================= ====================
+            $' '        =   SPAN(' ' cr lf) | epsilon
+            cookies     =   'C:/SPITBOL/Cookies.txt'
+*========== =========== === ======================================================= ====================
+texans      https       =   'https://www.netit.financial-net.com'
+            userAgent   =   'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            texans      =   '/texans/'
+            ebs         =   '/texans/cgi-bin/ebs'
+            curl        =   curl_easy_init()                                        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))       :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))         :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))          :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, TRUE))        :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https texans))           :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))        :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            html        =   OUTPUT = curl_easy_getdata()
+            html        '<FRAME ' ARB ' SRC="' BREAK('"') . src '">'
+            src         POS(0) './' = '/texans/'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https src))              :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, https texans))       :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            html        =   OUTPUT = curl_easy_getdata()
+texans20    html        '<FRAME SRC="' BREAK('"') . src '" NAME="' BREAK('"') '"' $' ' '>' = :F(texans30)
+            src         POS(0) = '/texans/cgi-bin/'
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https src))              :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, https ebs))          :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            OUTPUT      =   curl_easy_getdata()                                     :(texans20)
+texans30
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            ccPost      =   'LOGNID=LLLLLLLLL'
++                           '&PASSWD=PPPP'
++                           '&CUR_TIME='
++                           '&OLB_CMD-SMS-001~OLB_CMD-SMS-000=OK'
++                           '&FIRST_CHECKBOX_FLAG=NO'
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POST, TRUE))                  :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, ccPost))          :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, https ebs '?OLB_CMD-SMN-126')) :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https ebs))              :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            html        =   OUTPUT = curl_easy_getdata()
+            html        '<FRAME SRC="' ('ebs?OLB_CMD-SHB-041' BREAK('"')) . src '" NAME="' BREAK('"') '"' $' ' '>'
+            src         POS(0) = '/texans/cgi-bin/'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))               :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POST, FALSE))                 :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, https ebs))          :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https src))              :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            OUTPUT      =   'Account Summary'
+            html        =   OUTPUT = curl_easy_getdata()
+            html        "<A HREF=" '"' "javascript:submitForm(" BREAK(')') . args ')' '"' BREAK('>') '>' $' ' '320987000=75'                                        :F(err)
+            args        POS(0) "'" BREAK("'") . BKACCT "'"
++                       ',' "'" BREAK("'") . BALAN1 "'"
++                       ',' "'" BREAK("'") . BALAN2 "'"
++                       ',' "'" BREAK("'") . ACCTYP "'"
++                       ',' "'" BREAK("'") . ROUTNG "'"
++                       ',' "'" BREAK("'") . PAN "'"
++                       ',' "'" BREAK("'") . DTCACC "'"
+            ccPost      =   'BALAN1='  BALAN1
++                           '&' 'BALAN2=' BALAN2
++                           '&' 'ROUTNG=' ROUTNG
++                           '&' 'PAN=' PAN
++                           '&' 'BKACCT=' BKACCT
++                           '&' 'DTCACC=' DTCACC
++                           '&' 'ACCTYP=' ACCTYP
++                           '&' 'OLB_CMD-SHB-052=' 'OK"'
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POST, TRUE))                  :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, ccPost))          :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_REFERER, https ebs))          :F(error)
+            EQ(0, cc = curl_easy_setopt(curl, CURLOPT_URL, https ebs))              :F(error)
+            EQ(0, cc = curl_easy_perform(curl))                                     :F(error)
+            html        =   OUTPUT = curl_easy_getdata()                            :(END)
+*========== =========== === ======================================================= ====================
+error       OUTPUT      =   'Error ' cc ': ' curl_easy_strerror(cc)
+            DIFFER(curl)                                                            :F(END)
+            OUTPUT      =   RPAD("CURLINFO_EFFECTIVE_URL: ", 34)            curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL)
+            OUTPUT      =   RPAD("CURLINFO_RESPONSE_CODE: ", 34)            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+            OUTPUT      =   RPAD("CURLINFO_TOTAL_TIME: ", 34)               curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME)
+            OUTPUT      =   RPAD("CURLINFO_NAMELOOKUP_TIME: ", 34)          curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME)
+            OUTPUT      =   RPAD("CURLINFO_CONNECT_TIME: ", 34)             curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME)
+            OUTPUT      =   RPAD("CURLINFO_PRETRANSFER_TIME: ", 34)         curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME)
+            OUTPUT      =   RPAD("CURLINFO_SIZE_UPLOAD: ", 34)              curl_easy_getinfo(curl, CURLINFO_SIZE_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SIZE_DOWNLOAD: ", 34)            curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SPEED_DOWNLOAD: ", 34)           curl_easy_getinfo(curl, CURLINFO_SPEED_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_SPEED_UPLOAD: ", 34)             curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_HEADER_SIZE: ", 34)              curl_easy_getinfo(curl, CURLINFO_HEADER_SIZE)
+            OUTPUT      =   RPAD("CURLINFO_REQUEST_SIZE: ", 34)             curl_easy_getinfo(curl, CURLINFO_REQUEST_SIZE)
+            OUTPUT      =   RPAD("CURLINFO_SSL_VERIFYRESULT: ", 34)         curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT)
+            OUTPUT      =   RPAD("CURLINFO_FILETIME: ", 34)                 curl_easy_getinfo(curl, CURLINFO_FILETIME)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_LENGTH_DOWNLOAD: ", 34)  curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_LENGTH_UPLOAD: ", 34)    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_UPLOAD)
+            OUTPUT      =   RPAD("CURLINFO_STARTTRANSFER_TIME: ", 34)       curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME)
+            OUTPUT      =   RPAD("CURLINFO_CONTENT_TYPE: ", 34)             curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+            OUTPUT      =   RPAD("CURLINFO_REDIRECT_TIME: ", 34)            curl_easy_getinfo(curl, CURLINFO_REDIRECT_TIME)
+            OUTPUT      =   RPAD("CURLINFO_REDIRECT_COUNT: ", 34)           curl_easy_getinfo(curl, CURLINFO_REDIRECT_COUNT)
+            OUTPUT      =   RPAD("CURLINFO_PRIVATE: ", 34)                  curl_easy_getinfo(curl, CURLINFO_PRIVATE)
+            OUTPUT      =   RPAD("CURLINFO_HTTP_CONNECTCODE: ", 34)         curl_easy_getinfo(curl, CURLINFO_HTTP_CONNECTCODE)
+            OUTPUT      =   RPAD("CURLINFO_HTTPAUTH_AVAIL: ", 34)           curl_easy_getinfo(curl, CURLINFO_HTTPAUTH_AVAIL)
+            OUTPUT      =   RPAD("CURLINFO_PROXYAUTH_AVAIL: ", 34)          curl_easy_getinfo(curl, CURLINFO_PROXYAUTH_AVAIL)
+            OUTPUT      =   RPAD("CURLINFO_OS_ERRNO: ", 34)                 curl_easy_getinfo(curl, CURLINFO_OS_ERRNO)
+                                                                                    :(END)
+*-INCLUDE 'debug.sno'
+END

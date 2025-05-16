@@ -1,0 +1,242 @@
+START
+*-----------------------------------------------------------------------------------------------------------------------
+* Universal Translator
+* Author: Lon Cherryholmes
+*-----------------------------------------------------------------------------------------------------------------------
+            doDebug           =     0
+*-----------------------------------------------------------------------------------------------------------------------
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'Populate.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Trace.inc'
+-INCLUDE 'transl8.inc'
+-INCLUDE 'transl8english.inc'
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('InitTok(t)i,d,dbgArr,dbgName,tk,tx')                                     :(InitTokEnd)
+InitTok     i                 =     1
+            lextoken          =     whitespace
+InitTok0    tk                =     tok[i]
+*           --------------------------------------------------------------------------------
+            (IDENT(name(tk)) IDENT(expr(tk)) DIFFER(patr(tk)))                               :F(InitTok2)
+            IsType(patr(tk), 'NAME')                                                         :F(InitTok1)
+            name(tk)          =     CONVERT(patr(tk), 'STRING')
+            expr(tk)          =     EVAL('*("*' name(tk) '")')
+            DIFFER($patr(tk))                                                                :F(InitTokE1)
+            IsType($patr(tk), 'STRING,PATTERN,EXPRESSION')                                   :F(InitTokE2)
+            NULL              ?     POS(0) $patr(tk) RPOS(0)                                 :S(InitTokE3)
+            $patr(tk)         =     TZ(1, name(tk), $patr(tk))
+            patr(tk)          =     $patr(tk)                                                :(InitTok9)
+InitTok1    IsType(patr(tk), 'PATTERN')                                                      :F(xerr)
+            expr(tk)          =     *(spcpfx tx)
+            patr(tk)          =     TY(1,, patr(tk))                                         :(InitTok9)
+*           --------------------------------------------------------------------------------
+InitTok2    (IDENT(name(tk)) DIFFER(expr(tk)) DIFFER(patr(tk)))                              :F(InitTok3)
+            patr(tk)          =     TY(1,, patr(tk))                                         :(InitTok9)
+*           --------------------------------------------------------------------------------
+InitTok3    (DIFFER(name(tk)) IDENT(expr(tk)) IDENT(patr(tk)))                               :F(InitTok4)
+            patr(tk)          =     name(tk) . tx
+            $(name(tk))       =     IDENT($(name(tk))) $' ' patr(tk)
+            patr(tk)          =     TY(1, "$'" name(tk) "'", patr(tk))
+            patr(tk)          =     EQ(doInclWhite, TRUE) $' ' patr(tk)
+            expr(tk)          =     EQ(doInclWhite, TRUE) *("$'" tx "'")
+            expr(tk)          =     EQ(doInclWhite, FALSE) *("'" tx "'")                     :(InitTok9)
+*           --------------------------------------------------------------------------------
+InitTok4    (DIFFER(name(tk)) IDENT(expr(tk)) DIFFER(patr(tk)))                              :F(InitTok5)
+            patr(tk)          =     TZ(1, name(tk), patr(tk))
+            expr(tk)          =     *(spcpfx tx)                                             :(InitTok9)
+*           --------------------------------------------------------------------------------
+InitTok5    (DIFFER(name(tk)) DIFFER(expr(tk)) DIFFER(patr(tk)))                             :F(InitTok9)
+            $(name(tk))       =     TY(1, name(tk), patr(tk))
+            $(name(tk) 'x')   =     TY(1, name(tk) 'x', patr(tk))
+            patr(tk)          =     TZ(1, name(tk), patr(tk))                                :(InitTok9)
+*           --------------------------------------------------------------------------------
+InitTok9    lextoken          =     lextoken | patr(tk)
+            i                 =     LT(i, t) i + 1                                           :S(InitTok0)F(InitTok11)
+InitTok11   dbgArr            =     CONVERT(dbg, 'ARRAY')                                    :F(RETURN)
+            d                 =     0
+InitTok13   d                 =     d + 1
+            dbgName           =     dbgArr[d, 1]                                             :F(RETURN)
+            $dbgName          =     TZ(1, CONVERT(dbgName, 'STRING'), $dbgName)              :(InitTok13)
+*           --------------------------------------------------------------------------------
+InitTokE1   OUTPUT            =     'undefined: ' i ': ' name(tk)                                     :(END)
+InitTokE2   OUTPUT            =     'datatype is illegal: ' i ': ' name(tk) ': ' DATATYPE($patr(tk))  :(END)
+InitTokE3   OUTPUT            =     'cannot match epsilon: ' i ': ' name(tk)                          :(END)
+InitTokEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('T2Or(t)a,i,pat')                                                         :(T2OrEnd)
+T2Or        a                 =     SORT(t)
+T2Or1       i                 =     i + 1
+            pat               =     a[i, 2]                                                  :F(T2Or2)
+            T2Or              =     DIFFER(T2Or) T2Or | pat                                  :S(T2Or1)
+            T2Or              =     pat                                                      :(T2Or1)
+T2Or2       DIFFER(T2Or)                                                                     :S(RETURN)F(FRETURN)
+T2OrEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('Str2Stats(str)i,tx')                                                     :(Str2StatsEnd)
+Str2Stats   str               POS(0) RPOS(0)                                                 :S(RETURN)
+            str               POS(0) nl =                                                    :S(Str2Stats)
+            str               POS(0) space . tx =                                            :S(Str2Stats)
+            i                 =     1
+Str2Stats2  str               POS(0) patr(tok[i]) . tx =                                     :S(s2s_3)
+            i                 =     LT(i, t) i + 1                                           :S(s2s_2)
+            str               POS(0) '{' . tx =                                              :S(Str2Stats)
+            str               POS(0) '}' . tx =                                              :S(Str2Stats)F(xerr)
+Str2Stats3  OUTPUT            =     DIFFER(notyet) tx
+            stats(tok[i])     =     IDENT(stats(tok[i])) TABLE()
+            stats(tok[i])[tx] =     stats(tok[i])[tx] + 1                                    :(Str2Stats)
+Str2StatsEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('RptStats()i,j')                                                          :(RptStatsEnd)
+RptStats    i                 =     0
+RptStats1   i                 =     LT(i, t) i + 1                                           :F(RETURN)
+            DIFFER(stats(tok[i]))                                                            :F(RptStats1)
+            tmpstats          =     SORT(stats(tok[i]), 1)                                   :F(xerr)
+            arrstats          =     SORT(tmpstats, 2)                                        :F(xerr)
+            j                 =     1
+RptStats2   OUTPUT            =     i ': ' arrstats[j, 2] ' : ' name(tok[i]) ' : ' arrstats[j, 1]   :F(RptStats1)
+            j                 =     j + 1                                                    :(RptStats2)
+RptStatsEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('Str2Pat(str)i,part,strOfs')
+            $'#s2pLevel'      =     0                                                        :(Str2PatEnd)
+Str2Pat     $'#s2pLevel'      =     $'#s2pLevel' + 1
+            strOfs            =     0
+            Str2Pat           =
+Str2Pat1
+*           OUTPUT            =     GT(doDebug, 1) DUPL('=', 100)
+            str               POS(0) RPOS(0)                                                 :S(Str2PatRet)
+            str               POS(0) *EQ(doInclWhite, TRUE) space . tx =                     :S(Str2PatSpc)
+            str               POS(0) *EQ(doInclNL, TRUE) nl =                                :S(Str2PatNL)
+            str               POS(0) *EQ(doInclWhite, TRUE) whitespace . tx =                :S(Str2PatSpc)
+            i                 =     0
+            i                 =     GT($'#s2pLevel', 1) 1
+Str2Pat2    i                 =     LT(i, t) i + 1                                           :F(Str2Pat3)
+            OUTPUT            =     GT(doDebug, 1) DUPL('-', 100)
+            str               POS(0) patr(tok[i]) . part =                                   :S(Str2PatTok)
+            doDebug           =     EQ(doDebugAfter1st, FALSE) 0
+            (GT(doDebug, 0) EQ(i, 1) EQ(strOfs, 0))                                          :F(Str2Pat2)
+            OUTPUT            =     T8Pos(txMax, t8Map)
+            OUTPUT            =     strOfs ',' txMax ': ' SUBSTR(str, txMax + 1, txMax + 17)
+                                                                                             :(Str2Pat2)
+Str2Pat3    str               POS(0) ('{' | '}') . tx =                                      :S(Str2PatPnct)
+            OUTPUT            =     '???' str                                                :(xerr)
+Str2PatNL   OUTPUT            =     GT(doDebug, 1) 'nl:'
+            strOfs            =     strOfs + 1
+            Str2Pat           =     EQ(doInclNL, TRUE) Str2Pat ' nl' nl '+  '                :S(Str2Pat1)
+            Str2Pat           =     EQ(doInclWhite, FALSE) Str2Pat ' nl' nl '+  '            :(Str2Pat1)
+Str2PatTok  (EQ(i, 1) UserRpt())
+            stats(tok[i])     =     IDENT(stats(tok[i])) TABLE()
+            stats(tok[i])[part] =   stats(tok[i])[part] + 1
+            strOfs            =     strOfs + SIZE(part)
+            Str2Pat           =     Str2Pat ' ' EVAL(expr(tok[i]))                           :(Str2Pat1)
+Str2PatPnct strOfs            =     strOfs + 1
+            Str2Pat           =     DIFFER(notyet) Str2Pat " $'" tx "'"
+            Str2Pat           =     Str2Pat " '" tx "'"                                      :(Str2Pat1)
+Str2PatSpc  OUTPUT            =     GT(doDebug, 1) "space: '" tx "'"
+            strOfs            =     strOfs + SIZE(tx)
+            Str2Pat           =     EQ(doInclWhite, FALSE) Str2Pat " '" tx "'"               :(Str2Pat1)
+Str2PatRet  $'#s2pLevel'      =     $'#s2pLevel' - 1                                         :(RETURN)
+Str2PatEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('Remember(strcod)pcod')                                                   :(RememberEnd)
+Remember    Remember          =     .dummy
+            pcod              =     Str2Pat(strcod)
+            tblpat[pcod]      =     tblpat[pcod] pathnm nl                                   :(NRETURN)
+RememberEnd
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            DEFINE('Conversion()i')                                                          :(ConversionEnd)
+Conversion  i                 =     LT(i, u) i + 1                                           :F(RETURN)
+Conversion1 program           patr(usr[i]) = EVAL(repl(usr[i]))                              :S(Conversion1)F(Conversion)
+ConversionEnd
+*-----------------------------------------------------------------------------------------------------------------------
+            &TRACE            =     2000000
+            &MAXLNGTH         =     2097152
+            DATA('token(name,expr,patr,repl,stats)')                                         :(a9)
+            argPos            =     HOST(3) - 1
+a1          argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :F(a2)
+            incSuffix         =     arg                                                      :(a1)
+a2          OUTPUT            =     IDENT(incSuffix) "Must supply language!"                 :S(END)
+            incFile           =     'transl8' incSuffix '.inc'
+            SLoad(incFile)                                                                   :S(a9)
+            OUTPUT            =     'Unable to process include file "' incFile '"!'          :(END)
+a9
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+            i                 =     0
+u0          i                 =     LT(i, u) i + 1                                           :F(u1)
+            user_defined      =     IDENT(user_defined)  patr(usr[i])                        :S(u0)
+            user_defined      =     user_defined | patr(usr[i])                              :(u0)
+u1
+*-----------------------------------------------------------------------------------------------------------------------
+            &TRACE            =     2000000
+            spcpfx            =     EQ(doInclWhite, TRUE) "$' ' "
+            spcpfx            =     EQ(doInclWhite, FALSE) NULL
+            t                 =     0
+            tok               =     ARRAY('1:256')
+            dbg               =     TABLE()
+            UserDefs()
+            UserTokens()
+            InitTok(t)
+*---------- ----------------- ----- ---------------------------------------- ---------------------------
+            &TRACE            =     2000000
+            tblpat            =     TABLE()
+            INPUT(.files, 3, '!!' fndCmd)                                    :F(ioerr)
+main0       pathnm            =     files                                    :F(main9)
+            DIFFER(fndSpecific)                                              :F(main1)
+            pathnm            ?     fndSpecific                              :F(main0)
+main1       pathnm            DIFFER(fndExclude) fndExclude                  :S(main0)
+*           OUTPUT            =     pathnm
+            INPUT(.sentences, 4, pathnm)                                     :F(Yikes)
+            iSent             =     0
+            iSuccess          =     0
+            iFailure          =     0
+main3       sentence          =     LT(iSent, 10000) sentences                      :F(main8)
+            iSent             =     iSent + 1
+            pat               =
+            sentence          ?     POS(0) *ePrepositionalPhrase $'.' RPOS(0)       :S(main4)
+            sentence          ?     POS(0) *eModifiedNounOrPronoun $'.' RPOS(0)     :S(main4)
+            sentence          ?     POS(0) *eBasicSentence RPOS(0)                  :S(main5)
+            sentence          ?     POS(0) *eCompleteSentence RPOS(0)               :S(main5)
+            sentence          ?     POS(0) *ePlaySentence RPOS(0)                   :S(main5)
+            sentence          ?     POS(0) *eSimpleSentence $'.' RPOS(0)            :S(main5)
+            sentence          ?     POS(0) *eCompoundSentence $'.' RPOS(0)          :S(main5)
+            sentence          ?     POS(0) *eComplexSentence $'.' RPOS(0)           :S(main5)
+            sentence          ?     POS(0) *eCompoundComplexSentence $'.' RPOS(0)   :S(main5)F(main6)
+main4       iSuccess          =     iSuccess + 1
+            xX                =     '*?'                                            :(main7)
+main5       iSuccess          =     iSuccess + 1
+            xX                =     '**'                                            :(main7)
+main6       iFailure          =     iFailure + 1
+            xX                =     '??'
+            pat               =     Str2Pat(sentence)
+            tblpat[pat]       =     tblpat[pat] + 1
+main7       iS                =     (iSuccess * 100 / iSent)
+            iF                =     (iFailure * 100 / iSent)
+            OUTPUT            =     xX ' ' iSent ' %' iS ' %' iF
++                                   GE(iS, 30) ' ' sentence
++                                   (DIFFER(pat) '  ' pat, NULL)                    :S(main3)F(main8)
+main8       ENDFILE(4)
+            OUTPUT            =     iSent ' total, ' iS '% succedeed.'              :(main0)
+main9       ENDFILE(3)
+*---------- ----------------- ----- ---------------------------------------- ---------------------------
+report
+*           RptStats()
+            UserFinal()                                                      :(END)
+*---------- ----------------- ----- -------------------------------------------------------- ---------------------------
+ioerr       OUTPUT            =     'i/o error'                                              :(END)
+xerr        OUTPUT            =     'unexpected error : ' infilenm ': str = "' str '"'       :(END)
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,141 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'Gen.inc'
+    &MAXLNGTH   =   2097152
+*   ----------- --------------------------------------- ---------------
+    DEFINE('XYZ(XYZ)')                                  :(XYZEnd)
+XYZ XYZ         ?   POS(0) SPAN(' ') =
+    XYZ         ?   SPAN(' ,.') RPOS(0) =               :(RETURN)
+XYZEnd
+*   ----------- --------------------------------------- ---------------
+    $' '        =   FENCE(SPAN(' ' tab) | epsilon)
+H00 DOCTYPE     =  '<!DOCTYPE HTML PUBLIC ' BREAK('>') '>'
+    htmlKeyTag  =
+    htmlBegTag  =   *(('<' htmlTag (' ' BREAK('>') | epsilon) '>'))
+    htmlEndTag  =   *(('</' htmlTag '>'))
+    htmlTags    =   'B/BLOCKQUOTE/BODY/CENTER/HEAD/HTML/P/PRE/TITLE/'
+H03 htmlTags    ?   POS(0) BREAK('/') . htmlTag '/' =   :F(H05)
+    htmlTagBeg  =   '<' htmlTag '>'
+    htmlTagEnd  =   '</' htmlTag '>'
+   $htmlTagBeg  =   $' ' EVAL(htmlBegTag)
+   $htmlTagEnd  =   $' ' EVAL(htmlEndTag)
+    htmlKeyTag  =   IDENT(htmlKeyTag) htmlTag           :S(H03)
+    htmlKeyTag  =   htmlKeyTag | htmlTag                :(H03)
+H05 htmlKeyChk  =   POS(0) htmlKeyTag RPOS(0)
+    htmlTag     =   SPAN(&UCASE) $ tag $ *notmatch(tag, htmlKeyChk)
+    htmlTagBeg  =   $' ' EVAL(htmlBegTag)
+    htmlTagEnd  =   $' ' EVAL(htmlEndTag)
+    htmlBR      =   $' ' '<BR>'
+    htmlHR      =   $' ' '<HR>'
+    htmlB       =   $'<B>' *htmlText $'</B>'
+    htmlP       =   $'<P>' *htmlMixed $'</P>'
+    htmlBQ      =   $'<BLOCKQUOTE>' *htmlMixed $'</BLOCKQUOTE>'
+    htmlCENTER  =   $'<CENTER>' *htmlMixed $'</CENTER>'
+    htmlElement =   htmlTagBeg *htmlMixed htmlTagEnd
+    htmlText    =   (NOTANY('<') BREAK('<'))
+    htmlMixed   =   ARBNO(htmlText | htmlElement | htmlBQ | htmlP | htmlB | htmlBR)
+    htmlPara    =   ARBNO(htmlText | htmlElement | htmlBQ | htmlP | htmlBR)
+*   htmlWords   =   $' ' (SPAN(&UCASE '-') ARBNO((ANY(',.') | epsilon) ' ' SPAN(&UCASE))) $ OUTPUT . wrd (SPAN('., ') | epsilon)
+    htmlWords   =   BREAK('<') $ wrd . wrd . *assign(.wrd, XYZ(wrd)) *LE(SIZE(wrd), 64)
+    htmlPhrase  =   $'<B>' htmlWords $'</B>'
+    htmlDef     =   htmlText
+    htmlPattern =
++   POS(0) . *assign(.dict, *(IDENT(dict) TABLE(8192)))
++   DOCTYPE
++        $'<HTML>'
++        $'<HEAD>'
++            $'<TITLE>' htmlText $'</TITLE>'
++        $'</HEAD>'
++        $'<BODY>'
++            htmlCENTER
++            ARBNO(
++                 $'<P>' htmlPhrase htmlDef . txt $'</P>' . *assign(.dict[wrd], '<P>' txt '</P>')
++            |    (    ($'<P>' (htmlPara | epsilon) $'</P>')
++                 |    ($'<PRE>' (htmlText | epsilon) $'</PRE>')
++                 |    htmlBR
++                 |    htmlBQ
++                 |    htmlHR
++                 |    htmlCENTER
++                 ) . txt . *assign(.dict[wrd], dict[wrd] txt)
++            )
++            $'<P>' $'<B>' htmlMixed $'</B>' $'</P>'
++        $'</BODY>'
++        $'</HTML>'
++   REM
++   RPOS(0)
+    dirPath     =   "C:/LegalEarth/Law Dictionaries/Bouvier's - 1856"
+    findDirPath =   '"' dirPath '"'
+    findWild    =   '"' "*.htm" '"'
+    findCmd     =   "C:/mksnt/find " findDirPath " -type f -name " findWild
+    fileParams  =   '[-m10 -l262144]'
+    fileDirPat  =   (ANY(&LCASE &UCASE) ':' ARBNO('/' BREAK('/')))
+    fileNamePat =   ARBNO(NOTANY('/'))
+    filePattern =   POS(0) fileDirPat . fileDir '/' fileNamePat . fileName RPOS(0)
+    letrPattern =   POS(0) 'bouvier_' ANY(&LCASE) . letter '.htm' RPOS(0)
+    emptyLine   =   POS(0) RPOS(0)
+    space       =   ANY(' ' tab)
+    spaces      =   SPAN(' ' tab)
+    stripSpace  =   POS(0) spaces | spaces RPOS(0)
+    shrinkSpace =   space spaces
+    fileNo      =   0
+    fileNoMin   =   1
+    fileNoMax   =   26
+    INPUT(.findInput, 3, "!!" findCmd)                      :F(E1)
+L10 filePath    =   findInput                               :F(L90)
+    filePath    ?   filePattern                             :F(Yikes)
+    fileName    ?   letrPattern                             :F(Yikes)
+    fileNo      =   fileNo + 1
+    GE(fileNo, fileNoMin)                                   :F(L10)
+    LE(fileNo, fileNoMax)                                   :F(L90)
+    html        =
+    INPUT(.fileInput, 4, filePath fileParams)               :F(E2)
+L20 line        =   fileInput                               :F(L80)
+L30 line        ?   stripSpace =                            :S(L30)
+L40 line        ?   shrinkSpace = ' '                       :S(L40)
+    line        ?   emptyLine                               :S(L20)
+    html        =   html (DIFFER(html) ' ', NULL) line      :(L20)
+L80 ENDFILE(4)
+    html        ?   htmlPattern                             :F(END) ;* :F(L85)
+    TERMINAL    =   letter ': ' SIZE(html)                  :(L10)
+L85 TERMINAL    =   letter ': '                             :(L10)
+L90 ENDFILE(3)
+*   ----------- --------------------------------------- ---------------
+    wrdPeel     =   POS(0) SPAN(&UCASE) . wrd (' ' | RPOS(0))
+    phrInclude  =   POS(0) SPAN(&UCASE ' ') RPOS(0)
+    phrExclude1 =   POS(0) (LEN(1) | LEN(2) | LEN(3)) RPOS(0)
+    phrExclude2 =   ANY(',.-' &LCASE "'") | ' ' ('OR' | 'or' | 'AND' | 'and' ) ' '
+    wrdToUpper  =   (POS(0) | ' ') . sp1 'To' (' ' | RPOS(0)) . sp2
+    A           =   DIFFER(dict) SORT(dict, 1)              :F(Yikes)
+    i           =   0
+L93 i           =   i + 1
+    A[i, 2]     =   SIZE(A[i, 1])                           :S(L93)
+*   A           =   RSORT(A, 2)
+*   OUTPUT      =   "  B = "
+    i           =   0
+L95 i           =   i + 1
+    phrase      =   A[i, 1]                                 :F(END)
+    size        =   A[i, 2]
+    txt         =   dict[phrase]
+    phrase      ?   wrdToUpper = sp1 'TO' sp2
+    phrase      ?   phrInclude                              :F(L95)
+    phrase      ?   phrExclude1                             :S(L95)
+    phrase      ?   phrExclude2                             :S(L95)
+    OUTPUT      =   phrase                                  :(L95)
+    phraseP     =
+L97 phrase      ?   wrdPeel =                               :F(L98)
+    wrd1        =   SUBSTR(wrd, 1, 1)
+    wrd2        =   (SUBSTR(wrd, 2), NULL)
+    wrdP        =   "ANY('" upr(wrd1) lwr(wrd1) "')"
+    wrdP        =   wrdP DIFFER(wrd2) " '" lwr(wrd2) "'"
+    phraseP     =   IDENT(phraseP) wrdP                     :S(L97)
+    phraseP     =   phraseP " ' ' " wrdP                    :(L97)
+L98 DIFFER(phraseP)                                         :F(L95)
+    OUTPUT      =   '+ ' (GT(i, 2) '|', ' ') ' ' phraseP    :(L95)
+*   ----------- --------------------------------------- ---------------
+E1  OUTPUT      =   "Error: " findCmd                       :(END)
+E2  OUTPUT      =   "Error: " filePath                      :(END)
+*-INCLUDE 'debug.sno'
+END

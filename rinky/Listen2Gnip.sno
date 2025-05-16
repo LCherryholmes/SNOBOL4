@@ -1,0 +1,192 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Gnip.sno
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'JSON.inc'
+-INCLUDE 'MoreInput.inc'
+*========== =========== === ======================================================= ====================
+            xListener   =   'Listen2Gnip'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            tsChars     =   '0123456789' &LCASE &UCASE "&_-'"
+            tsQuery     =   POS(0) . *assign(.xFA[iT], '(') *tsAlts
++                           RPOS(0) . *assign(.xFA[iT], xFA[iT] ')')
+            tsAlts      =   *tsAlt ARBNO(*tsOR . *assign(.xFA[iT], xFA[iT] ') | (') *tsAlt)
+            tsOR        =   $'  ' 'OR' $'  '
+            tsAlt       =   '"' *tsWords . tsxWords . *assign(.xWT[lwr(tsxWords)], xWT[lwr(tsxWords)] + 1) '"'
+            tsWords     =   *tsWord ARBNO(' ' . *assign(.xFA[iT], xFA[iT] " $'  ' ") *tsWord)
+            tsWord      =   BREAK(' "') . tsxWord . *assign(.xFA[iT], xFA[iT] '"' lwr(tsxWord) '"') ;* 'SPAN(tsChars) $ tsx *LEQ(tsx, "' lwr(tsxWord) '")'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+*           Build track list and patterns ...
+            DEFINE('Configure()')                                                   :(ConfigureEnd)
+Configure   ReadConfig(xListener,, xModulo, xNumber)                                :F(error)
+            iSeqNo      =   xIT[0]['Sequence']
+            xFA         =   ARRAY('1:' xMaxEntity)
+            xWT         =   TABLE()
+            xTrack      =   '(POS(0) | NOTANY(tsChars)) '
+            iN          =   0
+            iT          =   0
+TS10        iT          =   LT(iT, xMaxEntity) iT + 1                               :F(TS20)
+            xT          =   DIFFER(xIT[iT]) xIT[iT]                                 :F(TS10)
+            iN          =   iN + 1
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            TERMINAL    =   xQ
+            xQ          ?   *tsQuery                                                :F(error)
+            OUTPUT      =   iT ' = ' xFA[iT]
+            xTrack      =   xTrack (EQ(iN, 1) '(', ' | ')
+            xTrack      =   xTrack '(' xFA[iT] ') $ *assign(.xTT[' iT '], xTT[' iT '] + 1)'
+            xFA[iT]     =   '(POS(0) | NOTANY(tsChars)) (' xFA[iT] ') (NOTANY(tsChars) | RPOS(0))'
+            xFA[iT]     =   EVAL(xFA[iT])                                           :S(TS10)F(error)
+TS20        xWA         =   SORT(xWT)                                               :F(error)
+            xTrack      =   xTrack ') (NOTANY(tsChars) | RPOS(0))'
+            OUTPUT      =   xTrack
+            xTrack      =   EVAL(xTrack)                                            :F(error)
+            iTT         =   0
+TS23        iTT         =   iTT + 1
+            tsxWords    =   xWA[iTT, 1]                                             :F(RETURN)
+            tsTrack     =   tsTrack (IDENT(tsTrack), ',') URLEncode(tsxWords)       :(TS23)
+ConfigureEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*========== =========== === =================================================== ====================
+START       EQ(xOffline, FALSE)                                                 :F(TS30)
+            SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener xNumber, xFailOver) :F(SQLFail)
+            SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            ReadSchema('Gnip')                                                  :F(error)
+TS30        xCwd        =   GetCurrentDirectory()
+            (DIFFER(iTweets), SetupWait())                                      :F(TSEnd)
+            (DIFFER(iTweets), SetupCancel())                                    :F(TSEnd)
+            (DIFFER(iTweets), Configure())
+            TERMINAL    =   iTT ' search conditions'
+*---------- Streaming ... -----------------------------------------------------
+            (DIFFER(iTweets), GnipBeginStream(xNumber, ""))                     :F(TSErr2)
+            iFail       =   0
+            iWritten    =   0
+            iAccepted   =   0
+            iRejected   =   0
+            iTweets     =   0
+TS80        TERMINAL    =   EQ(REMDR(iTweets, 10000), 0) Datetime()
++                           ': ' iTweets ' ' iAccepted ' ' iRejected
+            iTweets     =   iTweets + 1
+TS81        json        =   GnipGetTweet()                                      :F(TSErr3)
+            TERMINAL    =   IDENT(json) 'NULL response'                         :S(TSErr3)
+            LineMap(json, .t8Map)
+            Write(xListener '.json', json)
+*           TERMINAL    =   json
+*           json        ?   *jpPretty = jpxP                                    :F(TS80E) ;* :F(TSErr4)
+*           Write(xListener '-Sample-' iTweets '.json', json)
+*           LineMap(json, .t8Map)
+            json        ?   *jRecognizer                                        :S(TS90)F(TS80F)
+TS80E       iFail       =   iFail + 1
+            Write(xListener '-Error-' iFail '.json', json)
+            TERMINAL    =   iTweets ' pretty print error'                       :(TS80)
+TS80F       iFail       =   iFail + 1
+            Write(xListener '-Error-' iFail '.json', json)
+            TERMINAL    =   iTweets ' failure'                                  :(TS80)
+*---------- Postprocessing ... ------------------------------------------------
+TS90        r           =   Pop()
+*           TDump(r, .OUTPUT)
+*           Write(xListener '-' (iWritten = iWritten + 1) '.json', json)
+            EQ(xOffline, FALSE)                                                 :F(TS92)
+            tK          =   TABLE()
+            tK[0]       =   1
+            tK[1]       =   'Gnip'
+            tK['$Gnip'] =   '@id$'
+            BATCH       =
+            Schema(.BATCH, r, 'Gnip')
+            DIFFER(BATCH)                                                       :F(TS92)
+            SQL_A_ExecDirect(hstmt, BATCH)                                      :F(SQLFail)
+            SQL_EndTranCommit()                                                 :F(SQLFail)
+TS92        tsxRules    =   TABLE()
+            tsxSpace    =   DUPL(' ', 1024)
+            tsxSpace    ?                 FENCE
++                                        *IDENT(t(r), 'JSON')
++                                      *IDENT(t(c(r)[1]), '{}')
++                                         *GE(n(c(r)[1]), i = 1)
++                                   ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                                    *IDENT(t(c(c(r)[1])[i]), ':')
++                                  *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                                  *IDENT(v(c(c(c(r)[1])[i])[1]), 'body')
++                                  *IDENT(t(c(c(c(r)[1])[i])[2]), 'String')
++                            *?(tsxText = v(c(c(c(r)[1])[i])[2]))
+*           TERMINAL    =   tsxText
+            tsxSpace    ?                 FENCE
++                                        *IDENT(t(r), 'JSON')
++                                      *IDENT(t(c(r)[1]), '{}')
++                                         *GE(n(c(r)[1]), i = 1)
++                                   ARBNO(*GE(n(c(r)[1]), i = i + 1) ' ')
++                                    *IDENT(t(c(c(r)[1])[i]), ':')
++                                  *IDENT(t(c(c(c(r)[1])[i])[1]), 'Name')
++                                  *IDENT(v(c(c(c(r)[1])[i])[1]), 'gnip')
++                                  *IDENT(t(c(c(c(r)[1])[i])[2]), '{}')
++                                     *GE(n(c(c(c(r)[1])[i])[2]), j = 1)
++                               ARBNO(*GE(n(c(c(c(r)[1])[i])[2]), j = j + 1) ' ')
++                                *IDENT(t(c(c(c(c(r)[1])[i])[2])[j]), ':')
++                              *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'Name')
++                              *IDENT(v(c(c(c(c(c(r)[1])[i])[2])[j])[1]), 'matching_rules')
++                              *IDENT(t(c(c(c(c(c(r)[1])[i])[2])[j])[2]), '[]')
++                                 *GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = 1)
++                           ARBNO(*GE(n(c(c(c(c(c(r)[1])[i])[2])[j])[2]), k = k + 1) ' ')
++                            *IDENT(t(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), '{}')
++                               *GE(n(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), m = 1)
++                         ARBNO(*GE(n(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k]), m = m + 1) ' ')
++                          *IDENT(t(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m]), ':')
++                        *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[1]), 'Name')
++                        *IDENT(v(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[1]), 'tag')
++                        *IDENT(t(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[2]), 'String')
++                  *?(tsxRule = v(c(c(c(c(c(c(c(c(r)[1])[i])[2])[j])[2])[k])[m])[2]))
++                  *?(tsxRule ? POS(0) SPAN('0123456789') ':' RTAB(0) . tsxRule)
++                  *?(tsxRules[tsxRule] = tsxRules[tsxRule] + 1)
++                  FAIL
+*           XDump(tsxRules, 'Rules')
+            iT          =   0
+TS93        iT          =   LT(iT, xMaxEntity) iT + 1                           :F(TS97)
+            DIFFER(xIT[iT])                                                     :F(TS93)
+            DIFFER(xIT[iT]['Name'])                                             :F(TS93)
+            DIFFER(tsxRules[xIT[iT]['Name']])                                   :F(TS93)
+            iTopic      =   iT
+            BATCH       =
+            BATCH       =   BATCH 'DECLARE @id$ int' nl
+            Save(.BATCH, r, 'Gnip', 0)
+            SQL_Enqueue_Batch(BATCH)                                            :(TS93)
+TS97        iAccepted   =   iAccepted + 1                                       :(TS80)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure ...'
+            OUTPUT      =   'SQL Last Error: ' SQL_GetLastError()
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(TSEnd)
+            IniWrite(xListener '.ini', xIT)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            Wait(oneMin)                                                        :(START)
+*---------- ----------- --- ---------------------------------------------------
+TSErr                                                                           :(TSEnd)
+TSErr1      OUTPUT      =   'Too many track words'                              :(TSEnd)
+TSErr2      OUTPUT      =   'Error initializing Gnip Stream'                    :(TSEnd)
+TSErr3      OUTPUT      =   'Error getting tweet'                               :(TSEnd)
+TSErr4      OUTPUT      =   'Error pretty print'                                :(TSEnd)
+TSErr5      OUTPUT      =   'Error parsing response'                            :(TSEnd)
+*---------- ----------- --- ---------------------------------------------------
+TSEnd       IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())      :(END)
+*========== =========== === ===================================================
+*-INCLUDE 'debug.sno'
+END

@@ -1,0 +1,100 @@
+./*
+-TITLE SPITBOL TEST PROGRAM #4 -- SYNTACTIC RECOGNIZER FOR SPITBOL
+*
+*        THIS PROGRAM IS A SYNTACTIC RECOGNIZER FOR SPITBOL STATEMENTS
+*
+*      FIRST A SERIES OF PATTERNS IS BUILD CULMINATING IN A PATTERN
+*      WHICH MATCHES ONLY SYNTACTICALLY CORRECT STATEMENTS.  CARD IMAGES
+*      ARE THEN READ IN AND PROCESSED.  INCORRECT STATEMENTS ARE
+*      IDENTIFIED BY AN ERROR MESSAGE.
+*
+*      THE FUNCTION OPT FORMS A PATTERN THAT MATCHES EITHER NULL OR ITS
+*      ARGUMENT.
+*
+         DEFINE('OPT(PATTERN)')
+*
+         LETTERS   =   'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+*
+*      ON THE IBM SYSTEM/360 LETTERS INCLUDE LOWER CASE AS WELL.
+*
+         DIGITS   =   '0123456789'
+         ALPHANUMERICS   =   LETTERS DIGITS
+         BLANKS   =   SPAN(' ')
+         INTEGER   =   SPAN(DIGITS)
+         REAL   =   SPAN(DIGITS) '.' OPT(SPAN(DIGITS))
+         IDENTIFIER   =   ANY(LETTERS) OPT(SPAN(ALPHANUMERICS '_.'))
+         UNARY   =   ANY('+-&.$*?!@%#')
+         BINARY   =   ANY('-+.$*|/@*#') | '**'
+         BINARYOP   =   BLANKS OPT(BINARY BLANKS)
+         UNQALPHABET   =   &ALPHABET
+         UNQALPHABET   '"'   =
+         UNQALPHABET   "'"   =
+         DLITERAL   =   '"' SPAN(UNQALPHABET "'") '"'
+         SLITERAL   =   "'" SPAN(UNQALPHABET '"') "'"
+         LITERAL   =   SLITERAL | DLITERAL | INTEGER | REAL
+         ELEMENT   =   OPT(UNARY) (IDENTIFIER | LITERAL | *FUNCTION_CALL
+.                      | '(' *EXPRESSION | OPT(BLANKS) ')' | *ARRAY_REF)
+         OPERATION   =   *ELEMENT BINARYOP (*ELEMENT | *EXPRESSION)
+         EXPRESSION   =   OPT(BLANKS) (*ELEMENT | *OPERATION | NULL)
+.                         OPT(BLANKS)
+         ARG_LIST   =   *EXPRESSION OPT(',' *ARG_LIST)
+         FUNCTION_CALL   =   IDENTIFIER '(' *ARG_LIST ')'
+         ARRAY_SUB   =   '<' *ARG_LIST '>' OPT(*ARRAY_SUB)
+         ARRAY_REF   =   IDENTIFIER ARRAY_SUB
+         LABEL   =   ANY(ALPHANUMERICS) (BREAK(' ;') | REM)
+         LABEL_FIELD   =   OPT(LABEL)
+         GOTO   =   '(' EXPRESSION ')'
+         GOTO_FIELD   =   OPT(BLANKS ':' FENCE OPT(BLANKS) (GOTO | 'S'
+.                         GOTO | 'F' GOTO | 'S' GOTO OPT(BLANKS) 'F'
+.                         GOTO | 'F' GOTO OPT(BLANKS) 'S' GOTO)
+.                         OPT(BLANKS))
+         RULE   =   OPT(BLANKS ELEMENT (OPT(BLANKS) '=' OPT(OPT(BLANKS)
+.                   EXPRESSION) | OPT(BLANKS EXPRESSION OPT(OPT(BLANKS)
+.                   '=' OPT(OPT(BLANKS) EXPRESSION)))))
+         EOS   =   RPOS(0) | ';'
+         STATEMENT   =   LABEL_FIELD RULE GOTO_FIELD EOS
+-EJECT
+*
+*      THE PATTERN FOR RECOGNIZING STATEMENTS IS NOW FORMED.  THE
+*      PROGRAM TO ANALYZE INPUT CARDS FOLLOWS.
+*
+         COMMENT   =   ANY('*-')
+         CONTINUE   =   ANY('.+') . CC
+         &ANCHOR   =   1
+         &FULLSCAN   =   1
+         EOF   =
+         INPUT(.INPUT,,72)
+*
+*      INITIALIZE PROCESS FROM FIRST CARD.
+*
+READI    IMAGE   =   TRIM(INPUT)                       :F(END)
+         OUTPUT   =   '     ' IMAGE
+*
+*        DO NOT PROCESS COMMENT OR CONTINUE CARDS.
+*
+         IMAGE   COMMENT                               :F(READC)S(READI)
+NEXTST   IDENT(EOF)                                    :F(END)
+         OUTPUT   =   '     ' LINE
+         IMAGE   =   LINE
+READC    LINE   =   TRIM(INPUT)                        :F(ENDGAME)
+         LINE   COMMENT                                :S(PRINT)
+         LINE   CONTINUE   =                           :F(ANALYZE)
+         OUTPUT   =   '     ' CC LINE
+         IMAGE   =   IMAGE LINE                        :(READC)
+ANALYZE  IMAGE   STATEMENT   =                         :F(ERROR)
+         DIFFER(IMAGE)                                 :S(ANALYZE)
+         OUTPUT   =   '<<< NO SYNTACTIC ERROR >>>'
+SKIP     OUTPUT   =                                    :(NEXTST)
+*
+*      IF AN ERRONEOUS STATEMENT IS  ENCOUNTERED IN A STRING OF
+*      STATEMENTS SEPARATED BY SEMICOLONS, SUBSEQUENT STATEMENTS ARE
+*      NOT PROCESSED.
+*
+ERROR    OUTPUT   =   '<<< SYNTACTIC ERROR >>>'        :(SKIP)
+*
+PRINT    OUTPUT   =   '     ' LINE                     :(READC)
+ENDGAME  EOF   =   1                                   :(ANALYZE)
+*
+*
+OPT      OPT   =   NULL | PATTERN                      :(RETURN)
+END

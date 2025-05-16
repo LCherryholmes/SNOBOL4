@@ -1,0 +1,112 @@
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'match.inc'
+*----------------------------------------------------------------------------------------------------
+        ii          =   22 ;* 20
+        tt          =   4
+        times       =   ARRAY('1:' ii ',1:' tt)
+        int         =   SPAN('0123456789') . whole
+        real        =   SPAN('0123456789') . whole '.' SPAN('0123456789') . fraction
+        ident       =   ANY(&LCASE &UCASE) SPAN(&LCASE &UCASE '0123456789')
+        SQLexe      =   'C:/Program Files/Microsoft SQL Server/100/Tools/Binn/SQLCMD.EXE'
+        SQLdir      =   'C:/Company'
+        SQLfile     =   'SQLQuery.sql'
+        n           =   1
+L00     n           =   LT(n, 2) n + 1                                          :F(END)
+        mode        =   EQ(n, 2) '-new'
+        i           =   0
+L10     i           =   LT(i, ii) i + 1                                         :F(L00)
+        SQLtest     =   'SQLQuery' i mode '.sql'
+        SQLQuery    =   Read(SQLdir '/' SQLtest)                                :S(L26)F(Error)
+L11     SQLQuery    ("'N' = [" ident . id "].[delete_ind]")                      = "0 = [" id "].[delete_ind]"   :S(L11)
+L12     SQLQuery    ("'Y' = [" ident . id "].[delete_ind]")                      = "1 = [" id "].[delete_ind]"   :S(L12)
+L13     SQLQuery    ("[" ident . id "].[parent_id] IS NULL")                     = "0 = [" id "].[comment_ind]"  :S(L13)
+L14     SQLQuery    ("[" ident . id "].[parent_id] IS NOT NULL")                 = "1 = [" id "].[comment_ind]"  :S(L14)
+L15     SQLQuery    ("[" ident $ id . id "].[source_id] <> [" *id "].[user_id]") = "0 = [" id "].[page_ind]"     :S(L15)
+L16     SQLQuery    ("[" ident $ id . id "].[source_id] = [" *id "].[user_id]")  = "1 = [" id "].[page_ind]"     :S(L16)
+L17     SQLQuery    "JOIN [dbo].[Channel_user_profiles]"
++                   " AS [" ident $ pkTbl . pkTbl "]"
++                   " ON [" ident $ fkTbl $ *notmatch(fkTbl, POS(0) 'Limit') . fkTbl "].[channel_user_id] = [" *pkTbl "].[id]"
++       =           "JOIN Channel_users"
++                   " AS [" pkTbl "]"
++                   " ON [" fkTbl "].[channel_id] = [" pkTbl "].[channel_id]"
++                   " AND [" fkTbl "].[user_id] = [" pkTbl "].[profile_id]"     :S(L17)
+L18     SQLQuery    "[" ident . pkTbl "].[channel_user_id] AS [K2]"
++       =           "[" pkTbl "].[channel_id] AS [K2], "
++                   "[" pkTbl "].[user_id] AS [K3]"                             :S(L18)
+L19     SQLQuery    "JOIN [dbo].[Channel_user_profiles]"
++                   " AS [" ident $ idExtent . idExtent "]"
++                   " ON [" ident . idGroupBy "].[K2] = [" *idExtent "].[id]"
++       =           "JOIN Channel_users"
++                   " AS [" idExtent "]"
++                   " ON [" idGroupBy "].[K2] = [" idExtent "].[channel_id]"
++                   " AND [" idGroupBy "].[K3] = [" idExtent "].[profile_id]"   :S(L19)
+L20     SQLQuery    "GROUP BY [" ident $ idExtent . idExtent "].[credential_id], [" *idExtent "].[channel_user_id]"
++       =           "GROUP BY [" idExtent "].[credential_id], [" idExtent "].[channel_id], [" idExtent "].[user_id]"  :S(L20)
+L21     SQLQuery    "[" ident . id "].[channel_user_id] AS [channel_user_id]"
++       =           "[" id "].[channel_id] AS [channel_id], [" id "].[user_id] AS [user_id]" :S(L21)
+L22     SQLQuery    "[Channel_data]" = "[Channel_items]" :S(L22)
+L23     SQLQuery    "[Trigger_data]" = "[Trigger_items]" :S(L23)
+        Write(SQLdir '/SQLQuery' i '-mod.sql', SQLQuery)                        :S(L10)F(Error)
+L25     SQLQuery    "[dbo].[Channel_items] AS [" ident . id "]"
++       =           "[dbo].[Channel_analytics] AS [" id "] WITH (NOEXPAND)"    :S(L25)
+L26     SQL         =
+        SQL         =   EQ(0, 0) SQL
++                       "CHECKPOINT" nl
++                       "DBCC DropCleanBuffers WITH NO_INFOMSGS" nl
+        SQL         =   SQL
++                       "SET QUOTED_IDENTIFIER ON" nl
++                       "SET ANSI_PADDING ON" nl
++                       "SET ANSI_WARNINGS ON" nl
++                       "SET ANSI_NULLS ON" nl
++                       "SET ARITHABORT ON" nl
++                       "SET CONCAT_NULL_YIELDS_NULL ON" nl
++                       "SET NUMERIC_ROUNDABORT OFF" nl
++                       "GO" nl
+        SQL         =   NE(0, 0) SQL
++                       "PRINT 'QUOTED_IDENTIFIER = ' + CONVERT(varchar, SESSIONPROPERTY('QUOTED_IDENTIFIER'))" nl
++                       "PRINT 'ANSI_PADDING = ' + CONVERT(varchar, SESSIONPROPERTY('ANSI_PADDING'))" nl
++                       "PRINT 'ANSI_WARNINGS = ' + CONVERT(varchar, SESSIONPROPERTY('ANSI_WARNINGS'))" nl
++                       "PRINT 'ANSI_NULLS = ' + CONVERT(varchar, SESSIONPROPERTY('ANSI_NULLS'))" nl
++                       "PRINT 'ARITHABORT = ' + CONVERT(varchar, SESSIONPROPERTY('ARITHABORT'))" nl
++                       "PRINT 'CONCAT_NULL_YIELDS_NULL = ' + CONVERT(varchar, SESSIONPROPERTY('CONCAT_NULL_YIELDS_NULL'))" nl
++                       "PRINT 'NUMERIC_ROUNDABORT = ' + CONVERT(varchar, SESSIONPROPERTY('NUMERIC_ROUNDABORT'))" nl
++                       "RAISERROR ('', 10, 1) WITH NOWAIT" nl
+        SQL         =   SQL
++                       "DECLARE @dtStart datetime; SET @dtStart = GETDATE()" nl nl
++                       SQLQuery
++                       "DECLARE @dtFinish datetime; SET @dtFinish = GETDATE()" nl
++                       "DECLARE @iTime int" nl
++                       "DECLARE @Msg varchar(max)" nl
++                       "SET @iTime = DATEDIFF(millisecond, @dtStart, @dtFinish)" nl
++                       "SET @Msg = 'Time: ' + CONVERT(varchar, @iTime) + ' milliseconds.'" nl
++                       "RAISERROR (@Msg, 10, 1) WITH NOWAIT" nl
+        Write(SQLfile, SQL)                                                 :F(Error)
+        t           =   0
+L30     t           =   LT(t, tt) t + 1                                     :F(L50)
+        SQLcmd      =   '"' SQLexe '"'
++                       ' -S sub.company.pro,1433'
++                       ' -d db-production'
++                       ' -U db'
++                       ' -P db123'
++                       ' -l 60'
++                       ' -t 600'
++                       ' -y 8000'
++                       ' -i "' SQLfile '"'
+        whole       =
+        INPUT(.SQLinput, 3, '!!' SQLcmd)                                    :F(Error)
+L35     SQLline     =   SQLinput                                            :F(L40)
+*       TERMINAL    =   SQLline
+        SQLline     POS(0) 'Time: ' int ' milliseconds.'                    :(L35)
+L40     ENDFILE(3)
+        times[i, t] =   +whole                                              :(L30)
+L50     average     =   (times[i, 2] + times[i, 3] + times[i, 4]) / 3
+        OUTPUT      =   LPAD(times[i, 1], 8)
++                   ' ' LPAD(times[i, 2], 8)
++                   ' ' LPAD(times[i, 3], 8)
++                   ' ' LPAD(times[i, 4], 8)
++                   ' ' LPAD(average, 8)
++                   ' - ' SQLtest                                           :(L10)
+*----------------------------------------------------------------------------------------------------
+END

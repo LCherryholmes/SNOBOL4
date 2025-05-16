@@ -1,0 +1,150 @@
+*----------------------------------------------------------------------------------------------------------
+START
+-INCLUDE    'utility.inc'
+            mo2int            =     TABLE()
+            mo2int['Jan']     =     '01'
+            mo2int['Feb']     =     '02'
+            mo2int['Mar']     =     '03'
+            mo2int['Apr']     =     '04'
+            mo2int['May']     =     '05'
+            mo2int['Jun']     =     '06'
+            mo2int['Jul']     =     '07'
+            mo2int['Aug']     =     '08'
+            mo2int['Sep']     =     '09'
+            mo2int['Oct']     =     '10'
+            mo2int['Nov']     =     '11'
+            mo2int['Dec']     =     '12'
+
+            mo2yr             =     TABLE()
+            mo2yr['Jan']      =     '2000'
+            mo2yr['Feb']      =     ''
+            mo2yr['Mar']      =     ''
+            mo2yr['Apr']      =     ''
+            mo2yr['May']      =     ''
+            mo2yr['Jun']      =     ''
+            mo2yr['Jul']      =     '1999'
+            mo2yr['Aug']      =     '1999'
+            mo2yr['Sep']      =     '1999'
+            mo2yr['Oct']      =     '1999'
+            mo2yr['Nov']      =     '1999'
+            mo2yr['Dec']      =     '1999'
+
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            digits            =     '0123456789'
+            ls_l              =     POS(0)
++                                   (  ('-' | 'd' | 'l') . lsFileType
++                                      ('-' | 'r') ('-' | 'w') ('-' | 'x' | 'c')
++                                      ('-' | 'r') ('-' | 'w') ('-' | 'x' | 's' | 't')
++                                      ('-' | 'r') ('-' | 'w') ('-' | 'x' | 'a')
++                                   ) . lsPerms
++                                   SPAN(' ') SPAN(digits)
++                                   SPAN(' ') BREAK(' ')
++                                   SPAN(' ') BREAK(' ')
++                                   SPAN(' ') SPAN(digits) . lsLength
++                                   SPAN(' ')
++                                   (  'Jan'
++                                   |  'Feb'
++                                   |  'Mar'
++                                   |  'Apr'
++                                   |  'May'
++                                   |  'Jun'
++                                   |  'Jul'
++                                   |  'Aug'
++                                   |  'Sep'
++                                   |  'Oct'
++                                   |  'Nov'
++                                   |  'Dec'
++                                   ) . mo
++                                   SPAN(' ') SPAN(digits) . dom
++                                   SPAN(' ')
++                                   (  (SPAN(digits) ':' SPAN(digits)) . time '' . year
++                                   |  SPAN(digits) . year '' . time
++                                   )
++                                   (' ' | '')
++                                   REM . lsFilePath
++                                   RPOS(0)
+
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            c                 =     TRUE
+            d                 =     TRUE
+            l                 =     TRUE
+            EXIT(3, 'ls-l.exe')
+            Utility()
+            argPos            =     HOST(3) - 1
+arg1        argPos            =     argPos + 1
+            arg               =     HOST(2, argPos)                                          :f(arg2)
+            arg               POS(0) '-' 'c' . *assign(.c, *FALSE) RPOS(0)                   :s(arg1)
+            arg               POS(0) '-' 'd' . *assign(.d, *FALSE) RPOS(0)                   :s(arg1)
+            arg               POS(0) '-' 'l' . *assign(.l, *FALSE) RPOS(0)                   :s(arg1)
+            arg               POS(0) '-'                                                     :s(usage)
+            arg               POS(0) REM . dirNm                                             :(arg1)
+arg2        DIFFER(dirNm)                                                                    :f(usage)
+            findDirCmd        =
+            findFileCmd       =
+            lsCmd             =
+            findExecCmd       =
+            findDirCmd        =     EQ(d, TRUE)               exe['find'] ' "' dirNm '" -type d -print'
+            findFileCmd       =     EQ(c, FALSE) EQ(l, FALSE) exe['find'] ' "' dirNm '" -type f -print'
+            lsCmd             =     EQ(c, FALSE) EQ(l, TRUE)  exe['ls'] ' -lR "' dirNm '"'
+            findExecCmd       =     EQ(c, TRUE)  EQ(l, FALSE) exe['find'] ' "' dirNm '" -type f -exec "' exe['cksum'] '" {} ;'
+            findExecCmd       =     EQ(c, TRUE)  EQ(l, TRUE)  exe['find'] ' "' dirNm '" -type f -exec "' exe['cksum'] '" {} ;'
+            lsFileExpr        =     *('F ' LPAD(lsLength, 10) ' ' LPAD(lsCksum, 10) ' ' lsFullPath)
+            lsDirExpr         =     *('D ' DUPL(' ', 22) lsDirPath)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            DIFFER(lsCmd)                                                                    :f(main20)
+            lsCksum           =     -1
+            INPUT(.lsInput, 3, '!!' lsCmd)                                                   :f(error)
+main11      lsLine            =     lsInput                                                  :f(main17)
+            lsLine            POS(0) RPOS(0)                                                 :s(main11)
+            lsLine            POS(0) 'total '                                                :s(main11)
+            lsLine            POS(0) BREAKX(':') . lsDirPath ':' RPOS(0)                     :f(main13)
+            lsDirPath         POS(0) dirNm . lsDirRootPath '/' REM . lsDirRelPath            :s(main12)
+            lsDirPath         POS(0) dirNm . lsDirRootPath REM . lsDirRelPath                :s(main12)f(error)
+main12      lsDirRootPath     '/' RPOS(0) =
+            lsDirPath         =     lsDirRootPath '/' lsDirRelPath
+            lsDirPath         '/' RPOS(0) =
+            OUTPUT            =     EQ(d, TRUE) EVAL(lsDirExpr)                              :(main11)
+main13      lsLine            ls_l                                                           :f(main15)
+            DIFFER(lsFileType, 'd')                                                          :f(main11)
+            lsFullPath        =     lsDirPath '/' lsFilePath
+            OUTPUT            =     EVAL(lsFileExpr)                                         :(main11)
+main15      OUTPUT            =     '*** ls-l: Error: ' lsLine                               :(main11)
+main17      ENDFILE(3)                                                                       :(END)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+main20      DIFFER(findDirCmd)                                                               :f(main30)
+            INPUT(.findInput, 3, '!!' findDirCmd)                                            :f(error)
+main21      lsDirPath         =     findInput                                                :f(main27)
+            OUTPUT            =     EVAL(lsDirExpr)                                          :(main21)
+main27      ENDFILE(3)                                                                       :(main30)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+main30      DIFFER(findFileCmd)                                                              :f(main40)
+            lsCksum           =     -1
+            lsLength          =     -1
+            INPUT(.findInput, 3, '!!' findFileCmd)                                           :f(error)
+main31      lsFullPath        =     findInput                                                :f(main37)
+            OUTPUT            =     EVAL(lsFileExpr)                                         :(main31)
+main37      ENDFILE(3)                                                                       :(END)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+main40      DIFFER(findExecCmd)                                                              :f(error)
+            INPUT(.findInput, 3, '!!' findExecCmd)                                           :f(error)
+main41      findLine          =     findInput                                                :f(main47)
+            findLine          POS(0) SPAN(digits) . lsCksum
++                             tab    SPAN(digits) . lsLength
++                             tab    REM . lsFullPath
++                             RPOS(0)                                                        :f(error)
+            lsLength          =     EQ(l, FALSE) -1
+            OUTPUT            =     EVAL(lsFileExpr)                                         :(main41)
+main47      ENDFILE(3)                                                                       :(END)
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+            year              =     IDENT(year) mo2yr[mo]
+            OUTPUT            =     lsPerms
++                                   ' ' LPAD(lsLength, 8)
++                                   ' ' LPAD(year, 4)
++                                   '/' LPAD(mo2int[mo], 2)
++                                   '/' LPAD(dom, 2, 0)
++                                   ' ' LPAD(time, 5)
++                                   ' ' lsDirPath '/' lsFilePath
+*---------- ----------------- ----- -------------------------------------------------------- -----------------------------
+usage       OUTPUT            =     'ls-l [-d] [-c] [-l] {directory}'                        :(END)
+*-INCLUDE   'debug.sno'
+END

@@ -1,0 +1,356 @@
+*-------------------------------------------------------------------------------------------------------
+* Listen2Blogs.sno
+*---------- Polling ... -------------------------------------------------------
+*---------- FOR all entities ... ----------------------------------------------
+*---------- FOR every page ... ------------------------------------------------
+*---------- FOR every chunk/entry ... -----------------------------------------
+*-------------------------------------------------------------------------------------------------------
+-INCLUDE '5ivesAlive.inc'
+-INCLUDE 'Pump.inc'
+-INCLUDE 'XML.inc'
+*========== =========== === ======================================================= ====================
+            xListener   =   'Listen2Blogs'
+            userAgent   =   '5ivesAlive/1.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)'
+            cookies     =   xListener 'Cookies.txt'
+            doParseTree =   FALSE
+            urlReferer  =   'LonCherryholmes.BlogSpot.com'
+            bsUrl       =   'http://www.google.com/search' ;* 'http://blogsearch.google.com/blogsearch_feeds'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            bsExpr      =  *(   'ie'      '=' 'UTF-8'
++                           '&' 'tbm'     '=' 'blg'
++                           '&' 'tbs'     '=' 'sbd:1'
++                          ('&' 'start'   '=' GT(iStart) iStart, NULL)
++                           '&' 'as_drrb' '=' 'q'
++                           '&' 'as_qdr'  '=' 'w'
++                           '&' 'output'  '=' 'atom'
++                           '&' 'ic'      '=' 1
++                           '&' 'num'     '=' 50
++                           '&' 'safe'    '=' 'off'
++                           '&' 'scoring' '=' 'd'
++                           '&' 'q'       '=' URLEncode(xQ)
++                           )
+*+                          '&' 'lr'      '=' 'lang_en'
+*+                         ('&' 'as_mind' '=' DIFFER(bsSinceDate) SUBSTR(bsSinceDate, 9, 2), NULL)
+*+                         ('&' 'as_minm' '=' DIFFER(bsSinceDate) SUBSTR(bsSinceDate, 6, 2), NULL)
+*+                         ('&' 'as_miny' '=' DIFFER(bsSinceDate) SUBSTR(bsSinceDate, 1, 4), NULL)
+*+                         ('&' 'as_maxd' '=' DIFFER(bsUntilDate) SUBSTR(bsUntilDate, 9, 2), NULL)
+*+                         ('&' 'as_maxm' '=' DIFFER(bsUntilDate) SUBSTR(bsUntilDate, 6, 2), NULL)
+*+                         ('&' 'as_maxy' '=' DIFFER(bsUntilDate) SUBSTR(bsUntilDate, 1, 4), NULL)
+*+                          '&' 'as_drrb' '=' 'b'
+*+                          '&' 'filter'  '=' 0
+*                               'as_epq' word order preserved
+*                               'as_oq' words or'ed
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            DATA('ResponseType(feed,chunks)')
+            DATA('FeedType(title,id,updated,totalResults,startIndex,itemsPerPage)')
+            DATA('EntryType(id,title,link,content,authorName,authorUri,published,updated)')
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            iColumns              =  12
+            bsColumns             =  ARRAY('1:' iColumns)
+            bsColumns[c = 1]      =  column("id$",          "int",           *NULL)
+            bsColumns[c = c + 1]  =  column("stamp$",       "timestamp",     *DUPL(CHAR(0), 8))
+            bsColumns[c = c + 1]  =  column("topic_id$",    "int",           *iE)
+            bsColumns[c = c + 1]  =  column("id",           "varchar(892)",  *id(bsxEntry))
+            bsColumns[c = c + 1]  =  column("title",        "nvarchar(max)", *title(bsxEntry))
+            bsColumns[c = c + 1]  =  column("link",         "varchar(892)",  *link(bsxEntry))
+            bsColumns[c = c + 1]  =  column("content",      "nvarchar(max)", *content(bsxEntry))
+            bsColumns[c = c + 1]  =  column("author_name",  "nvarchar(max)", *authorName(bsxEntry))
+            bsColumns[c = c + 1]  =  column("author_uri",   "varchar(max)",  *authorUri(bsxEntry))
+            bsColumns[c = c + 1]  =  column("published",    "datetime",      *published(bsxEntry))
+            bsColumns[c = c + 1]  =  column("updated",      "datetime",      *updated(bsxEntry))
+            bsColumns[c = c + 1]  =  column("content_japanese", NULL,        *NULL)
+*---------- ----------- --- ---------------------------------------------------
+            DEFINE('SQLDate(dt)year,month,day,hour,minute,second')              :(SQLDateEnd)
+SQLDate     dt          ?   POS(0) bsYear . year
++                           '-' bsMonth . month
++                           '-' bsDay . day
++                           'T' bsHour . hour
++                           ':' bsMinute . minute
++                           ':' bsSecond . second
++                           'Z'
++                           RPOS(0)                                             :F(error)
+            SQLDate     =   year '-' month '-' day
++                           ' ' hour ':' minute ':' second                      :(RETURN)
+SQLDateEnd
+*---------- ----------- --- ------------------------------------------------------- --------------------
+            EXIT(3, xListener '.exe')
+-INCLUDE    'env.inc'
+-INCLUDE    'curl.inc'
+-INCLUDE    'sqlncli.inc'
+            sDirPath = GetCurrentDirectory()
+            hProcess = GetCurrentProcess()
+            hModule = GetModuleHandle()
+            sExePath = GetModuleFileName(hModule)
+            OUTPUT      =   'Current Directory Path: ' sDirPath
+            OUTPUT      =   'Current Process: ' hProcess
+            OUTPUT      =   'Current Module: ' hModule
+            OUTPUT      =   'Executable Path: ' sExePath
+            Args(xListener)                                                         :F(END)
+            &STLIMIT    =   EQ(xDebug, FALSE) -1                                    :F(debuggo)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+START       $'  '       =   SPAN(' ' tab cr lf)
+            $' '        =   FENCE($'  ' | epsilon)
+            $'<'        =   $' ' TY(1, '<', '<')
+            $'>'        =   $' ' TY(1, '>', '>')
+            $'/>'       =   $' ' TY(1, '/>', '/>')
+*---------- ----------- --- ----------------------------------------------------------------------------
+            bsInt       =   SPAN('0123456789') . bsxN
+            bsYear      =   bsInt $ bsxN *EQ(SIZE(bsxN), 4)
+            bsMonth     =   bsInt $ bsxN *EQ(SIZE(bsxN), 2)
+            bsDay       =   bsInt $ bsxN *EQ(SIZE(bsxN), 2)
+            bsHour      =   bsInt $ bsxN *EQ(SIZE(bsxN), 2)
+            bsMinute    =   bsInt $ bsxN *EQ(SIZE(bsxN), 2)
+            bsSecond    =   bsInt $ bsxN *EQ(SIZE(bsxN), 2)
+            bsDate      =   bsYear '-' bsMonth '-' bsDay
+            bsTime      =   bsHour ':' bsMinute ':' bsSecond
+            bsDateTime  =   (bsDate 'T' bsTime 'Z') . bsxDateTime
+            bsXmlVal    =   BREAK('<') . bsxXmlVal
+            bsAttrVal   =   '"' BREAK('"') . bsxAttrVal '"'
+*---------- ----------- --- ----------------------------------------------------------------------------
+            bsTags      =   'author/content/entry/feed/id/link/name/published/subtitle/title/updated/uri/'
++                           'opensearch:itemsPerPage/opensearch:startIndex/opensearch:totalResults/'
+BS01        bsTags      ?   POS(0) BREAK('/') . bsxT '/' =                      :F(BS03)
+            $('<'  bsxT    ) = $' ' TZ(1, '<'  bsxT    , '<'  bsxT         )
+            $('<'  bsxT '>') = $' ' TZ(1, '<'  bsxT '>', '<'  bsxT $' ' '>')
+            $('</' bsxT    ) = $' ' TZ(1, '</' bsxT    , '</' bsxT         )
+            $('</' bsxT '>') = $' ' TZ(1, '</' bsxT '>', '</' bsxT $' ' '>')    :(BS01)
+*---------- ----------- --- ------------------------------------------------------- --------------------
+BS03        bsResponse  =   POS(0) FENCE epsilon $ bsxResponse *bsXml $' ' RPOS(0)
+
+            bsXml       =   '<?xml version="1.0" encoding="UTF-8"' '?>'
++                           $' ' '<?xml-stylesheet href=' *bsAttrVal $'  ' 'type="text/css"' '?>'
++                           *bsFeed
++                           epsilon . *assign(.bsxResponse, ResponseType(bsxFeed, bsxChunks))
+
+            bsFeed      =   epsilon . *assign(.bsxFeed, FeedType())
++                           $'<feed' $'  ' 'xmlns=' *bsAttrVal $'  ' 'xmlns:opensearch=' *bsAttrVal $'>'
++                                $'<title' $'  ' 'type="text"' $'>' *bsXmlVal $'</title>'          . *assign(.title(bsxFeed), bsxXmlVal)
++                                $'<id>' *bsXmlVal $'</id>'                                        . *assign(.id(bsxFeed), bsxXmlVal)
++                                $'<link' $'  ' 'rel="self"'      $'  ' 'href=' *bsAttrVal $'  ' 'type="application/atom+xml"' $'>' $'</link>'
++                                $'<link' $'  ' 'rel="alternate"' $'  ' 'href=' *bsAttrVal $'  ' 'type="text/html"' $'>' $'</link>'
++                                $'<updated>' *bsDateTime $'</updated>'                            . *assign(.updated(bsxFeed), bsxDateTime)
++                                $'<subtitle' $'  ' 'type="html"' $'>' *bsXmlVal $'</subtitle>'
++                                $'<opensearch:totalResults>' *bsInt $'</opensearch:totalResults>' . *assign(.totalResults(bsxFeed), +bsxN)
++                                $'<opensearch:startIndex>'   *bsInt $'</opensearch:startIndex>'   . *assign(.startIndex(bsxFeed), +bsxN)
++                                $'<opensearch:itemsPerPage>' *bsInt $'</opensearch:itemsPerPage>' . *assign(.itemsPerPage(bsxFeed), +bsxN)
++                                *bsChunks
++                           $'</feed>'
+
+            bsChunks    =   epsilon $ bsxC $ bsxChunks
++                           epsilon . *assign(.bsxC, 0)
++                           epsilon . *assign(.bsxChunks, TABLE())
++                           ARBNO(($'<entry' !($'  ' 'xmlns=' *bsAttrVal) $'>' BREAKX('<') $'</entry>') . bsxChunk . *assign(.bsxChunks[bsxC = bsxC + 1], bsxChunk))
+
+            bsEntry     =   epsilon . *assign(.bsxEntry, EntryType())
++                           $'<entry' !($'  ' 'xmlns=' *bsAttrVal) $'>'
++                                $'<id>'
++                                    'tag:' BREAK(',') . bsxUrlSite
++                                    ',' *bsDate ':' *bsXmlVal . bsxUrlPath                 . *assign(.id(bsxEntry), XMLDecode(bsxUrlSite bsxUrlPath))
++                                $'</id>'
++                                $'<title' $'  ' 'type="html"' $'>' *bsXmlVal $'</title>'   . *assign(.title(bsxEntry), XMLDecode(bsxXmlVal))
++                                $'<link'
++                                     $'  ' 'rel="alternate"'
++                                     $'  ' 'href=' *bsAttrVal                              . *assign(.link(bsxEntry), bsxAttrVal)
++                                     $'  ' 'type="text/html"'
++                                     $'>'
++                                $'</link>'
++                                $'<content'
++                                     $'  ' 'type="html"'
++                                     $'  ' 'xml:space="preserve"'
++                                (    $'>' *bsXmlVal                                        . *assign(.content(bsxEntry), XMLDecode(bsxXmlVal))
++                                     $'</content>'
++                                |    $'/>'                                                 . *assign(.content(bsxEntry), '')
++                                )
++                                $'<author>'
++                                    $'<name>' *bsXmlVal $'</name>'                         . *assign(.authorName(bsxEntry), XMLDecode(bsxXmlVal))
++                                    $'<uri>' *bsXmlVal $'</uri>'                           . *assign(.authorUri(bsxEntry), XMLDecode(bsxXmlVal))
++                                $'</author>'
++                                $'<published>' *bsDateTime $'</published>'                 . *assign(.published(bsxEntry), SQLDate(bsxDateTime))
++                                $'<updated>' *bsDateTime $'</updated>'                     . *assign(.updated(bsxEntry), SQLDate(bsxDateTime))
++                           $'</entry>'
+*---------- ----------- --- ------------------------------------------------------- --------------------
+*           bsResponse  =   TZ(1, 'bsResponse', bsResponse)
+*           bsXml       =   TZ(1, 'bsXml', bsXml)
+*           bsFeed      =   TZ(1, 'bsFeed', bsFeed)
+            bsEntry     =   epsilon $ t8Max
++                           TZ(1, 'bsEntry', bsEntry)
+            bsXmlVal    =   TY(1, 'bsXmlVal', bsXmlVal)
+            bsAttrVal   =   TY(1, 'bsAttrVal', bsAttrVal)
+            bsDateTime  =   TY(1, 'bsDateTime', bsDateTime)
+*========== =========== === ======================================================= ====================
+            SetupWait()                                                         :F(BSEnd)
+            SetupCancel()                                                       :F(BSEnd)
+BS05        SQL_Connect(xServer, xDatabase, xUser, xPassword, xListener, xFailOver) :F(SQLFail)
+*           SQL_SetAutoCommitOff()                                              :F(SQLFail)
+            hstmt       =   SQL_AllocStmt()                                     :F(SQLFail)
+            xCwd        =   GetCurrentDirectory()
+            PumpInit(bsColumns, xListener, 'Content')                           :F(SQLFail)
+            curl        =   curl_easy_init()                                    :F(BSErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE))              :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE))      :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent))       :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_REFERER, urlReferer))        :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookies))        :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookies))         :F(BSErr)
+            periodSecs  =   120
+            oneMin      =   1 * 60 * 1000
+            backSecs    =   4 * 60 * 60  ;* hours(s) in seconds
+            backSecs    =   40 * 24 * 60 * 60  ;* day(s) in seconds
+            prevTime    =   DTDecode(Datetime())
+            backTime    =   DTSubtract(DTDecode(Datetime()), backSecs)
+            backTime    =   DTEncode(backTime)
+*           backTime    =   '2011-10-14 00:00:00'
+            timeZone    =   -4 * 60 * 60  ;* North Carolina, GMT-4 hours in seconds
+            timeZone    =   +2 * 60 * 60  ;* Israel, GMT+2 hours in seconds
+            bsCntT      =   TABLE()
+            bsModT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- Polling ... -------------------------------------------------------
+            iPoll       =   xIT[0]['Poll']
+BS10        iPoll       =   EQ(IsCancelled(), FALSE) iPoll + 1                  :F(BSEnd)
+            bsTotT      =   TABLE()
+            ReadConfig(xListener)                                               :F(error)
+*---------- FOR all entities ... ----------------------------------------------
+            iE          =   xIT[0]['Topic']
+BS20        iE          =   EQ(IsCancelled(), FALSE) LT(iE, xMaxEntity) iE + 1  :F(BS90)
+            xT          =   DIFFER(xIT[iE]) xIT[iE]                             :F(BS20)
+            xE          =   xT['Name']
+            xQ          =   xT['Query']
+            bsCntT[iE]  =   GT(bsCntT[iE], 1) bsCntT[iE] - 1                    :S(BS20)
+            (EQ(xReset, TRUE) EQ(iPoll, 1))                                     :F(BS25)
+            xT['Since'] =
+            xT['Until'] =
+            xT['Max']   =
+BS25        xT['Since'] =   IDENT(xT['Since']) backTime
+            bsxMinBatch =
+            bsxMaxBatch =
+            bsxMinSave  =
+            bsxMaxSave  =
+*---------- FOR every page ... ------------------------------------------------
+            bsxHasMore  =   TRUE
+            iStart      =   0
+            iPage       =   0
+BS40        iPage       =   EQ(bsxHasMore, TRUE) iPage + 1                      :F(BS80)
+            EQ(IsCancelled(), FALSE)                                            :F(BS90)
+*           Get result ...
+            bsxExpr     =   EVAL(bsExpr)
+            url         =   bsUrl '?' bsxExpr
+BS43        iTry        =   0
+BS44        iTry        =   LT(iTry, 10) iTry + 1                               :F(BSErr)
+            EQ(IsCancelled(), FALSE)                                            :F(BS90)
+            Wait(GT(iTry, 1) oneMin)
+            currTime    =   DTDecode(Datetime())
+            iSecs       =   DTDiff(currTime, prevTime)
+            iWaitSecs   =   periodSecs - iSecs
+            OUTPUT      =   GE(xVerbose, 3) LT(iWaitSecs) 'Slipped ' -iWaitSecs ' seconds.'
+            Wait(GT(iWaitSecs) iWaitSecs * 1000)
+            prevTime    =   DTDecode(Datetime())
+            OUTPUT      =   GE(xVerbose, 5) DTEncode(prevTime) ' GET ...?' bsxExpr
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(BSErr)
+            EQ(cc = curl_easy_setopt_int(curl, CURLOPT_TIMEOUT, 120))           :F(BSErr)
+            EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, url))                   :F(BSErr)
+            EQ(cc = curl_easy_perform(curl))                                    :F(BS44)
+            xml         =   curl_easy_getdata()
+            LineMap(xml, .t8Map)
+*           Process result ...
+BS45        Write(xListener '.xml', xml)
+*           Write(xListener '-' (iWritten = iWritten + 1) '.xml', xml)
+            LineMap(xml, .t8Map)
+            xml         ?   POS(0) FENCE *bsResponse $' ' RPOS(0)               :S(BS50)
+            bsError     =   'Response pattern failure.'
+            OUTPUT      =   'bsxExpr=' bsxExpr                                  :(BSEnd)
+BS47        OUTPUT      =   bsError
+            Wait(oneMin)                                                        :(BS43)
+BS48        OUTPUT      =   bsError
+            Wait(oneMin)                                                        :(BS80)
+*---------- FOR every chunk/entry ... -----------------------------------------
+BS50        PumpOpen(.bsOutput, xListener)
+            bsxMinDate  =
+            bsxMaxDate  =
+            iCount      =   0
+            bsiC        =   0
+BS53        bsiC        =   LT(bsiC, bsxC) bsiC + 1                             :F(BS60)
+            bsxChunk    =   bsxChunks[bsiC]                                     :F(error)
+            LineMap(bsxChunk, .t8Map)
+            bsxChunk    ?   POS(0) FENCE *bsEntry $' ' RPOS(0)                  :F(BSErr1)
+*           Get actual blog page
+*           bsxLink     =   link(bsxEntry)
+*           OUTPUT      =   GE(xVerbose, 5) 'GET ' bsxLink
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_HTTPGET, TRUE))              :F(BSErr)
+*           EQ(cc = curl_easy_setopt(curl, CURLOPT_URL, bsxLink))               :F(BSErr)
+*           EQ(cc = curl_easy_perform(curl))                                    :F(BS55)
+*           html        =   curl_easy_getdata()
+*           Write(xListener '-' (iURL = iURL + 1) '.html', html)
+*           END get actual blog page
+BS55        bsxDate     =   published(bsxEntry)
+            bsxMinDate  =   MinDate(bsxDate, bsxMinDate)
+            bsxMaxDate  =   MaxDate(bsxDate, bsxMaxDate)
+            (DIFFER(xT['Since']) LGT(bsxDate, xT['Since']), IDENT(xT['Since'])) :F(BS53)
+            (DIFFER(xT['Until']) LLE(bsxDate, xT['Until']), IDENT(xT['Until'])) :F(BS53)
+            iCount      =   iCount + 1
+            PumpRow(.bsOutput, bsColumns)                                       :S(BS53)F(SQLFail)
+*---------- END FOR every chunk/entry -----------------------------------------
+BS60        PumpClose(.bsOutput, xListener, iCount)                             :F(SQLFail)
+            OUTPUT      =   GE(xVerbose, 4) iE ',' bsxMinDate ',' bsxMaxDate
++                           ',' iPage ',' iCount
+            iStart      =   iStart + bsxC
+            bsTotT[iE]  =   bsTotT[iE] + iCount
+            bsxMinBatch =   MinDate(bsxMinDate, bsxMinBatch)
+            bsxMaxBatch =   MaxDate(bsxMaxDate, bsxMaxBatch)
+            xT['Until'] =   DIFFER(bsxMinDate) bsxMinDate
+            xT['Max']   =   DIFFER(bsxMaxDate) IDENT(xT['Max']) bsxMaxDate
+            bsxHasMore  =   EQ(bsxC) FALSE                                      :S(BS40)
+            bsxHasMore  =   DIFFER(bsxMinDate) DIFFER(bsxMinSave)
++                           DIFFER(bsxMaxDate) DIFFER(bsxMaxSave)
++                           LEQ(bsxMinDate, bsxMinSave)
++                           LEQ(bsxMaxDate, bsxMaxSave)
++                           FALSE                                               :S(BS40)
+            bsxMinSave  =   bsxMinDate
+            bsxMaxSave  =   bsxMaxDate
+            bsxHasMore  =   LLE(bsxMinBatch, xT['Since']) FALSE                 :(BS40)
+*---------- END FOR every page ------------------------------------------------
+BS80        OUTPUT      =   GE(xVerbose, 3) iE ',' bsxMinBatch ',' bsxMaxBatch
++                           ',' bsTotT[iE] ',"' xE '"'
+            bsModT[iE]  =   EQ(bsTotT[iE]) LT(bsModT[iE], 5) bsModT[iE] + 1
+            bsModT[iE]  =   GT(bsTotT[iE]) GT(bsModT[iE], 1) bsModT[iE] - 1
+            bsCntT[iE]  =   bsModT[iE]
+            xT['Since'] =   DIFFER(xT['Max']) xT['Max']                         :F(BS20)
+            xT['Until'] =
+            xT['Max']   =
+            xIT[0]['Topic'] = iE
+            IniWrite(xListener '.ini', xIT)                                     :(BS20)
+*---------- END FOR every entity ----------------------------------------------
+BS90        xIT[0]['Topic'] = 0
+            xIT[0]['Poll'] = iPoll
+            IniWrite(xListener '.ini', xIT)
+            bsReport    =
+            iTotal      =   0
+            iE          =   0
+BS93        iE          =   LT(iE, xMaxEntity) iE + 1                           :F(BS95)
+            DIFFER(xT = xIT[iE])                                                :F(BS93)
+            iTotal      =   iTotal + bsTotT[iE]
+            bsReport    =   bsReport ',' LPAD(bsTotT[iE], 3)                    :(BS93)
+BS95        OUTPUT      =   GE(xVerbose, 1) Datetime()
++                           ',' LPAD(iPoll, 4) ',' LPAD(iTotal, 4) bsReport     :(BS10)
+*---------- ----------- --- ---------------------------------------------------
+SQLFail     OUTPUT      =   'SQL Failure: ' SQL_GetLastError()
+            IniWrite(xListener '.ini', xIT)
+            iSQLFail    =   LT(iSQLFail, 10) iSQLFail + 1                       :F(BSEnd)
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)
+            Wait(oneMin)                                                        :(BS05)
+*---------- ----------- --- ---------------------------------------------------
+BSErr1      OUTPUT      =   'Failure (' iE ', ' iPage ', ' bsxC ').'
+            OUTPUT      =   bsxChunk                                            :(BSEnd)
+BSErr2      OUTPUT      =   'Weird error.'                                      :(BSEnd)
+BSErr       curl_easy_error_info(curl, cc)                                      :(BSEnd)
+*---------- ----------- --- ---------------------------------------------------
+BSEnd       IniWrite(xListener '.ini', xIT)
+            PumpFini()
+            (SQL_FreeStmt(hstmt), OUTPUT = 'FreeStmt: ' SQL_GetLastError())
+            (SQL_Disconnect(), OUTPUT = 'Disconnect: ' SQL_GetLastError())
+            curl_easy_cleanup(curl)                                             :(END)
+*========== =========== === ===================================================
+-INCLUDE 'debug.sno'
+END

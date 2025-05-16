@@ -1,0 +1,140 @@
+*-------------------------------------------------------------------------------------------------------------
+* Microsoft SQL Server (Transact SQL) Parser
+* Author: Lon Cherryholmes
+* First Created: June 15, 2004
+* Last Modified: February 5, 2005
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+START
+-INCLUDE 'global.inc'
+-INCLUDE 'is.inc'
+-INCLUDE 'FENCE.inc'
+-INCLUDE 'io.inc'
+-INCLUDE 'assign.inc'
+-INCLUDE 'match.inc'
+-INCLUDE 'slash.inc'
+-INCLUDE 'case.inc'
+-INCLUDE 'export.inc'
+-INCLUDE 'counter.inc'
+-INCLUDE 'stack.inc'
+-INCLUDE 'tree.inc'
+-INCLUDE 'ShiftReduce.inc'
+-INCLUDE 'TDump.inc'
+-INCLUDE 'Gen.inc'
+-INCLUDE 'Qize.inc'
+-INCLUDE 'XDump.inc'
+-INCLUDE 'ReadWrite.inc'
+-INCLUDE 'Populate.inc'
+-INCLUDE 'semantic.inc'
+-INCLUDE 'omega.inc'
+-INCLUDE 'opsyn.inc'
+-INCLUDE 'tsql.inc'
+-INCLUDE 'ebnf-MSSQL_msdn.inc'
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+                  DEFINE('InputPipe()')
+                  INPUT(.INPUT, 0, '[-f0 -w -r1]')                               :F(error)
+                  OUTPUT(.OUTPUT, 1, '[-f1 -w]')                                 :S(InputPipeEnd)F(error)
+InputPipe         ch             =  IDENT(ch, nul)                               :S(FRETURN)
+InputPipe0        ch             =  INPUT                                        :F(error)
+                  InputPipe      =  DIFFER(ch, nul) InputPipe ch                 :F(RETURN)
+                  IDENT(ch, nl)                                                  :S(RETURN)F(InputPipe0)
+InputPipeEnd
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+                  DEFINE('InputFile()')                                          :(InputFileEnd)
+InputFile         InputFile      =  INPUT nl                                     :S(RETURN)F(FRETURN)
+InputFileEnd
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+                  doDebug        =  0
+                  doVerbose      =  FALSE
+                  doTrees        =  FALSE
+                  doPipe         =  FALSE
+                  EXIT(3, 'tsql.exe')
+                  argPos         =  HOST(3) - 1
+arg1              argPos         =  argPos + 1
+                  arg            =  HOST(2, argPos)                              :F(arg4)
+                  arg            '-' 't' . *assign(.doTrees, TRUE) RPOS(0)       :S(arg1)
+                  arg            '-' 'v' . *assign(.doVerbose, TRUE) RPOS(0)     :S(arg1)
+                  arg            '-' 'p' . *assign(.doPipe, TRUE) RPOS(0)        :S(arg1)
+                  arg            POS(0) '-'                                      :S(usage)F(arg1)
+arg4              chars          =  '!%&(){}*+,-./:;<=>^|~'
+                  inputFunc      =  EQ(doPipe, TRUE) .InputPipe
+                  inputFunc      =  EQ(doPipe, FALSE) .InputFile
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+main00            tBatches       =  EQ(doTrees, TRUE) tree('SQL_batches')
+main01            line           =  APPLY(inputFunc)                             :F(main99)
+                  lineno         =  lineno + 1
+main10            line           POS(0) RPOS(0)                                  :S(main01)
+                  line           POS(0) white . thx =                            :S(main50)
+                  line           POS(0) ('--' BREAK(nl)) . thx =                 :S(main50)
+                  line           POS(0) '/*' . thx =                             :S(main60)
+                  line           POS(0) "'" . thx =                              :S(main70)
+                  line           POS(0) '"' . thx =                              :S(main80)
+                  line           POS(0) $'_IDENT_' . thx =                       :S(main90)
+                  line           POS(0) $'_AT_IDENT_' . thx =                    :S(main50)
+                  line           POS(0) ('@@' $'_IDENT_') . thx =                :S(main50)
+                  line           POS(0) $'_BINARY_' . thx =                      :S(main50)
+                  line           POS(0) $'_REAL_' . thx =                        :S(main50)
+                  line           POS(0) $'_REAL_1_' . thx =                      :S(main50)
+                  line           POS(0) $'_INTEGER_' . thx =                     :S(main50)
+                  line           POS(0) $'_DQ_STRING_' . thx =                   :S(main50)
+                  line           POS(0) $'_DELIMITED_' . thx =                   :S(main50)
+                  line           POS(0) $'_MONEY_' . thx =                       :S(main50)
+                  line           POS(0) SPAN(chars) . thx =                      :S(main50)
+                  OUTPUT         =  'Read error: at line ' lineno '.'            :(END)
+main50            src            =  src thx                                      :(main10)
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+main60            src            =  src thx
+main63            line           POS(0) (BREAKX('*') '*/') . thx =               :S(main67)
+                  line           =  line APPLY(inputFunc)
+                  lineno         =  lineno + 1                                   :(main63)
+main67            src            =  src thx                                      :(main10)
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+main70            src            =  src thx
+main73            line           POS(0) (ARBNO("''" | NOTANY("'")) "'") . thx =  :S(main77)
+                  line           =  line APPLY(inputFunc)
+                  lineno         =  lineno + 1                                   :(main73)
+main77            src            =  src thx                                      :(main10)
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+main80            src            =  src thx
+main83            line           POS(0) (ARBNO('""' | NOTANY('"')) '"') . thx =  :S(main87)
+                  line           =  line APPLY(inputFunc)
+                  lineno         =  lineno + 1                                   :(main83)
+main87            src            =  src thx                                      :(main10)
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+main90            src            =  src thx
+                  LEQ(upr(thx), 'GO')                                            :F(main10)
+                  finishLine     =  lineno
+                  src            =  src nl
+main91            numLines       =  finishLine - startLine
+                  OUTPUT         =  EQ(doVerbose, TRUE)
++                                   'Parsing '
++                                   LPAD(numLines, 6)
++                                   ' @ '
++                                   (startLine + 1)
++                                   '-'
++                                   finishLine
++                                   ' ...'
+                  InitCounter()
+                  InitStack()
+                  COLLECT()
+                  src            POS(0) *SQL_batch $' ' RPOS(0)                  :F(err10)
+                  EQ(doTrees, TRUE)                                              :F(main98)
+                  tsql           =  Pop()                                        :F(err20)
+                  DIFFER(tsql)                                                   :F(err20)
+                  Append(tBatches, tsql)
+main98            src            =
+                  startLine      =  lineno                                       :(main10)
+main99            (EQ(doTrees, TRUE) TDump(tBatches))
+                  EQ(doPipe, TRUE)                                               :(main00)
+                  EQ(doPipe, FALSE)                                              :(END)
+*---------------- -------------- -- -------------------------------------------- -----------------------------
+err10             errorTree          =  (EQ(doTrees, TRUE) tree('Parse_error_between_lines:'))
+                  startTree          =  tree('start_line', (startLine + 1))
+                  finishTree         =  tree('finish_line',finishLine)
+                  Append(errorTree, startTree)
+                  Append(errorTree, finishTree)
+                  Append(tBatches, errorTree)                                    :(main98)
+err11             src            POS(0) BREAK(nl) . OUTPUT nl =                  :S(err11)F(main98)
+err20             OUTPUT         =  'Internal error!'                            :(main98)
+usage             OUTPUT         =  'usage: tsql [-t] [-v] [-b] < {input}.sql'   :(END)
+*-INCLUDE 'debug.sno'
+END
