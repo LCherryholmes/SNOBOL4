@@ -15,7 +15,7 @@
             urlReferer  =   'LonCherryholmes.BlogSpot.com'
             gpUrl       =   'https://www.googleapis.com/plus/v1/activities'
             gpResults   =   20
-            gpApiKey    =   'AIzaSyAlKb_QRZN3zEoF4SE8dGNCaZn6w6BuqPU' ;* GooglePlus
+            gpApiKey    =   'GooglePlus' ;* GooglePlus
 *---------- ----------- --- ----------------------------------------------------------------------------
             gpExpr      =  *(   'query'      '=' URLEncode(gpxQuery)
 +                           '&' 'orderBy'    '=' 'recent'
